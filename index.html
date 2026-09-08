@@ -195,31 +195,39 @@ textarea.notes::placeholder{color:var(--muted);}
 }
 .sheet.show{transform:translateY(0);}
 .grab{width:40px;height:4px;border-radius:3px;background:var(--line);margin:8px auto 14px;}
-.sheet h2{font-family:var(--serif);font-size:22px;font-weight:500;margin-bottom:4px;}
-.sheet .sub{font-size:13px;color:var(--muted);margin-bottom:16px;}
+.sheet h2{font-family:var(--serif);font-size:22px;font-weight:500;margin-bottom:14px;}
+.sheet .me-name{
+  width:100%;padding:13px 14px;border:1px solid var(--line);border-radius:13px;background:var(--card);
+  margin-bottom:10px;font-weight:500;
+}
+.sheet .me-name::placeholder{color:var(--muted);font-weight:400;}
+.desc-wrap{position:relative;}
 .sheet textarea.desc{
-  width:100%;min-height:76px;padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--card);
+  width:100%;min-height:64px;padding:13px 46px 13px 14px;border:1px solid var(--line);border-radius:13px;background:var(--card);
   resize:vertical;line-height:1.45;
 }
 .sheet textarea.desc::placeholder{color:var(--muted);}
-.photo-row{display:flex;gap:10px;margin-top:12px;}
-.photo-btn{flex:1;padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--card);
-  font-weight:500;color:var(--ink-soft);display:flex;align-items:center;justify-content:center;gap:8px;}
-.photo-thumb{margin-top:12px;border-radius:12px;overflow:hidden;border:1px solid var(--line);display:none;}
-.photo-thumb img{width:100%;display:block;max-height:180px;object-fit:cover;}
+.cam-icon{
+  position:absolute;top:9px;right:9px;width:34px;height:34px;border-radius:9px;
+  display:flex;align-items:center;justify-content:center;color:var(--muted);background:var(--paper);
+}
+.cam-icon:active{color:var(--gold-deep);}
+.photo-thumb{margin-top:10px;border-radius:12px;overflow:hidden;border:1px solid var(--line);display:none;position:relative;}
+.photo-thumb img{width:100%;display:block;max-height:170px;object-fit:cover;}
+.thumb-x{position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:50%;
+  background:rgba(26,26,26,.6);color:#fff;font-size:18px;line-height:1;}
 .estimate{
-  width:100%;margin-top:14px;padding:15px;background:var(--gold);color:var(--ink);border-radius:14px;
-  font-weight:600;font-size:15px;
+  width:100%;margin-top:11px;padding:13px;background:transparent;color:var(--gold-deep);
+  border:1px solid var(--gold);border-radius:13px;font-weight:600;font-size:14px;
 }
 .estimate:disabled{opacity:.5;}
-.macro-edit{margin-top:16px;display:none;}
-.macro-edit .me-name{width:100%;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--card);margin-bottom:10px;font-weight:500;}
-.me-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+.me-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:14px;}
 .me-cell label{display:block;font-size:11px;color:var(--muted);text-align:center;margin-bottom:4px;}
-.me-cell input{width:100%;padding:11px 4px;border:1px solid var(--line);border-radius:11px;text-align:center;
-  font-family:var(--serif);font-size:17px;font-weight:500;background:var(--card);}
-.me-hint{font-size:12px;color:var(--muted);text-align:center;margin-top:9px;}
-.sheet .add{width:100%;margin-top:16px;padding:16px;background:var(--ink);color:#fff;border-radius:14px;font-weight:600;font-size:16px;}
+.me-cell input{width:100%;padding:12px 4px;border:1px solid var(--line);border-radius:11px;text-align:center;
+  font-family:var(--serif);font-size:18px;font-weight:500;background:var(--card);}
+.me-cell input::placeholder{color:var(--line);}
+.me-hint{font-size:12px;color:var(--muted);text-align:center;margin-top:10px;min-height:15px;}
+.sheet .add{width:100%;margin-top:14px;padding:16px;background:var(--ink);color:#fff;border-radius:14px;font-weight:600;font-size:16px;}
 .sheet .add:disabled{opacity:.4;}
 .thinking{display:inline-block;width:15px;height:15px;border:2px solid rgba(26,26,26,.25);border-top-color:var(--ink);border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px;}
 @keyframes spin{to{transform:rotate(360deg);}}
@@ -374,28 +382,27 @@ textarea.notes::placeholder{color:var(--muted);}
 <div class="sheet" id="sheet">
   <div class="grab"></div>
   <h2>Log a meal</h2>
-  <div class="sub" id="sheetSub">Describe it, or add a photo. Numbers come back editable.</div>
 
-  <textarea class="desc" id="mDesc" placeholder="e.g. grilled chicken breast, half a plate of steamed broccoli, no oil"></textarea>
+  <input class="me-name" id="mName" type="text" placeholder="Meal name (optional)">
 
-  <div class="photo-row">
-    <button class="photo-btn" id="photoBtn">📷 Add photo</button>
-    <input type="file" id="photoInput" accept="image/*" capture="environment" class="hidden">
+  <div class="desc-wrap">
+    <textarea class="desc" id="mDesc" placeholder="Describe it for AI, or just enter the macros below"></textarea>
+    <button class="cam-icon" id="photoBtn" aria-label="Add photo">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+    </button>
+    <input type="file" id="photoInput" accept="image/*" class="hidden">
   </div>
-  <div class="photo-thumb" id="photoThumb"><img id="photoImg" alt=""></div>
+  <div class="photo-thumb" id="photoThumb"><img id="photoImg" alt=""><button class="thumb-x" id="photoRemove">×</button></div>
 
-  <button class="estimate" id="estimateBtn">Estimate macros</button>
+  <button class="estimate" id="estimateBtn">✦ Estimate with AI</button>
 
-  <div class="macro-edit" id="macroEdit">
-    <input class="me-name" id="mName" type="text" placeholder="Meal name">
-    <div class="me-grid">
-      <div class="me-cell"><label>kcal</label><input id="mKcal" type="number" inputmode="numeric"></div>
-      <div class="me-cell"><label>protein</label><input id="mProtein" type="number" inputmode="numeric"></div>
-      <div class="me-cell"><label>fat</label><input id="mFat" type="number" inputmode="numeric"></div>
-      <div class="me-cell"><label>carbs</label><input id="mCarbs" type="number" inputmode="numeric"></div>
-    </div>
-    <div class="me-hint" id="meHint">Check the numbers and adjust before adding.</div>
+  <div class="me-grid">
+    <div class="me-cell"><label>kcal</label><input id="mKcal" type="number" inputmode="numeric" placeholder="0"></div>
+    <div class="me-cell"><label>protein</label><input id="mProtein" type="number" inputmode="numeric" placeholder="0"></div>
+    <div class="me-cell"><label>fat</label><input id="mFat" type="number" inputmode="numeric" placeholder="0"></div>
+    <div class="me-cell"><label>carbs</label><input id="mCarbs" type="number" inputmode="numeric" placeholder="0"></div>
   </div>
+  <div class="me-hint" id="meHint"></div>
 
   <button class="add" id="addMeal" disabled>Add to day</button>
 </div>
@@ -519,7 +526,7 @@ function totals(){
 /* ---- render ---- */
 function render(){
   const ph=phaseFor(currentDay);
-  document.getElementById('whoName').textContent=profile.name;
+  document.getElementById('whoName').textContent=profile.name+' · '+PID;
   document.getElementById('dNum').textContent='Day '+currentDay;
   document.getElementById('dPhase').innerHTML=
     `<span class="phase-dot" style="background:${ph.color}"></span>${ph.name}`;
@@ -672,9 +679,10 @@ function wire(){
   document.getElementById('scrim').onclick=closeSheet;
   document.getElementById('photoBtn').onclick=()=>document.getElementById('photoInput').click();
   document.getElementById('photoInput').onchange=onPhoto;
+  document.getElementById('photoRemove').onclick=removePhoto;
   document.getElementById('estimateBtn').onclick=estimate;
   document.getElementById('addMeal').onclick=commitMeal;
-  ['mKcal','mProtein','mFat','mCarbs','mName'].forEach(id=>{
+  ['mKcal','mProtein','mFat','mCarbs'].forEach(id=>{
     document.getElementById(id).oninput=validateMeal;
   });
 }
@@ -691,17 +699,18 @@ function addExercise(){
 }
 
 /* ---- meal sheet flow ---- */
-function openSheet(){
-  pendingMeal=null;photoData=null;
-  document.getElementById('mDesc').value='';
+function clearSheet(){
+  photoData=null;
+  ['mName','mDesc','mKcal','mProtein','mFat','mCarbs'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('photoThumb').style.display='none';
-  document.getElementById('macroEdit').style.display='none';
-  document.getElementById('addMeal').disabled=true;
+  document.getElementById('meHint').textContent='';
+}
+function openSheet(){
+  clearSheet();
   const est=document.getElementById('estimateBtn');
-  est.disabled=false;est.textContent=BACKEND_URL?'Estimate macros':'Enter macros';
-  document.getElementById('sheetSub').textContent=
-    BACKEND_URL?'Describe it, or add a photo. Numbers come back editable.'
-               :'Local mode: enter macros yourself. AI estimate turns on once the backend is connected.';
+  est.classList.toggle('hidden',!BACKEND_URL);   // no AI button in local mode
+  est.disabled=false;est.innerHTML='✦ Estimate with AI';
+  validateMeal();
   document.getElementById('scrim').classList.add('show');
   document.getElementById('sheet').classList.add('show');
 }
@@ -719,33 +728,31 @@ function onPhoto(e){
   };
   r.readAsDataURL(f);
 }
-function showMacroEdit(vals){
-  document.getElementById('mName').value=vals.name||'';
-  document.getElementById('mKcal').value=vals.kcal??'';
-  document.getElementById('mProtein').value=vals.protein??'';
-  document.getElementById('mFat').value=vals.fat??'';
-  document.getElementById('mCarbs').value=vals.carbs??'';
-  document.getElementById('macroEdit').style.display='block';
+function removePhoto(){
+  photoData=null;
+  document.getElementById('photoInput').value='';
+  document.getElementById('photoThumb').style.display='none';
+}
+function fillMacros(v){
+  if(v.name && !document.getElementById('mName').value.trim())
+    document.getElementById('mName').value=v.name;
+  document.getElementById('mKcal').value=v.kcal??'';
+  document.getElementById('mProtein').value=v.protein??'';
+  document.getElementById('mFat').value=v.fat??'';
+  document.getElementById('mCarbs').value=v.carbs??'';
   validateMeal();
 }
 function validateMeal(){
-  const ok=document.getElementById('mName').value.trim() &&
-           document.getElementById('mKcal').value!=='';
+  // add enabled as soon as kcal has a value; name auto-fills if blank
+  const ok=document.getElementById('mKcal').value!=='';
   document.getElementById('addMeal').disabled=!ok;
 }
 async function estimate(){
   const desc=document.getElementById('mDesc').value.trim();
   if(!desc && !photoData){ document.getElementById('mDesc').focus(); return; }
-
-  if(!BACKEND_URL){
-    // local mode: derive a name, open blank macros for manual entry
-    showMacroEdit({name:desc?desc.slice(0,40):'Meal',kcal:'',protein:'',fat:'',carbs:''});
-    document.getElementById('meHint').textContent='Enter the macros for this meal, then add.';
-    return;
-  }
-
   const btn=document.getElementById('estimateBtn');
-  btn.disabled=true;btn.innerHTML='<span class="thinking"></span> Estimating…';
+  btn.disabled=true;btn.innerHTML='<span class="thinking"></span> AI is analyzing your meal…';
+  document.getElementById('meHint').textContent='';
   try{
     const res=await fetch(BACKEND_URL,{
       method:'POST',
@@ -753,23 +760,20 @@ async function estimate(){
       body:JSON.stringify({action:'estimate',description:desc,image:photoData||null})
     });
     const data=await res.json();
-    showMacroEdit({
-      name:data.name||desc.slice(0,40)||'Meal',
-      kcal:data.kcal,protein:data.protein,fat:data.fat,carbs:data.carbs
-    });
-    document.getElementById('meHint').textContent='Estimate — check and adjust before adding.';
+    if(data.error){ throw new Error(data.error); }
+    fillMacros({name:data.name,kcal:data.kcal,protein:data.protein,fat:data.fat,carbs:data.carbs});
+    document.getElementById('meHint').textContent='AI estimate — check and adjust before adding.';
   }catch(err){
-    showMacroEdit({name:desc?desc.slice(0,40):'Meal',kcal:'',protein:'',fat:'',carbs:''});
-    document.getElementById('meHint').textContent='Could not reach estimator. Enter macros manually.';
+    document.getElementById('meHint').textContent='Could not reach the estimator. Enter the macros yourself.';
   }finally{
-    btn.disabled=false;btn.textContent=BACKEND_URL?'Estimate macros':'Enter macros';
+    btn.disabled=false;btn.innerHTML='✦ Estimate with AI';
   }
 }
 function commitMeal(){
-  const now=new Date();
-  const time=now.toTimeString().slice(0,5);
+  const name=document.getElementById('mName').value.trim() || ('Meal '+(day.meals.length+1));
+  const time=new Date().toTimeString().slice(0,5);
   day.meals.push({
-    name:document.getElementById('mName').value.trim(),
+    name,
     kcal:+document.getElementById('mKcal').value||0,
     protein:+document.getElementById('mProtein').value||0,
     fat:+document.getElementById('mFat').value||0,

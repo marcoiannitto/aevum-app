@@ -177,7 +177,41 @@ textarea.notes::placeholder{color:var(--muted);}
 .nav button .ic{display:flex;}
 .nav button.on{color:var(--gold-deep);}
 
-/* ===== MEAL SHEET ===== */
+/* ===== RECIPES ===== */
+.rc-search{width:100%;padding:13px 14px;border:1px solid var(--line);border-radius:13px;background:var(--card);margin-bottom:12px;}
+.rc-search::placeholder{color:var(--muted);}
+.rc-filters{display:flex;gap:8px;overflow-x:auto;padding-bottom:12px;-webkit-overflow-scrolling:touch;}
+.rc-filters::-webkit-scrollbar{display:none;}
+.rc-chip{flex-shrink:0;padding:8px 14px;border:1px solid var(--line);border-radius:20px;background:var(--card);font-size:13px;color:var(--ink-soft);white-space:nowrap;}
+.rc-chip.on{background:var(--ink);border-color:var(--ink);color:#fff;}
+.rc-card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:10px;display:flex;align-items:center;gap:12px;}
+.rc-card .rc-body{flex:1;min-width:0;}
+.rc-card .rc-name{font-size:15px;font-weight:500;margin-bottom:3px;}
+.rc-card .rc-meta{font-size:13px;color:var(--muted);}
+.rc-card .rc-macros{font-size:13px;color:var(--ink-soft);margin-top:4px;}
+.rc-card .rc-macros b{font-family:var(--serif);font-weight:500;}
+.rc-card .rc-macros .sep{color:var(--line);margin:0 5px;}
+.rc-fav{flex-shrink:0;font-size:22px;line-height:1;color:var(--line);padding:4px;}
+.rc-fav.on{color:var(--gold);}
+.rc-empty{text-align:center;color:var(--muted);font-size:14px;padding:26px 10px;border:1px dashed var(--line);border-radius:16px;}
+.rc-sec{font-size:12px;color:var(--muted);letter-spacing:.04em;text-transform:uppercase;margin:6px 2px 8px;}
+/* recipe detail */
+.rc-detail h2{font-family:var(--serif);font-size:23px;font-weight:500;margin-bottom:4px;}
+.rc-detail .rc-d-meta{font-size:13px;color:var(--muted);margin-bottom:14px;}
+.rc-detail .rc-d-macros{display:flex;gap:8px;margin-bottom:18px;}
+.rc-detail .rc-d-macros .m{flex:1;text-align:center;border:1px solid var(--line);border-radius:12px;padding:10px 4px;}
+.rc-detail .rc-d-macros .m .v{font-family:var(--serif);font-size:19px;font-weight:500;}
+.rc-detail .rc-d-macros .m .l{font-size:10px;color:var(--muted);text-transform:uppercase;margin-top:2px;}
+.rc-detail .rc-d-title{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:16px 0 8px;}
+.rc-detail ul{list-style:none;}
+.rc-detail .ing li{padding:7px 0;border-bottom:1px solid var(--line-soft);font-size:15px;}
+.rc-detail .stp li{padding:10px 0 10px 30px;position:relative;font-size:15px;line-height:1.5;counter-increment:s;}
+.rc-detail .stp li::before{content:counter(s);position:absolute;left:0;top:9px;width:22px;height:22px;background:var(--ink);color:#fff;border-radius:50%;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;font-family:var(--sans);}
+.rc-detail .stp{counter-reset:s;}
+.rc-detail .rc-add{width:100%;margin-top:20px;padding:16px;background:var(--ink);color:#fff;border-radius:14px;font-weight:600;font-size:16px;}
+.rc-detail .rc-added{background:var(--gold);color:var(--ink);}
+
+
 .scrim{position:fixed;inset:0;background:rgba(26,26,26,.42);z-index:40;opacity:0;pointer-events:none;transition:opacity .25s;}
 .scrim.show{opacity:1;pointer-events:auto;}
 .sheet{position:fixed;left:0;right:0;bottom:0;z-index:50;background:var(--paper);border-radius:24px 24px 0 0;padding:8px 20px calc(env(safe-area-inset-bottom) + 22px);transform:translateY(100%);transition:transform .3s cubic-bezier(.22,.61,.36,1);max-height:94vh;overflow-y:auto;}
@@ -361,6 +395,14 @@ textarea.notes::placeholder{color:var(--muted);}
     <button class="export" id="exportBtn">Export CSV (backup)</button>
   </div>
 
+  <!-- ============ RECIPES ============ -->
+  <div class="tabpage" id="tab-recipes">
+    <div class="tr-head">Recipes</div>
+    <input class="rc-search" id="rcSearch" type="text" placeholder="Search by name or protein…">
+    <div class="rc-filters" id="rcCuisines"></div>
+    <div id="rcList"></div>
+  </div>
+
 </div>
 
 <!-- BOTTOM NAV -->
@@ -376,6 +418,10 @@ textarea.notes::placeholder{color:var(--muted);}
   <button data-tab="trends">
     <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5M4 19h16"/><path d="M7 15l4-5 3 3 4-6"/></svg></span>
     Trends
+  </button>
+  <button data-tab="recipes">
+    <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h11a2 2 0 0 1 2 2v16l-4-2-4 2-3-1.5V3z"/><path d="M9 7h6M9 11h6"/></svg></span>
+    Recipes
   </button>
 </div>
 
@@ -408,6 +454,13 @@ textarea.notes::placeholder{color:var(--muted);}
   </div>
   <div class="me-hint" id="meHint"></div>
   <button class="add" id="addMeal" disabled>Add to day</button>
+</div>
+
+<!-- RECIPE SHEET -->
+<div class="scrim" id="rcScrim"></div>
+<div class="sheet" id="rcSheet">
+  <div class="grab"></div>
+  <div class="rc-detail" id="rcDetail"></div>
 </div>
 
 <script>
@@ -560,8 +613,9 @@ function switchTab(name){
   document.querySelectorAll('.tabpage').forEach(p=>p.classList.remove('active'));
   g('tab-'+name).classList.add('active');
   document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('on',b.dataset.tab===name));
-  g('daybar').style.display = (name==='trends')?'none':'flex';
+  g('daybar').style.display = (name==='trends'||name==='recipes')?'none':'flex';
   if(name==='trends')renderTrends();
+  if(name==='recipes')loadRecipes();
   scrollTo(0,0);
 }
 
@@ -677,7 +731,93 @@ function exportCSV(){
 function g(id){return document.getElementById(id);}
 function esc(s){return(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 
-/* ---- wire ---- */
+/* ---- recipes ---- */
+let RECIPES=[], rcFilter={q:'',cuisine:'all'}, rcLoaded=false;
+function favs(){try{return JSON.parse(localStorage.getItem(K('favs'))||'[]');}catch(e){return[];}}
+function toggleFav(name){let f=favs();f.includes(name)?f=f.filter(x=>x!==name):f.push(name);localStorage.setItem(K('favs'),JSON.stringify(f));renderRecipeList();}
+async function loadRecipes(){
+  if(rcLoaded)return;
+  const list=g('rcList');
+  if(!BACKEND_URL){list.innerHTML='<div class="rc-empty">Recipes load once the backend is connected.</div>';return;}
+  list.innerHTML='<div class="rc-empty"><span class="thinking"></span> Loading recipes…</div>';
+  try{
+    // try cache first
+    const cached=localStorage.getItem('aevum_recipes_cache');
+    if(cached){RECIPES=JSON.parse(cached);rcLoaded=true;buildCuisineChips();renderRecipeList();}
+    const res=await fetch(BACKEND_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'recipes'})});
+    const data=await res.json();
+    RECIPES=data.recipes||[];rcLoaded=true;
+    localStorage.setItem('aevum_recipes_cache',JSON.stringify(RECIPES));
+    buildCuisineChips();renderRecipeList();
+  }catch(err){
+    if(!RECIPES.length)list.innerHTML='<div class="rc-empty">Could not load recipes. Check connection.</div>';
+  }
+}
+function buildCuisineChips(){
+  const cuisines=['all',...[...new Set(RECIPES.map(r=>r.cuisine).filter(Boolean))].sort()];
+  const wrap=g('rcCuisines');wrap.innerHTML='';
+  cuisines.forEach(c=>{
+    const b=document.createElement('button');
+    b.className='rc-chip'+(rcFilter.cuisine===c?' on':'');
+    b.textContent=c==='all'?'All':c;
+    b.onclick=()=>{rcFilter.cuisine=c;buildCuisineChips();renderRecipeList();};
+    wrap.appendChild(b);
+  });
+}
+function renderRecipeList(){
+  const list=g('rcList'),f=favs();
+  let items=RECIPES.filter(r=>{
+    const q=rcFilter.q.toLowerCase();
+    const matchQ=!q||r.name.toLowerCase().includes(q)||(r.protein||'').toLowerCase().includes(q);
+    const matchC=rcFilter.cuisine==='all'||r.cuisine===rcFilter.cuisine;
+    return matchQ&&matchC;
+  });
+  // favourites first
+  items.sort((a,b)=>(f.includes(b.name)?1:0)-(f.includes(a.name)?1:0));
+  if(!items.length){list.innerHTML='<div class="rc-empty">No recipes match.</div>';return;}
+  list.innerHTML='';
+  items.forEach(r=>{
+    const isFav=f.includes(r.name);
+    const card=document.createElement('div');card.className='rc-card';
+    card.innerHTML=`
+      <div class="rc-body">
+        <div class="rc-name">${esc(r.name)}</div>
+        <div class="rc-meta">${esc(r.protein||'')}${r.cuisine?' · '+esc(r.cuisine):''}</div>
+        <div class="rc-macros"><b>${r.kcal}</b> kcal<span class="sep">·</span>${r.protein_g}P<span class="sep">·</span>${r.fat_g}F<span class="sep">·</span>${r.carbs_g}C</div>
+      </div>
+      <button class="rc-fav ${isFav?'on':''}" data-fav="${esc(r.name)}">${isFav?'★':'☆'}</button>`;
+    card.querySelector('.rc-body').onclick=()=>openRecipe(r);
+    card.querySelector('.rc-fav').onclick=e=>{e.stopPropagation();toggleFav(r.name);};
+    list.appendChild(card);
+  });
+}
+function openRecipe(r){
+  const f=favs(),isFav=f.includes(r.name);
+  g('rcDetail').innerHTML=`
+    <h2>${esc(r.name)}</h2>
+    <div class="rc-d-meta">${esc(r.protein||'')}${r.cuisine?' · '+esc(r.cuisine):''}</div>
+    <div class="rc-d-macros">
+      <div class="m"><div class="v">${r.kcal}</div><div class="l">kcal</div></div>
+      <div class="m"><div class="v">${r.protein_g}</div><div class="l">protein</div></div>
+      <div class="m"><div class="v">${r.fat_g}</div><div class="l">fat</div></div>
+      <div class="m"><div class="v">${r.carbs_g}</div><div class="l">carbs</div></div>
+    </div>
+    <div class="rc-d-title">Ingredients</div>
+    <ul class="ing">${r.ingredients.map(i=>`<li>${esc(i)}</li>`).join('')}</ul>
+    <div class="rc-d-title">Method</div>
+    <ul class="stp">${r.steps.map(s=>`<li>${esc(s)}</li>`).join('')}</ul>
+    <button class="rc-add" id="rcAddBtn">Add to today\u2019s log</button>`;
+  g('rcScrim').classList.add('show');g('rcSheet').classList.add('show');
+  g('rcAddBtn').onclick=()=>{
+    day.meals.push({name:r.name,kcal:r.kcal,protein:r.protein_g,fat:r.fat_g,carbs:r.carbs_g,time:new Date().toTimeString().slice(0,5)});
+    saveDay(true);render();
+    const b=g('rcAddBtn');b.textContent='✓ Added';b.classList.add('rc-added');
+    setTimeout(closeRecipe,700);
+  };
+}
+function closeRecipe(){g('rcScrim').classList.remove('show');g('rcSheet').classList.remove('show');}
+
+
 function wire(){
   g('prevDay').onclick=()=>{saveDay(true);currentDay=Math.max(1,currentDay-1);loadDay();scrollTo(0,0);};
   g('nextDay').onclick=()=>{saveDay(true);currentDay=Math.min(TOTAL_DAYS,currentDay+1);loadDay();scrollTo(0,0);};
@@ -698,6 +838,8 @@ function wire(){
   g('estimateBtn').onclick=estimate;g('addMeal').onclick=commitMeal;
   ['mKcal','mProtein','mFat','mCarbs'].forEach(id=>g(id).oninput=validateMeal);
   document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
+  g('rcSearch').oninput=e=>{rcFilter.q=e.target.value;renderRecipeList();};
+  g('rcScrim').onclick=closeRecipe;
 }
 function boot(){
   g('top').classList.remove('hidden');g('scrollArea').classList.remove('hidden');g('nav').classList.remove('hidden');

@@ -191,6 +191,10 @@ textarea.notes::placeholder{color:var(--muted);}
 .sheet textarea.desc::placeholder{color:var(--muted);}
 .cam-icon{position:absolute;top:9px;right:9px;width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;color:var(--muted);background:var(--paper);}
 .cam-icon:active{color:var(--gold-deep);}
+.photo-choice{display:none;margin-top:10px;flex-direction:column;gap:8px;border:1px solid var(--line);border-radius:14px;padding:10px;background:var(--card);}
+.photo-choice.show{display:flex;}
+.photo-choice button{padding:14px;border-radius:11px;font-size:15px;font-weight:500;background:var(--paper);border:1px solid var(--line);color:var(--ink);}
+.photo-choice .pc-cancel{background:transparent;border:none;color:var(--muted);font-weight:400;padding:8px;}
 .photo-thumb{margin-top:10px;border-radius:12px;overflow:hidden;border:1px solid var(--line);display:none;position:relative;}
 .photo-thumb img{width:100%;display:block;max-height:170px;object-fit:cover;}
 .thumb-x{position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:50%;background:rgba(26,26,26,.6);color:#fff;font-size:18px;line-height:1;}
@@ -386,7 +390,13 @@ textarea.notes::placeholder{color:var(--muted);}
     <button class="cam-icon" id="photoBtn" aria-label="Add photo">
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
     </button>
-    <input type="file" id="photoInput" accept="image/*" class="hidden">
+    <input type="file" id="photoCam" accept="image/*" capture="environment" class="hidden">
+    <input type="file" id="photoGallery" accept="image/*" class="hidden">
+  </div>
+  <div class="photo-choice" id="photoChoice">
+    <button id="chooseCam">Take Photo</button>
+    <button id="chooseGallery">Choose from Gallery</button>
+    <button id="chooseCancel" class="pc-cancel">Cancel</button>
   </div>
   <div class="photo-thumb" id="photoThumb"><img id="photoImg" alt=""><button class="thumb-x" id="photoRemove">×</button></div>
   <button class="estimate" id="estimateBtn"><span>✦</span> Estimate with AI</button>
@@ -498,9 +508,9 @@ function renderGates(ph,t){
     el.innerHTML=`<div class="g-top"><span class="g-name">${name}</span><span class="g-val num">${val}${gated?`<em> /${limit}g</em>`:'<em>g</em>'}</span></div>${gated?`<div class="g-bar"><span style="width:${pct}%"></span></div>`:''}`;
     return el;
   };
+  wrap.appendChild(make('Protein',t.protein,0,false));
   wrap.appendChild(make('Fat',t.fat,FAT_LIMIT,cfg.fat));
   wrap.appendChild(make('Carbs',t.carbs,CARB_LIMIT,cfg.carb));
-  wrap.appendChild(make('Protein',t.protein,0,false));
 }
 function renderTimeline(){
   const tl=g('timeline');
@@ -604,11 +614,11 @@ function renderTrends(){
 }
 
 /* ---- meal sheet ---- */
-function clearSheet(){photoData=null;['mName','mDesc','mKcal','mProtein','mFat','mCarbs'].forEach(id=>g(id).value='');g('photoThumb').style.display='none';g('meHint').textContent='';}
+function clearSheet(){photoData=null;['mName','mDesc','mKcal','mProtein','mFat','mCarbs'].forEach(id=>g(id).value='');g('photoThumb').style.display='none';g('meHint').textContent='';g('photoChoice').classList.remove('show');g('photoCam').value='';g('photoGallery').value='';}
 function openSheet(){clearSheet();const e=g('estimateBtn');e.classList.toggle('hidden',!BACKEND_URL);e.disabled=false;e.innerHTML='<span>✦</span> Estimate with AI';validateMeal();g('scrim').classList.add('show');g('sheet').classList.add('show');}
 function closeSheet(){g('scrim').classList.remove('show');g('sheet').classList.remove('show');}
-function onPhoto(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{photoData=r.result;g('photoImg').src=photoData;g('photoThumb').style.display='block';};r.readAsDataURL(f);}
-function removePhoto(){photoData=null;g('photoInput').value='';g('photoThumb').style.display='none';}
+function onPhoto(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{photoData=r.result;g('photoImg').src=photoData;g('photoThumb').style.display='block';g('photoChoice').classList.remove('show');};r.readAsDataURL(f);}
+function removePhoto(){photoData=null;g('photoCam').value='';g('photoGallery').value='';g('photoThumb').style.display='none';}
 function fillMacros(v){if(v.name&&!g('mName').value.trim())g('mName').value=v.name;g('mKcal').value=v.kcal??'';g('mProtein').value=v.protein??'';g('mFat').value=v.fat??'';g('mCarbs').value=v.carbs??'';validateMeal();}
 function validateMeal(){g('addMeal').disabled=g('mKcal').value==='';}
 async function estimate(){
@@ -680,7 +690,11 @@ function wire(){
   g('waterMinus').onclick=()=>{day.water=Math.max(0,day.water-1);saveDay(true);renderWater();};
   g('addEx').onclick=addExercise;g('exportBtn').onclick=exportCSV;
   g('openSheet').onclick=openSheet;g('scrim').onclick=closeSheet;
-  g('photoBtn').onclick=()=>g('photoInput').click();g('photoInput').onchange=onPhoto;g('photoRemove').onclick=removePhoto;
+  g('photoBtn').onclick=()=>g('photoChoice').classList.toggle('show');
+  g('chooseCam').onclick=()=>{g('photoChoice').classList.remove('show');g('photoCam').click();};
+  g('chooseGallery').onclick=()=>{g('photoChoice').classList.remove('show');g('photoGallery').click();};
+  g('chooseCancel').onclick=()=>g('photoChoice').classList.remove('show');
+  g('photoCam').onchange=onPhoto;g('photoGallery').onchange=onPhoto;g('photoRemove').onclick=removePhoto;
   g('estimateBtn').onclick=estimate;g('addMeal').onclick=commitMeal;
   ['mKcal','mProtein','mFat','mCarbs'].forEach(id=>g(id).oninput=validateMeal);
   document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));

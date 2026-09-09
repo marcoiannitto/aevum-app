@@ -178,6 +178,7 @@ textarea.notes::placeholder{color:var(--muted);}
 .nav button.on{color:var(--gold-deep);}
 
 /* ===== RECIPES ===== */
+.sheet-close{position:absolute;top:14px;right:16px;width:34px;height:34px;border-radius:50%;background:var(--line-soft);color:var(--ink-soft);font-size:22px;line-height:1;display:flex;align-items:center;justify-content:center;z-index:2;}
 .rc-search{width:100%;padding:13px 14px;border:1px solid var(--line);border-radius:13px;background:var(--card);margin-bottom:12px;}
 .rc-search::placeholder{color:var(--muted);}
 .rc-filters{display:flex;gap:8px;overflow-x:auto;padding-bottom:12px;-webkit-overflow-scrolling:touch;}
@@ -460,6 +461,7 @@ textarea.notes::placeholder{color:var(--muted);}
 <div class="scrim" id="rcScrim"></div>
 <div class="sheet" id="rcSheet">
   <div class="grab"></div>
+  <button class="sheet-close" id="rcClose" aria-label="Close">×</button>
   <div class="rc-detail" id="rcDetail"></div>
 </div>
 
@@ -669,8 +671,12 @@ function renderTrends(){
 
 /* ---- meal sheet ---- */
 function clearSheet(){photoData=null;['mName','mDesc','mKcal','mProtein','mFat','mCarbs'].forEach(id=>g(id).value='');g('photoThumb').style.display='none';g('meHint').textContent='';g('photoChoice').classList.remove('show');g('photoCam').value='';g('photoGallery').value='';}
-function openSheet(){clearSheet();const e=g('estimateBtn');e.classList.toggle('hidden',!BACKEND_URL);e.disabled=false;e.innerHTML='<span>✦</span> Estimate with AI';validateMeal();g('scrim').classList.add('show');g('sheet').classList.add('show');}
-function closeSheet(){g('scrim').classList.remove('show');g('sheet').classList.remove('show');}
+function openSheet(){clearSheet();const e=g('estimateBtn');e.classList.toggle('hidden',!BACKEND_URL);e.disabled=false;e.innerHTML='<span>✦</span> Estimate with AI';validateMeal();g('scrim').classList.add('show');g('sheet').classList.add('show');history.pushState({sheet:'meal'},'');}
+function closeSheet(){
+  if(!g('sheet').classList.contains('show'))return;
+  if(history.state&&history.state.sheet){history.back();}
+  else{g('scrim').classList.remove('show');g('sheet').classList.remove('show');}
+}
 function onPhoto(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{photoData=r.result;g('photoImg').src=photoData;g('photoThumb').style.display='block';g('photoChoice').classList.remove('show');};r.readAsDataURL(f);}
 function removePhoto(){photoData=null;g('photoCam').value='';g('photoGallery').value='';g('photoThumb').style.display='none';}
 function fillMacros(v){if(v.name&&!g('mName').value.trim())g('mName').value=v.name;g('mKcal').value=v.kcal??'';g('mProtein').value=v.protein??'';g('mFat').value=v.fat??'';g('mCarbs').value=v.carbs??'';validateMeal();}
@@ -808,6 +814,7 @@ function openRecipe(r){
     <ul class="stp">${r.steps.map(s=>`<li>${esc(s)}</li>`).join('')}</ul>
     <button class="rc-add" id="rcAddBtn">Add to today\u2019s log</button>`;
   g('rcScrim').classList.add('show');g('rcSheet').classList.add('show');
+  history.pushState({sheet:'recipe'},'');
   g('rcAddBtn').onclick=()=>{
     day.meals.push({name:r.name,kcal:r.kcal,protein:r.protein_g,fat:r.fat_g,carbs:r.carbs_g,time:new Date().toTimeString().slice(0,5)});
     saveDay(true);render();
@@ -815,7 +822,11 @@ function openRecipe(r){
     setTimeout(closeRecipe,700);
   };
 }
-function closeRecipe(){g('rcScrim').classList.remove('show');g('rcSheet').classList.remove('show');}
+function closeRecipe(){
+  if(!g('rcSheet').classList.contains('show'))return;
+  if(history.state&&history.state.sheet){history.back();}
+  else{g('rcScrim').classList.remove('show');g('rcSheet').classList.remove('show');}
+}
 
 
 function wire(){
@@ -840,12 +851,20 @@ function wire(){
   document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
   g('rcSearch').oninput=e=>{rcFilter.q=e.target.value;renderRecipeList();};
   g('rcScrim').onclick=closeRecipe;
+  g('rcClose').onclick=closeRecipe;
 }
 function boot(){
   g('top').classList.remove('hidden');g('scrollArea').classList.remove('hidden');g('nav').classList.remove('hidden');
   wire();currentDay=+(localStorage.getItem(K('lastDay'))||1);loadDay();
 }
 window.addEventListener('beforeunload',()=>{if(profile)saveDay(true);});
+window.addEventListener('popstate',()=>{
+  // back button closes any open sheet instead of leaving the page
+  const mealOpen=g('sheet').classList.contains('show');
+  const rcOpen=g('rcSheet').classList.contains('show');
+  if(mealOpen){g('scrim').classList.remove('show');g('sheet').classList.remove('show');}
+  if(rcOpen){g('rcScrim').classList.remove('show');g('rcSheet').classList.remove('show');}
+});
 loadProfile();
 if(profile){g('onboard').classList.add('hidden');boot();}else{initOnboard();}
 </script>

@@ -616,7 +616,7 @@ function fastingSuffix(ph){
   }
   const nextOpen=new Date(lastTs.getTime()+FAST_H*3600*1000);
   if(now>=nextOpen){
-    return ` <span class="fast-tag eating">Window open</span>`;
+    return ` <span class="fast-tag eating">You can eat now</span>`;
   }
   return ` <span class="fast-tag fasting">Fasting till ${fmt(nextOpen)}</span>`;
 }

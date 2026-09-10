@@ -179,7 +179,28 @@ textarea.notes::placeholder{color:var(--muted);}
 .nav button .ic{display:flex;}
 .nav button.on{color:var(--gold-deep);}
 
-/* ===== RECIPES ===== */
+/* ===== FOOD CHECK ===== */
+.fc-open{font-size:13px;color:var(--gold-deep);font-weight:600;border:1px solid var(--gold);border-radius:20px;padding:5px 13px;background:transparent;}
+.fc-rule{font-size:13px;color:var(--muted);font-style:italic;margin-bottom:16px;line-height:1.45;}
+.fc-searchrow{display:flex;gap:8px;}
+.fc-input{flex:1;padding:13px 14px;border:1px solid var(--line);border-radius:13px;background:var(--card);}
+.fc-input::placeholder{color:var(--muted);}
+.fc-btn{padding:0 20px;border-radius:13px;background:var(--ink);color:#fff;font-weight:600;}
+.fc-btn:disabled{opacity:.5;}
+.fc-result{margin-top:16px;min-height:20px;}
+.fc-card{border-radius:16px;padding:16px;display:flex;gap:14px;align-items:flex-start;}
+.fc-card.eat{background:#eef4ec;border:1px solid #cfe0c9;}
+.fc-card.caution{background:var(--warn-bg);border:1px solid #eBD9A8;}
+.fc-card.avoid{background:var(--over-bg);border:1px solid #e9c9c1;}
+.fc-icon{font-size:24px;line-height:1;flex-shrink:0;}
+.fc-card.eat .fc-icon{color:#3f7a4a;}
+.fc-card.caution .fc-icon{color:var(--warn);}
+.fc-card.avoid .fc-icon{color:var(--over);}
+.fc-verdict{font-weight:600;font-size:16px;margin-bottom:3px;text-transform:capitalize;}
+.fc-reason{font-size:14px;color:var(--ink-soft);}
+.fc-portion{font-size:14px;color:var(--ink);margin-top:6px;font-weight:500;}
+
+
 .sheet-close{position:absolute;top:14px;right:16px;width:34px;height:34px;border-radius:50%;background:var(--line-soft);color:var(--ink-soft);font-size:22px;line-height:1;display:flex;align-items:center;justify-content:center;z-index:2;}
 .rc-search{width:100%;padding:13px 14px;border:1px solid var(--line);border-radius:13px;background:var(--card);margin-bottom:12px;}
 .rc-search::placeholder{color:var(--muted);}
@@ -281,7 +302,7 @@ textarea.notes::placeholder{color:var(--muted);}
 
 <!-- TOP BAR -->
 <div class="topbar hidden" id="top">
-  <div class="line1"><span class="who" id="whoName"></span><span class="mark">AEVUM</span></div>
+  <div class="line1"><span class="who" id="whoName"></span><button class="fc-open" id="fcOpen" aria-label="Can I eat this?">Can I eat…?</button></div>
   <div class="daybar" id="daybar">
     <button class="arrow" id="prevDay">‹</button>
     <div class="center"><div class="dnum" id="dNum">Day 1</div><div class="phase" id="dPhase"></div></div>
@@ -465,6 +486,20 @@ textarea.notes::placeholder{color:var(--muted);}
   <div class="grab"></div>
   <button class="sheet-close" id="rcClose" aria-label="Close">×</button>
   <div class="rc-detail" id="rcDetail"></div>
+</div>
+
+<!-- FOOD CHECK SHEET -->
+<div class="scrim" id="fcScrim"></div>
+<div class="sheet" id="fcSheet">
+  <div class="grab"></div>
+  <button class="sheet-close" id="fcClose" aria-label="Close">×</button>
+  <h2>Can I eat this?</h2>
+  <div class="fc-rule">Grilled protein + vegetables. Nothing white. No oil, no sauce.</div>
+  <div class="fc-searchrow">
+    <input class="fc-input" id="fcInput" type="text" placeholder="Type a food…" autocomplete="off">
+    <button class="fc-btn" id="fcCheck">Check</button>
+  </div>
+  <div class="fc-result" id="fcResult"></div>
 </div>
 
 <script>
@@ -767,7 +802,40 @@ function exportCSV(){
 function g(id){return document.getElementById(id);}
 function esc(s){return(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 
-/* ---- recipes ---- */
+/* ---- food check ---- */
+function openFoodCheck(){
+  g('fcInput').value='';g('fcResult').innerHTML='';
+  g('fcScrim').classList.add('show');g('fcSheet').classList.add('show');
+  history.pushState({sheet:'fc'},'');
+  setTimeout(()=>g('fcInput').focus(),300);
+}
+function closeFoodCheck(){
+  if(!g('fcSheet').classList.contains('show'))return;
+  if(history.state&&history.state.sheet){history.back();}
+  else{g('fcScrim').classList.remove('show');g('fcSheet').classList.remove('show');}
+}
+async function doFoodCheck(){
+  const food=g('fcInput').value.trim();
+  if(!food)return;
+  if(!BACKEND_URL){g('fcResult').innerHTML='<div class="fc-reason">Connect the backend to use this.</div>';return;}
+  const btn=g('fcCheck');btn.disabled=true;
+  g('fcResult').innerHTML='<div class="fc-reason"><span class="thinking"></span> Checking…</div>';
+  try{
+    const res=await fetch(BACKEND_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'foodcheck',food})});
+    const d=await res.json();
+    if(d.error)throw new Error(d.error);
+    const icon=d.verdict==='eat'?'✓':d.verdict==='avoid'?'✕':'!';
+    g('fcResult').innerHTML=`<div class="fc-card ${esc(d.verdict)}">
+      <div class="fc-icon">${icon}</div>
+      <div><div class="fc-verdict">${esc(d.verdict)}</div>
+      <div class="fc-reason">${esc(d.reason||'')}</div>
+      ${d.portion?`<div class="fc-portion">${esc(d.portion)}</div>`:''}</div></div>`;
+  }catch(err){
+    g('fcResult').innerHTML='<div class="fc-reason">Could not check. Try again.</div>';
+  }finally{btn.disabled=false;}
+}
+
+
 let RECIPES=[], rcFilter={q:'',cuisine:'all'}, rcLoaded=false;
 function favs(){try{return JSON.parse(localStorage.getItem(K('favs'))||'[]');}catch(e){return[];}}
 function toggleFav(name){let f=favs();f.includes(name)?f=f.filter(x=>x!==name):f.push(name);localStorage.setItem(K('favs'),JSON.stringify(f));renderRecipeList();}
@@ -882,6 +950,11 @@ function wire(){
   g('rcSearch').oninput=e=>{rcFilter.q=e.target.value;renderRecipeList();};
   g('rcScrim').onclick=closeRecipe;
   g('rcClose').onclick=closeRecipe;
+  g('fcOpen').onclick=openFoodCheck;
+  g('fcClose').onclick=closeFoodCheck;
+  g('fcScrim').onclick=closeFoodCheck;
+  g('fcCheck').onclick=doFoodCheck;
+  g('fcInput').onkeydown=e=>{if(e.key==='Enter')doFoodCheck();};
 }
 function boot(){
   g('top').classList.remove('hidden');g('scrollArea').classList.remove('hidden');g('nav').classList.remove('hidden');
@@ -892,8 +965,10 @@ window.addEventListener('popstate',()=>{
   // back button closes any open sheet instead of leaving the page
   const mealOpen=g('sheet').classList.contains('show');
   const rcOpen=g('rcSheet').classList.contains('show');
+  const fcOpen=g('fcSheet').classList.contains('show');
   if(mealOpen){g('scrim').classList.remove('show');g('sheet').classList.remove('show');}
   if(rcOpen){g('rcScrim').classList.remove('show');g('rcSheet').classList.remove('show');}
+  if(fcOpen){g('fcScrim').classList.remove('show');g('fcSheet').classList.remove('show');}
 });
 loadProfile();
 if(profile){g('onboard').classList.add('hidden');boot();}else{initOnboard();}

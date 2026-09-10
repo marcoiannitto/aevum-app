@@ -105,17 +105,16 @@ svg{display:block;}
 /* ===== WATER (gamified vessel) ===== */
 .water-block .b-title{justify-content:space-between;}
 .w-goalmark{font-size:12px;color:var(--gold-deep);font-weight:600;}
-.water-main{display:flex;align-items:center;gap:18px;padding:6px 4px 14px;}
+.water-main{display:flex;align-items:center;gap:14px;padding:4px 4px 14px;}
 .vessel{flex-shrink:0;}
-.water-info{flex:1;}
-.w-amount{font-family:var(--serif);font-size:30px;font-weight:500;line-height:1;}
-.w-amount .w-unit{font-size:15px;color:var(--muted);font-family:var(--sans);}
-.w-glasses{font-size:13px;color:var(--ink-soft);margin-top:6px;}
-.w-to-go{font-size:13px;color:var(--muted);margin-top:2px;}
-.water-btns{display:flex;gap:10px;padding-bottom:14px;}
-.w-minus{width:52px;border:1px solid var(--line);border-radius:12px;font-size:20px;color:var(--ink-soft);background:var(--card);}
-.w-plus{flex:1;padding:14px;border:1px solid var(--water);border-radius:12px;background:var(--water);color:#fff;font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;}
-.w-plus-sub{font-size:12px;font-weight:400;opacity:.8;}
+.water-info{flex:1;min-width:0;}
+.w-amount{font-family:var(--serif);font-size:26px;font-weight:500;line-height:1;}
+.w-amount .w-unit{font-size:14px;color:var(--muted);font-family:var(--sans);}
+.w-glasses{font-size:13px;color:var(--ink-soft);margin-top:5px;}
+.water-btns{display:flex;gap:8px;flex-shrink:0;}
+.w-minus,.w-plus{width:46px;height:46px;border-radius:12px;font-size:22px;font-weight:600;display:flex;align-items:center;justify-content:center;}
+.w-minus{border:1px solid var(--line);color:var(--ink-soft);background:var(--card);}
+.w-plus{border:1px solid var(--water);background:var(--water);color:#fff;}
 .water-block.goal{border-color:var(--gold);}
 .water-block.goal .vessel svg path[stroke]{stroke:var(--gold);}
 #waterFill{transition:y .4s ease,height .4s ease;}
@@ -347,7 +346,7 @@ textarea.notes::placeholder{color:var(--muted);}
       </div>
       <div class="water-main">
         <div class="vessel" id="vessel">
-          <svg viewBox="0 0 60 84" width="54" height="76">
+          <svg viewBox="0 0 60 84" width="42" height="60">
             <defs><clipPath id="glassclip"><path d="M14 6 h32 l-3 72 a3 3 0 0 1 -3 3 h-20 a3 3 0 0 1 -3 -3 z"/></clipPath></defs>
             <rect id="waterFill" x="0" y="84" width="60" height="0" fill="#3E6B8A" clip-path="url(#glassclip)"/>
             <path d="M14 6 h32 l-3 72 a3 3 0 0 1 -3 3 h-20 a3 3 0 0 1 -3 -3 z" fill="none" stroke="#C9C2B2" stroke-width="2"/>
@@ -356,12 +355,11 @@ textarea.notes::placeholder{color:var(--muted);}
         <div class="water-info">
           <div class="w-amount"><span class="num" id="wLitres">0</span><span class="w-unit"> / 2.5 L</span></div>
           <div class="w-glasses" id="wGlasses">0 of 10 glasses</div>
-          <div class="w-to-go" id="wToGo">2.5 L to go</div>
         </div>
-      </div>
-      <div class="water-btns">
-        <button id="waterMinus" class="w-minus">−</button>
-        <button id="waterPlus" class="w-plus">+ Glass <span class="w-plus-sub">250 ml</span></button>
+        <div class="water-btns">
+          <button id="waterMinus" class="w-minus">−</button>
+          <button id="waterPlus" class="w-plus">+</button>
+        </div>
       </div>
     </div>
 
@@ -648,8 +646,7 @@ function renderWater(){
   g('wLitres').textContent=litres.toFixed(litres%1?1:0).replace(/\.0$/,'');
   g('wGlasses').textContent=`${glasses} of ${WATER_GOAL_GLASSES} glasses`;
   const met=glasses>=WATER_GOAL_GLASSES;
-  const toGo=Math.max(0,goalL-litres);
-  g('wToGo').textContent = met ? 'Goal reached' : `${toGo.toFixed(toGo%1?1:0).replace(/\.0$/,'')} L to go`;
+  g('waterBlock').classList.toggle('goal',met);
   // vessel fill (cap visual at goal; overshoot stays full)
   const H=84, pct=Math.min(1,glasses/WATER_GOAL_GLASSES), h=pct*H;
   const fill=g('waterFill');

@@ -588,25 +588,35 @@ function render(){
 function fastingSuffix(ph){
   if(ph.key!=='activation')return '';
   const WINDOW_H=8, FAST_H=16;
-  // only meaningful for "today" (the real current day); still show based on logged meals
-  const meals=(day.meals||[]).filter(m=>m.time);
+  // find the most recent meal across days, using stored date + time as a real timestamp
+  let lastTs=null, windowStartTs=null;
+  for(let d=currentDay; d>=1; d--){
+    const raw=localStorage.getItem(K('day_'+d));
+    if(!raw)continue;
+    const o=JSON.parse(raw);
+    const meals=(o.meals||[]).filter(m=>m.time);
+    if(!meals.length)continue;
+    const dateStr=o.date; if(!dateStr)continue;
+    const ts=t=>{const[h,m]=t.split(':').map(Number);const dt=new Date(dateStr+'T00:00:00');dt.setHours(h,m,0,0);return dt;};
+    const times=meals.map(m=>ts(m.time)).sort((a,b)=>a-b);
+    lastTs=times[times.length-1];
+    windowStartTs=times[0];
+    break; // most recent day with meals
+  }
   const now=new Date();
-  const toMin=t=>{const[h,m]=t.split(':').map(Number);return h*60+m;};
-  const fmt=min=>{min=((min%1440)+1440)%1440;const h=Math.floor(min/60),m=min%60;return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');};
-  if(!meals.length){
+  const fmt=dt=>String(dt.getHours()).padStart(2,'0')+':'+String(dt.getMinutes()).padStart(2,'0');
+  if(!lastTs){
     return ` <span class="fast-tag fasting">Fasting</span>`;
   }
-  // window opens at first meal today, closes +8h
-  const firstMin=Math.min(...meals.map(m=>toMin(m.time)));
-  const closeMin=firstMin+WINDOW_H*60;
-  const nowMin=now.getHours()*60+now.getMinutes();
-  if(nowMin<closeMin){
-    return ` <span class="fast-tag eating">Eating till ${fmt(closeMin)}</span>`;
-  }else{
-    const lastMin=Math.max(...meals.map(m=>toMin(m.time)));
-    const nextOpen=lastMin+FAST_H*60;
-    return ` <span class="fast-tag fasting">Fasting till ${fmt(nextOpen)}</span>`;
+  const windowClose=new Date(windowStartTs.getTime()+WINDOW_H*3600*1000);
+  if(now<windowClose){
+    return ` <span class="fast-tag eating">Eating till ${fmt(windowClose)}</span>`;
   }
+  const nextOpen=new Date(lastTs.getTime()+FAST_H*3600*1000);
+  if(now>=nextOpen){
+    return ` <span class="fast-tag eating">Window open</span>`;
+  }
+  return ` <span class="fast-tag fasting">Fasting till ${fmt(nextOpen)}</span>`;
 }
 function renderCalories(ph,t){
   g('calNum').textContent=t.kcal.toLocaleString();

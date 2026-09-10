@@ -260,6 +260,8 @@ textarea.notes::placeholder{color:var(--muted);}
 .estimate:disabled{opacity:.5;}
 .me-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:14px;}
 .me-cell label{display:block;font-size:11px;color:var(--muted);text-align:center;margin-bottom:4px;}
+.me-max{color:var(--muted);opacity:.85;}
+.me-max::before{content:" · max ";}
 .me-cell input{width:100%;padding:12px 4px;border:1px solid var(--line);border-radius:11px;text-align:center;font-family:var(--serif);font-size:18px;font-weight:500;background:var(--card);}
 .me-cell input::placeholder{color:var(--line);}
 .me-cell input.meal-over{border-color:var(--over);color:var(--over);background:var(--over-bg);}
@@ -472,10 +474,10 @@ textarea.notes::placeholder{color:var(--muted);}
   <div class="photo-thumb" id="photoThumb"><img id="photoImg" alt=""><button class="thumb-x" id="photoRemove">×</button></div>
   <button class="estimate" id="estimateBtn"><span>✦</span> Estimate with AI</button>
   <div class="me-grid">
-    <div class="me-cell"><label>kcal</label><input id="mKcal" type="number" inputmode="numeric" placeholder="0"></div>
+    <div class="me-cell"><label>kcal<span class="me-max" id="maxKcal"></span></label><input id="mKcal" type="number" inputmode="numeric" placeholder="0"></div>
     <div class="me-cell"><label>protein</label><input id="mProtein" type="number" inputmode="numeric" placeholder="0"></div>
-    <div class="me-cell"><label>fat</label><input id="mFat" type="number" inputmode="numeric" placeholder="0"></div>
-    <div class="me-cell"><label>carbs</label><input id="mCarbs" type="number" inputmode="numeric" placeholder="0"></div>
+    <div class="me-cell"><label>fat<span class="me-max" id="maxFat"></span></label><input id="mFat" type="number" inputmode="numeric" placeholder="0"></div>
+    <div class="me-cell"><label>carbs<span class="me-max" id="maxCarbs"></span></label><input id="mCarbs" type="number" inputmode="numeric" placeholder="0"></div>
   </div>
   <div class="me-hint" id="meHint"></div>
   <button class="add" id="addMeal" disabled>Add to day</button>
@@ -772,7 +774,10 @@ function renderTrends(){
 
 /* ---- meal sheet ---- */
 function clearSheet(){photoData=null;['mName','mDesc','mKcal','mProtein','mFat','mCarbs'].forEach(id=>g(id).value='');g('photoThumb').style.display='none';g('meHint').textContent='';g('photoChoice').classList.remove('show');g('photoCam').value='';g('photoGallery').value='';}
-function openSheet(){clearSheet();const e=g('estimateBtn');e.classList.toggle('hidden',!BACKEND_URL);e.disabled=false;e.innerHTML='<span>✦</span> Estimate with AI';validateMeal();g('scrim').classList.add('show');g('sheet').classList.add('show');history.pushState({sheet:'meal'},'');}
+function openSheet(){clearSheet();const e=g('estimateBtn');e.classList.toggle('hidden',!BACKEND_URL);e.disabled=false;e.innerHTML='<span>✦</span> Estimate with AI';
+  const ph=phaseFor(currentDay),flag=(ph.key==='activation'||ph.key==='transition');
+  g('maxKcal').textContent=flag?MEAL_KCAL:'';g('maxFat').textContent=flag?MEAL_FAT:'';g('maxCarbs').textContent=flag?MEAL_CARB:'';
+  validateMeal();g('scrim').classList.add('show');g('sheet').classList.add('show');history.pushState({sheet:'meal'},'');}
 function closeSheet(){
   if(!g('sheet').classList.contains('show'))return;
   if(history.state&&history.state.sheet){history.back();}

@@ -89,6 +89,8 @@ svg{display:block;}
 .gate.over{border-color:#e9c9c1;background:var(--over-bg);}
 .gate.over .g-val,.gate.over .g-name{color:var(--over);}
 .gate.over .g-bar>span{background:var(--over);}
+.gate.protein-target .g-bar>span{background:var(--gold);}
+.gate.protein-target .g-val em{color:var(--muted);}
 
 /* ===== SERUM BLOCK ===== */
 .serum-block .b-title{justify-content:flex-start;}
@@ -467,9 +469,12 @@ textarea.notes::placeholder{color:var(--muted);}
 
 <script>
 /* ===== BACKEND CONFIG — paste your /exec URL between the quotes ===== */
-const BACKEND_URL = 'https://script.google.com/macros/s/AKfycby0jEwPEqESOu_SK8qYqiJxR-1MeT8Ax6fq0fHPHC6gfihMpPW4uJBt1lGwmK_inQ4-/exec';
+const BACKEND_URL = '';
 
-const TOTAL_DAYS=35, GLASS_ML=250, FAT_LIMIT=25, CARB_LIMIT=30;
+const TOTAL_DAYS=35, GLASS_ML=250;
+const FAT_LIMIT=20, CARB_LIMIT=25;           // Activation/Transition ceilings (PSMF)
+const CAL_TARGET=500, CAL_RED=600;           // Activation calorie thresholds
+const PROTEIN_PER_KG=1.2;                     // protein target multiplier
 const WATER_GOAL_GLASSES=10; // 2.5 L at 250 ml/glass
 const params=new URLSearchParams(location.search);
 const PID=(params.get('id')||'me').toLowerCase().replace(/[^a-z0-9_-]/g,'');
@@ -543,29 +548,54 @@ function render(){
 }
 function renderCalories(ph,t){
   g('calNum').textContent=t.kcal.toLocaleString();
-  const wrap=g('calBarWrap');
+  const wrap=g('calBarWrap'),bar=g('calBar');
   if(ph.key==='consolidation'){
     wrap.classList.remove('hidden');
-    const target=profile.need+t.exKcal, pct=target>0?t.kcal/target*100:0, bar=g('calBar');
+    const target=profile.need+t.exKcal, pct=target>0?t.kcal/target*100:0;
     bar.className='calbar'+(pct>130?' over':pct>100?' warn':'');
     bar.firstElementChild.style.width=Math.min(100,pct)+'%';
     g('calBarLeft').textContent=`${t.kcal.toLocaleString()} / ${target.toLocaleString()} kcal`;
     g('calBarRight').textContent=t.exKcal>0?`+${t.exKcal} movement`:'';
     g('calUnit').textContent='kcal today';
-  }else{wrap.classList.add('hidden');g('calUnit').textContent='kcal today';}
+  }else if(ph.key==='activation'||ph.key==='transition'){
+    // PSMF: target 500, orange 500-600, red >600
+    wrap.classList.remove('hidden');
+    const pct=t.kcal/CAL_TARGET*100;
+    bar.className='calbar'+(t.kcal>CAL_RED?' over':t.kcal>CAL_TARGET?' warn':'');
+    bar.firstElementChild.style.width=Math.min(100,pct)+'%';
+    g('calBarLeft').textContent=`${t.kcal.toLocaleString()} / ${CAL_TARGET} kcal`;
+    g('calBarRight').textContent=t.kcal>CAL_RED?'over limit':t.kcal>CAL_TARGET?'above target':'';
+    g('calUnit').textContent='kcal today';
+  }else{
+    wrap.classList.add('hidden');g('calUnit').textContent='kcal today';
+  }
 }
 function gateState(v,l){if(v>l)return'over';if(v>=l*0.75)return'warn';return'ok';}
 function renderGates(ph,t){
   const cfg=gatesFor(ph.key),wrap=g('gates');wrap.innerHTML='';
-  const make=(name,val,limit,gated)=>{
+  // ceiling gate (fat/carbs)
+  const makeGate=(name,val,limit,gated)=>{
     const st=gated?gateState(val,limit):'', pct=gated?Math.min(100,val/limit*100):0;
     const el=document.createElement('div');el.className='gate '+st;
     el.innerHTML=`<div class="g-top"><span class="g-name">${name}</span><span class="g-val num">${val}${gated?`<em> /${limit}g</em>`:'<em>g</em>'}</span></div>${gated?`<div class="g-bar"><span style="width:${pct}%"></span></div>`:''}`;
     return el;
   };
-  wrap.appendChild(make('Protein',t.protein,0,false));
-  wrap.appendChild(make('Fat',t.fat,FAT_LIMIT,cfg.fat));
-  wrap.appendChild(make('Carbs',t.carbs,CARB_LIMIT,cfg.carb));
+  // protein target (progress only, never "fails")
+  const makeProtein=()=>{
+    const showTarget = ph.key==='activation'||ph.key==='transition';
+    const el=document.createElement('div');el.className='gate protein-target';
+    if(showTarget && profile.weight){
+      const tgt=Math.round(profile.weight*PROTEIN_PER_KG);
+      const pct=Math.min(100,t.protein/tgt*100);
+      el.innerHTML=`<div class="g-top"><span class="g-name">Protein</span><span class="g-val num">${t.protein}<em> /${tgt}g</em></span></div><div class="g-bar"><span style="width:${pct}%"></span></div>`;
+    }else{
+      el.innerHTML=`<div class="g-top"><span class="g-name">Protein</span><span class="g-val num">${t.protein}<em>g</em></span></div>`;
+    }
+    return el;
+  };
+  wrap.appendChild(makeProtein());
+  wrap.appendChild(makeGate('Fat',t.fat,FAT_LIMIT,cfg.fat));
+  wrap.appendChild(makeGate('Carbs',t.carbs,CARB_LIMIT,cfg.carb));
 }
 function renderTimeline(){
   const tl=g('timeline');

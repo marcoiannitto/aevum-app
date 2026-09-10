@@ -57,6 +57,9 @@ svg{display:block;}
 .daybar .dnum{font-family:var(--serif);font-size:24px;font-weight:500;line-height:1;}
 .daybar .phase{margin-top:5px;font-size:12px;}
 .phase-dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:6px;vertical-align:middle;}
+.fast-tag{font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;margin-left:6px;vertical-align:middle;letter-spacing:.01em;}
+.fast-tag.eating{background:#eef4ec;color:#3f7a4a;}
+.fast-tag.fasting{background:var(--line-soft);color:var(--ink-soft);}
 
 /* ===== PAGE / TABS ===== */
 .scroll{padding:16px 18px calc(var(--nav-h) + env(safe-area-inset-bottom) + 20px);max-width:520px;margin:0 auto;}
@@ -259,6 +262,8 @@ textarea.notes::placeholder{color:var(--muted);}
 .me-cell label{display:block;font-size:11px;color:var(--muted);text-align:center;margin-bottom:4px;}
 .me-cell input{width:100%;padding:12px 4px;border:1px solid var(--line);border-radius:11px;text-align:center;font-family:var(--serif);font-size:18px;font-weight:500;background:var(--card);}
 .me-cell input::placeholder{color:var(--line);}
+.me-cell input.meal-over{border-color:var(--over);color:var(--over);background:var(--over-bg);}
+.me-cell.meal-over label{color:var(--over);}
 .me-hint{font-size:12px;color:var(--muted);text-align:center;margin-top:10px;min-height:15px;}
 .sheet .add{width:100%;margin-top:14px;padding:16px;background:var(--ink);color:#fff;border-radius:14px;font-weight:600;font-size:16px;}
 .sheet .add:disabled{opacity:.4;}
@@ -503,8 +508,11 @@ textarea.notes::placeholder{color:var(--muted);}
 const BACKEND_URL = 'https://script.google.com/macros/s/AKfycby0jEwPEqESOu_SK8qYqiJxR-1MeT8Ax6fq0fHPHC6gfihMpPW4uJBt1lGwmK_inQ4-/exec';
 
 const TOTAL_DAYS=35, GLASS_ML=250;
-const FAT_LIMIT=20, CARB_LIMIT=25;           // Activation/Transition ceilings (PSMF)
+const FAT_TARGET=20, FAT_RED=25;             // fat: ok<=20, yellow 20-25, red>25
+const CARB_TARGET=25, CARB_RED=30;           // carbs: ok<=25, yellow 25-30, red>30
+const FAT_LIMIT=FAT_TARGET, CARB_LIMIT=CARB_TARGET; // bar fills against target
 const CAL_TARGET=500, CAL_RED=600;           // Activation calorie thresholds
+const MEAL_KCAL=250, MEAL_FAT=10, MEAL_CARB=15; // per-meal red flags
 const PROTEIN_PER_KG=1.2;                     // protein target multiplier
 const WATER_GOAL_GLASSES=10; // 2.5 L at 250 ml/glass
 const params=new URLSearchParams(location.search);
@@ -565,7 +573,7 @@ function render(){
   const ph=phaseFor(currentDay);
   g('whoName').textContent=profile.name;
   g('dNum').textContent='Day '+currentDay;
-  g('dPhase').innerHTML=`<span class="phase-dot" style="background:${ph.color}"></span>${ph.name}`;
+  g('dPhase').innerHTML=`<span class="phase-dot" style="background:${ph.color}"></span>${ph.name}${fastingSuffix(ph)}`;
   g('prevDay').disabled=currentDay<=1;g('nextDay').disabled=currentDay>=TOTAL_DAYS;
   const t=totals();
   renderCalories(ph,t);renderGates(ph,t);renderTimeline();
@@ -576,6 +584,29 @@ function render(){
   // daily
   g('fWeight').value=day.weight;g('fWaist').value=day.waist;g('fNotes').value=day.notes;
   renderExercise();['energy','hunger','sleep'].forEach(renderRate);
+}
+function fastingSuffix(ph){
+  if(ph.key!=='activation')return '';
+  const WINDOW_H=8, FAST_H=16;
+  // only meaningful for "today" (the real current day); still show based on logged meals
+  const meals=(day.meals||[]).filter(m=>m.time);
+  const now=new Date();
+  const toMin=t=>{const[h,m]=t.split(':').map(Number);return h*60+m;};
+  const fmt=min=>{min=((min%1440)+1440)%1440;const h=Math.floor(min/60),m=min%60;return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');};
+  if(!meals.length){
+    return ` <span class="fast-tag fasting">Fasting</span>`;
+  }
+  // window opens at first meal today, closes +8h
+  const firstMin=Math.min(...meals.map(m=>toMin(m.time)));
+  const closeMin=firstMin+WINDOW_H*60;
+  const nowMin=now.getHours()*60+now.getMinutes();
+  if(nowMin<closeMin){
+    return ` <span class="fast-tag eating">Eating till ${fmt(closeMin)}</span>`;
+  }else{
+    const lastMin=Math.max(...meals.map(m=>toMin(m.time)));
+    const nextOpen=lastMin+FAST_H*60;
+    return ` <span class="fast-tag fasting">Fasting till ${fmt(nextOpen)}</span>`;
+  }
 }
 function renderCalories(ph,t){
   g('calNum').textContent=t.kcal.toLocaleString();
@@ -601,14 +632,14 @@ function renderCalories(ph,t){
     wrap.classList.add('hidden');g('calUnit').textContent='kcal today';
   }
 }
-function gateState(v,l){if(v>l)return'over';if(v>=l*0.75)return'warn';return'ok';}
+function gateState(v,target,red){if(v>red)return'over';if(v>target)return'warn';return'ok';}
 function renderGates(ph,t){
   const cfg=gatesFor(ph.key),wrap=g('gates');wrap.innerHTML='';
   // ceiling gate (fat/carbs)
-  const makeGate=(name,val,limit,gated)=>{
-    const st=gated?gateState(val,limit):'', pct=gated?Math.min(100,val/limit*100):0;
+  const makeGate=(name,val,target,red,gated)=>{
+    const st=gated?gateState(val,target,red):'', pct=gated?Math.min(100,val/target*100):0;
     const el=document.createElement('div');el.className='gate '+st;
-    el.innerHTML=`<div class="g-top"><span class="g-name">${name}</span><span class="g-val num">${val}${gated?`<em> /${limit}g</em>`:'<em>g</em>'}</span></div>${gated?`<div class="g-bar"><span style="width:${pct}%"></span></div>`:''}`;
+    el.innerHTML=`<div class="g-top"><span class="g-name">${name}</span><span class="g-val num">${val}${gated?`<em> /${target}g</em>`:'<em>g</em>'}</span></div>${gated?`<div class="g-bar"><span style="width:${pct}%"></span></div>`:''}`;
     return el;
   };
   // protein target (progress only, never "fails")
@@ -625,8 +656,8 @@ function renderGates(ph,t){
     return el;
   };
   wrap.appendChild(makeProtein());
-  wrap.appendChild(makeGate('Fat',t.fat,FAT_LIMIT,cfg.fat));
-  wrap.appendChild(makeGate('Carbs',t.carbs,CARB_LIMIT,cfg.carb));
+  wrap.appendChild(makeGate('Fat',t.fat,FAT_TARGET,FAT_RED,cfg.fat));
+  wrap.appendChild(makeGate('Carbs',t.carbs,CARB_TARGET,CARB_RED,cfg.carb));
 }
 function renderTimeline(){
   const tl=g('timeline');
@@ -740,7 +771,16 @@ function closeSheet(){
 function onPhoto(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{photoData=r.result;g('photoImg').src=photoData;g('photoThumb').style.display='block';g('photoChoice').classList.remove('show');};r.readAsDataURL(f);}
 function removePhoto(){photoData=null;g('photoCam').value='';g('photoGallery').value='';g('photoThumb').style.display='none';}
 function fillMacros(v){if(v.name&&!g('mName').value.trim())g('mName').value=v.name;g('mKcal').value=v.kcal??'';g('mProtein').value=v.protein??'';g('mFat').value=v.fat??'';g('mCarbs').value=v.carbs??'';validateMeal();}
-function validateMeal(){g('addMeal').disabled=g('mKcal').value==='';}
+function validateMeal(){
+  g('addMeal').disabled=g('mKcal').value==='';
+  // per-meal red flags (Activation/Transition only)
+  const ph=phaseFor(currentDay);
+  const flag=(ph.key==='activation'||ph.key==='transition');
+  const set=(id,over)=>{const el=g(id);el.classList.toggle('meal-over',flag&&over);el.parentElement.classList.toggle('meal-over',flag&&over);};
+  set('mKcal',(+g('mKcal').value||0)>MEAL_KCAL);
+  set('mFat',(+g('mFat').value||0)>MEAL_FAT);
+  set('mCarbs',(+g('mCarbs').value||0)>MEAL_CARB);
+}
 async function estimate(){
   const desc=g('mDesc').value.trim();
   if(!desc&&!photoData){g('mDesc').focus();return;}
@@ -954,6 +994,7 @@ function wire(){
 function boot(){
   g('top').classList.remove('hidden');g('scrollArea').classList.remove('hidden');g('nav').classList.remove('hidden');
   wire();currentDay=+(localStorage.getItem(K('lastDay'))||1);loadDay();
+  setInterval(()=>{const ph=phaseFor(currentDay);if(ph.key==='activation')g('dPhase').innerHTML=`<span class="phase-dot" style="background:${ph.color}"></span>${ph.name}${fastingSuffix(ph)}`;},60000);
 }
 window.addEventListener('beforeunload',()=>{if(profile)saveDay(true);});
 window.addEventListener('popstate',()=>{

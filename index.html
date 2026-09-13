@@ -237,6 +237,9 @@ textarea.notes::placeholder{color:var(--muted);}
 .plan-meal .pm-log{background:var(--ink);color:#fff;}
 .plan-empty{text-align:center;color:var(--muted);font-size:14px;padding:30px 10px;border:1px dashed var(--line);border-radius:16px;}
 .plan-addmeal{width:100%;padding:13px;border:1px dashed var(--gold);color:var(--gold-deep);border-radius:13px;font-weight:600;font-size:14px;margin-top:4px;}
+.plan-add-choice{display:none;flex-direction:column;gap:8px;margin-top:8px;}
+.plan-add-choice.show{display:flex;}
+.plan-add-choice button{padding:13px;border:1px solid var(--line);border-radius:12px;background:var(--card);font-weight:600;font-size:14px;color:var(--ink);}
 .sheet-close{position:absolute;top:14px;right:16px;width:34px;height:34px;border-radius:50%;background:var(--line-soft);color:var(--ink-soft);font-size:22px;line-height:1;display:flex;align-items:center;justify-content:center;z-index:2;}
 .rc-search{width:100%;padding:13px 14px;border:1px solid var(--line);border-radius:13px;background:var(--card);margin-bottom:12px;}
 .rc-search::placeholder{color:var(--muted);}
@@ -529,7 +532,7 @@ textarea.notes::placeholder{color:var(--muted);}
 <div class="sheet" id="sheet">
   <div class="grab"></div>
   <button class="sheet-close" id="mealClose" aria-label="Close">×</button>
-  <h2>Log a meal</h2>
+  <h2 id="sheetTitle">Log a meal</h2>
   <input class="me-name" id="mName" type="text" placeholder="Meal name (optional)">
 
   <!-- mode switch -->
@@ -1004,11 +1007,19 @@ function renderIngredients(){
 function addIngredient(){ingredients.push({food:'',qty:''});renderIngredients();
   const rows=g('ingList').querySelectorAll('.ing-food');if(rows.length)rows[rows.length-1].focus();}
 
-function openSheet(){
+let sheetMode='log';
+function openSheet(mode){
+  sheetMode=(mode==='plan')?'plan':'log';
   clearSheet();
   const ph=phaseFor(currentDay),flag=(ph.key==='activation'||ph.key==='transition');
   g('maxKcal').textContent=flag?MEAL_KCAL:'';g('maxFat').textContent=flag?MEAL_FAT:'';g('maxCarbs').textContent=flag?MEAL_CARB:'';
   if(!ingredients.length)addIngredient();
+  // plan mode: hide Photo tab + change titles/button
+  const isPlan=sheetMode==='plan';
+  document.querySelector('.mode-tab[data-mode="photo"]').style.display=isPlan?'none':'';
+  g('sheetTitle').textContent=isPlan?'Add a meal to plan':'Log a meal';
+  g('addMeal').textContent=isPlan?'Add to plan':'Add to day';
+  if(isPlan&&document.querySelector('.mode-tab.on').dataset.mode==='photo')switchMode('describe');
   validateMeal();g('scrim').classList.add('show');g('sheet').classList.add('show');history.pushState({sheet:'meal'},'');
 }
 function closeSheet(){
@@ -1053,9 +1064,16 @@ function calcPhoto(){
   calcMeal(g('calcPhoto'),()=>photoData?{action:'estimate',description:g('mDesc').value.trim()||'(see photo)',image:photoData}:null,()=>{g('meHint').textContent='Add a photo first.';});
 }
 function commitMeal(){
-  const name=g('mName').value.trim()||('Meal '+(day.meals.length+1));
-  day.meals.push({name,kcal:+g('mKcal').value||0,protein:+g('mProtein').value||0,fat:+g('mFat').value||0,carbs:+g('mCarbs').value||0,time:new Date().toTimeString().slice(0,5)});
-  saveDay(true);closeSheet();render();
+  const name=g('mName').value.trim()||'Meal';
+  const meal={name,kcal:+g('mKcal').value||0,protein:+g('mProtein').value||0,fat:+g('mFat').value||0,carbs:+g('mCarbs').value||0};
+  if(sheetMode==='plan'){
+    ensureEditable(planDay);
+    planEdit[planDay].push({meal:'Added',recipe:name,kcal:meal.kcal,protein:meal.protein,fat:meal.fat,carbs:meal.carbs});
+    savePlanEdit();closeSheet();renderPlan();
+  }else{
+    meal.time=new Date().toTimeString().slice(0,5);
+    day.meals.push(meal);saveDay(true);closeSheet();render();
+  }
 }
 
 /* ---- exercise ---- */
@@ -1217,6 +1235,7 @@ function renderPlan(){
       </div></div>`;
   });
   html+=`<button class="plan-addmeal" id="planAddMeal">+ Add a meal</button>`;
+  html+=`<div class="plan-add-choice" id="planAddChoice"><button id="planFromRecipe">Choose a recipe</button><button id="planOwn">Add your own</button></div>`;
   if(edited)html+=`<button class="plan-reset" id="planReset">Reset to coach's plan</button>`;
   g('planList').innerHTML=html;
   g('planList').querySelectorAll('.pm-recipe').forEach(b=>b.onclick=()=>{const r=RECIPES.find(x=>x.name===b.dataset.recipe);if(r)openRecipe(r);});
@@ -1231,7 +1250,12 @@ function renderPlan(){
   g('planList').querySelectorAll('.pm-swap').forEach(b=>b.onclick=()=>{
     planAction={type:'swap',day:planDay,idx:+b.dataset.i};switchSub('recipes');
   });
-  g('planAddMeal').onclick=()=>{planAction={type:'add',day:planDay};switchSub('recipes');};
+  g('planAddMeal').onclick=()=>{
+    const box=g('planAddChoice');
+    box.classList.toggle('show');
+  };
+  const pc=g('planFromRecipe'); if(pc)pc.onclick=()=>{g('planAddChoice').classList.remove('show');planAction={type:'add',day:planDay};switchSub('recipes');};
+  const po=g('planOwn'); if(po)po.onclick=()=>{g('planAddChoice').classList.remove('show');openSheet('plan');};
   const rb=g('planReset');if(rb)rb.onclick=()=>{delete planEdit[planDay];savePlanEdit();renderPlan();};
 }
 function applyRecipeToPlan(r){
@@ -1344,7 +1368,7 @@ function wire(){
   g('waterPlus').onclick=()=>{day.water++;saveDay(true);renderWater();};
   g('waterMinus').onclick=()=>{day.water=Math.max(0,day.water-1);saveDay(true);renderWater();};
   g('addEx').onclick=addExercise;g('exportBtn').onclick=exportCSV;
-  g('openSheet').onclick=openSheet;g('scrim').onclick=closeSheet;
+  g('openSheet').onclick=()=>openSheet('log');g('scrim').onclick=closeSheet;
   g('photoBtn').onclick=()=>g('photoChoice').classList.toggle('show');
   g('chooseCam').onclick=()=>{g('photoChoice').classList.remove('show');g('photoCam').click();};
   g('chooseGallery').onclick=()=>{g('photoChoice').classList.remove('show');g('photoGallery').click();};

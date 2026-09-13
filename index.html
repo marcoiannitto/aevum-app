@@ -163,9 +163,12 @@ textarea.notes::placeholder{color:var(--muted);}
 .stat .s-lab{font-size:12px;color:var(--muted);}
 .stat .s-val{font-family:var(--serif);font-size:26px;font-weight:500;margin-top:4px;}
 .stat .s-val small{font-size:13px;color:var(--muted);font-family:var(--sans);}
-.stat .s-delta{font-size:12px;margin-top:2px;}
-.stat .s-delta.down{color:#3f7a4a;}
-.stat .s-delta.up{color:var(--over);}
+.stat .s-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+.stat .s-chip{font-size:11px;font-weight:600;padding:2px 7px;border-radius:8px;background:var(--line-soft);color:var(--ink-soft);}
+.stat .s-chip.down{background:#eef4ec;color:#3f7a4a;}
+.stat .s-chip.up{background:var(--over-bg);color:var(--over);}
+.stat .s-togo{font-size:12px;color:var(--gold-deep);font-weight:600;margin-top:8px;}
+.stat .s-togo.done{color:#3f7a4a;}
 .chartcard{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:14px;}
 .chartcard .c-title{font-size:13px;color:var(--muted);margin-bottom:10px;display:flex;justify-content:space-between;}
 .chartcard .c-title b{font-family:var(--serif);font-weight:500;color:var(--ink);}
@@ -291,6 +294,7 @@ textarea.notes::placeholder{color:var(--muted);}
       <div style="flex:1"><label>Height (cm)</label><input id="ob-h" type="number" inputmode="numeric" placeholder="—"></div>
       <div style="flex:1"><label>Weight (kg)</label><input id="ob-w" type="number" inputmode="decimal" placeholder="—"></div>
     </div>
+    <div><label>Target weight (kg)</label><input id="ob-target" type="number" inputmode="decimal" placeholder="Your goal"></div>
     <div><label>Daily activity</label>
       <select id="ob-act">
         <option value="1.2">Mostly sitting</option>
@@ -547,7 +551,7 @@ function initOnboard(){
   [name,age,h,w].forEach(el=>el.oninput=check);act.onchange=check;
   go.onclick=()=>{
     profile={name:name.value.trim(),sex,age:+age.value,height:+h.value,weight:+w.value,act:act.value,
-      need:mifflin({sex,age:+age.value,height:+h.value,weight:+w.value,act:act.value}),start:new Date().toISOString().slice(0,10)};
+      need:mifflin({sex,age:+age.value,height:+h.value,weight:+w.value,act:act.value}),target_kg:parseFloat(g('ob-target').value)||null,start:new Date().toISOString().slice(0,10)};
     localStorage.setItem(K('profile'),JSON.stringify(profile));
     g('onboard').classList.add('hidden');boot();
   };
@@ -616,7 +620,7 @@ function fastingSuffix(ph){
   }
   const nextOpen=new Date(lastTs.getTime()+FAST_H*3600*1000);
   if(now>=nextOpen){
-    return ` <span class="fast-tag eating">You can eat now</span>`;
+    return ` <span class="fast-tag eating">Window open</span>`;
   }
   return ` <span class="fast-tag fasting">Fasting till ${fmt(nextOpen)}</span>`;
 }
@@ -734,42 +738,65 @@ function collectSeries(field){
   }
   return out;
 }
-function lineChart(data,unit){
+function lineChart(data,unit,target){
   if(data.length<2)return '<div class="chart-empty">Log at least two days to see a trend.</div>';
-  const W=440,H=140,pad=14, xs=d=>pad+(d.day-1)/(TOTAL_DAYS-1)*(W-2*pad);
-  const vals=data.map(d=>d.v),min=Math.min(...vals),max=Math.max(...vals),range=(max-min)||1;
-  const ys=v=>H-pad-((v-min)/range)*(H-2*pad);
-  let pts=data.map(d=>`${xs(d).toFixed(1)},${ys(d.v).toFixed(1)}`).join(' ');
-  let dots=data.map(d=>`<circle cx="${xs(d).toFixed(1)}" cy="${ys(d.v).toFixed(1)}" r="3" fill="#B08D2E"/>`).join('');
-  const first=data[0].v,last=data[data.length-1].v;
+  const W=440,H=150,pad=16,padB=24;
+  const d0=data[0].day, dN=data[data.length-1].day, span=(dN-d0)||1;
+  const xs=d=>pad+(d.day-d0)/span*(W-2*pad);
+  let vals=data.map(d=>d.v);
+  if(target)vals=vals.concat([target]);
+  let min=Math.min(...vals),max=Math.max(...vals);
+  const rng=(max-min)||1; min-=rng*0.1; max+=rng*0.1;
+  const range=max-min;
+  const ys=v=>H-padB-((v-min)/range)*(H-pad-padB);
+  const pts=data.map(d=>`${xs(d).toFixed(1)},${ys(d.v).toFixed(1)}`).join(' ');
+  const dots=data.map(d=>`<circle cx="${xs(d).toFixed(1)}" cy="${ys(d.v).toFixed(1)}" r="3" fill="#B08D2E"/>`).join('');
+  let tline='';
+  if(target){
+    const ty=ys(target).toFixed(1);
+    tline=`<line x1="${pad}" y1="${ty}" x2="${W-pad}" y2="${ty}" stroke="#B08D2E" stroke-width="1.2" stroke-dasharray="4 4" opacity="0.6"/>
+    <text x="${W-pad}" y="${(+ty-5).toFixed(1)}" font-size="10" fill="#8f6f1f" text-anchor="end" font-family="sans-serif">Target ${target}</text>`;
+  }
   return `<svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet">
+    ${tline}
     <polyline points="${pts}" fill="none" stroke="#B08D2E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
     ${dots}
-    <text x="${pad}" y="${H-2}" font-size="10" fill="#938c7d" font-family="sans-serif">Day ${data[0].day}</text>
-    <text x="${W-pad}" y="${H-2}" font-size="10" fill="#938c7d" text-anchor="end" font-family="sans-serif">Day ${data[data.length-1].day}</text>
+    <text x="${pad}" y="${H-4}" font-size="10" fill="#938c7d" font-family="sans-serif">Day ${d0}</text>
+    <text x="${W-pad}" y="${H-4}" font-size="10" fill="#938c7d" text-anchor="end" font-family="sans-serif">Day ${dN}</text>
   </svg>`;
 }
 function renderTrends(){
   const w=collectSeries('weight'),wa=collectSeries('waist');
-  // stats
   const sr=g('statRow');sr.innerHTML='';
-  const stat=(lab,val,delta)=>{
-    let d='';
-    if(delta!=null){const dir=delta<0?'down':delta>0?'up':'';const sign=delta>0?'+':'';d=`<div class="s-delta ${dir}">${sign}${delta.toFixed(1)} since day ${w[0]?w[0].day:1}</div>`;}
-    return `<div class="stat"><div class="s-lab">${lab}</div><div class="s-val num">${val}</div>${d}</div>`;
-  };
+  const target=(profile&&profile.target_kg)||null;
+
+  // Weight stat: total loss + daily change + to-go
   if(w.length){
-    const cur=w[w.length-1].v, delta=w.length>1?cur-w[0].v:null;
-    sr.innerHTML+=stat('Weight',`${cur}<small> kg</small>`,delta);
+    const cur=w[w.length-1].v;
+    const total=w.length>1?cur-w[0].v:null;
+    const daily=w.length>1?cur-w[w.length-2].v:null;
+    const arrow=n=>n<0?'▼':n>0?'▲':'';
+    const cls=n=>n<0?'down':n>0?'up':'';
+    let lines='';
+    if(daily!=null)lines+=`<span class="s-chip ${cls(daily)}">${arrow(daily)} ${Math.abs(daily).toFixed(1)} today</span>`;
+    if(total!=null)lines+=`<span class="s-chip ${cls(total)}">${arrow(total)} ${Math.abs(total).toFixed(1)} total</span>`;
+    let togo='';
+    if(target){const diff=cur-target; togo=diff>0?`<div class="s-togo">${diff.toFixed(1)} kg to go</div>`:`<div class="s-togo done">Target reached</div>`;}
+    sr.innerHTML+=`<div class="stat"><div class="s-lab">Weight</div><div class="s-val num">${cur}<small> kg</small></div><div class="s-chips">${lines}</div>${togo}</div>`;
     g('wLatest').textContent=cur+' kg';
-  }else{sr.innerHTML+=stat('Weight','—',null);}
+  }else{sr.innerHTML+=`<div class="stat"><div class="s-lab">Weight</div><div class="s-val num">—</div></div>`;}
+
+  // Waist stat
   if(wa.length){
-    const cur=wa[wa.length-1].v, delta=wa.length>1?cur-wa[0].v:null;
-    sr.innerHTML+=stat('Waist',`${cur}<small> cm</small>`,delta);
+    const cur=wa[wa.length-1].v, total=wa.length>1?cur-wa[0].v:null;
+    const arrow=n=>n<0?'▼':n>0?'▲':'';const cls=n=>n<0?'down':n>0?'up':'';
+    let lines= total!=null?`<span class="s-chip ${cls(total)}">${arrow(total)} ${Math.abs(total).toFixed(1)} total</span>`:'';
+    sr.innerHTML+=`<div class="stat"><div class="s-lab">Waist</div><div class="s-val num">${cur}<small> cm</small></div><div class="s-chips">${lines}</div></div>`;
     g('waistLatest').textContent=cur+' cm';
-  }else{sr.innerHTML+=stat('Waist','—',null);}
-  g('weightChart').innerHTML=lineChart(w,'kg');
-  g('waistChart').innerHTML=lineChart(wa,'cm');
+  }else{sr.innerHTML+=`<div class="stat"><div class="s-lab">Waist</div><div class="s-val num">—</div></div>`;}
+
+  g('weightChart').innerHTML=lineChart(w,'kg',target);
+  g('waistChart').innerHTML=lineChart(wa,'cm',null);
 }
 
 /* ---- meal sheet ---- */
@@ -1009,7 +1036,18 @@ function wire(){
 function boot(){
   g('top').classList.remove('hidden');g('scrollArea').classList.remove('hidden');g('nav').classList.remove('hidden');
   wire();currentDay=+(localStorage.getItem(K('lastDay'))||1);loadDay();
+  fetchProfile();
   setInterval(()=>{const ph=phaseFor(currentDay);if(ph.key==='activation')g('dPhase').innerHTML=`<span class="phase-dot" style="background:${ph.color}"></span>${ph.name}${fastingSuffix(ph)}`;},60000);
+}
+function fetchProfile(){
+  if(!BACKEND_URL)return;
+  fetch(BACKEND_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'profile',id:PID})})
+    .then(r=>r.json()).then(d=>{
+      if(d.profile){
+        profile=Object.assign({},profile,{target_kg:d.profile.target_kg,start_weight:d.profile.start_weight});
+        localStorage.setItem(K('profile'),JSON.stringify(profile));
+      }
+    }).catch(()=>{});
 }
 window.addEventListener('beforeunload',()=>{if(profile)saveDay(true);});
 window.addEventListener('popstate',()=>{

@@ -218,10 +218,19 @@ textarea.notes::placeholder{color:var(--muted);}
 .plan-day-btn{flex-shrink:0;padding:9px 15px;border:1px solid var(--line);border-radius:20px;background:var(--card);font-size:13px;font-weight:600;color:var(--ink-soft);white-space:nowrap;}
 .plan-day-btn.on{background:var(--ink);border-color:var(--ink);color:#fff;}
 .plan-day-btn small{display:block;font-size:10px;font-weight:400;opacity:.7;margin-top:1px;}
-.plan-total{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 16px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;}
-.plan-total .pt-lab{font-size:12px;color:var(--muted);}
-.plan-total .pt-val{font-family:var(--serif);font-size:20px;font-weight:500;}
-.plan-total .pt-macros{font-size:12px;color:var(--ink-soft);margin-top:2px;text-align:right;}
+.plan-total{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:14px;}
+.ptt-row{margin-bottom:10px;}
+.ptt-lab{font-size:12px;color:var(--muted);}
+.ptt-grid{display:flex;gap:8px;}
+.ptt-cell{flex:1;text-align:center;border:1px solid var(--line);border-radius:11px;padding:9px 4px;}
+.ptt-cell .ptt-v{font-family:var(--serif);font-size:18px;font-weight:500;}
+.ptt-cell .ptt-v small{font-family:var(--sans);font-size:11px;color:var(--muted);}
+.ptt-cell .ptt-k{font-size:10px;color:var(--muted);text-transform:uppercase;margin-top:2px;letter-spacing:.03em;}
+.ptt-cell.warn{background:var(--warn-bg);border-color:#eBD9A8;}
+.ptt-cell.warn .ptt-v{color:var(--warn);}
+.ptt-cell.over{background:var(--over-bg);border-color:#e9c9c1;}
+.ptt-cell.over .ptt-v{color:var(--over);}
+.mbar{cursor:pointer;}
 .plan-meal{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:10px;}
 .plan-meal .pm-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;}
 .plan-meal .pm-remove{font-size:12px;color:var(--muted);padding:2px 4px;}
@@ -444,7 +453,6 @@ textarea.notes::placeholder{color:var(--muted);}
     <div class="block">
       <div class="b-title"><span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 9 9"/><path d="M12 7v5l3 2"/></svg></span>Body</div>
       <div class="mrow"><span class="lab">Weight (morning)</span><div class="ctrl"><input class="mini-in num" id="fWeight" type="number" inputmode="decimal" placeholder="kg"></div></div>
-      <div class="mrow"><span class="lab">Waist</span><div class="ctrl"><input class="mini-in num" id="fWaist" type="number" inputmode="decimal" placeholder="cm"></div></div>
     </div>
 
     <div class="block">
@@ -476,9 +484,9 @@ textarea.notes::placeholder{color:var(--muted);}
       <div id="weightChart"></div>
     </div>
     <div class="chartcard">
-      <div class="c-title"><span>Waist</span><b id="waistLatest">—</b></div>
-      <div class="chart-readout" id="waReadout"></div>
-      <div id="waistChart"></div>
+      <div class="c-title"><span>Macros across the program</span></div>
+      <div class="chart-readout" id="macroReadout"></div>
+      <div id="macroChart"></div>
     </div>
     <div class="savenote" id="saveNote"></div>
     <button class="export" id="exportBtn">Export CSV (backup)</button>
@@ -685,7 +693,7 @@ function render(){
   g('serumPM').classList.toggle('on',day.serumPM);
   renderWater();
   // daily
-  g('fWeight').value=day.weight;g('fWaist').value=day.waist;g('fNotes').value=day.notes;
+  g('fWeight').value=day.weight;g('fNotes').value=day.notes;
   renderExercise();['energy','hunger','sleep'].forEach(renderRate);
 }
 function fastingSuffix(ph){
@@ -905,7 +913,7 @@ function lineChart(data,unit,target,readoutId){
 }
 function fmtDelta(n){return n<0?`▼ ${Math.abs(n).toFixed(1)}`:n>0?`▲ ${Math.abs(n).toFixed(1)}`:'0.0';}
 function wireChartTaps(){
-  document.querySelectorAll('#weightChart svg, #waistChart svg').forEach(svg=>{
+  document.querySelectorAll('#weightChart svg').forEach(svg=>{
     const rid=svg.getAttribute('data-readout');
     const ro=rid?g(rid):null;
     let pts; try{pts=JSON.parse(svg.getAttribute('data-pts'));}catch(e){return;}
@@ -942,11 +950,11 @@ function wireChartTaps(){
   });
 }
 function renderTrends(){
-  const w=collectSeries('weight'),wa=collectSeries('waist');
+  const w=collectSeries('weight');
   const sr=g('statRow');sr.innerHTML='';
   const target=(profile&&profile.target_kg)||null;
 
-  // Weight stat: total loss + daily change + to-go
+  // Weight stat
   if(w.length){
     const cur=w[w.length-1].v;
     const total=w.length>1?cur-w[0].v:null;
@@ -958,22 +966,68 @@ function renderTrends(){
     if(total!=null)lines+=`<span class="s-chip ${cls(total)}">${arrow(total)} ${Math.abs(total).toFixed(1)} total</span>`;
     let togo='';
     if(target){const diff=cur-target; togo=diff>0?`<div class="s-togo">${diff.toFixed(1)} kg to go</div>`:`<div class="s-togo done">Target reached</div>`;}
-    sr.innerHTML+=`<div class="stat"><div class="s-lab">Weight</div><div class="s-val num">${cur}<small> kg</small></div><div class="s-chips">${lines}</div>${togo}</div>`;
+    sr.innerHTML+=`<div class="stat" style="flex:1"><div class="s-lab">Weight</div><div class="s-val num">${cur}<small> kg</small></div><div class="s-chips">${lines}</div>${togo}</div>`;
     g('wLatest').textContent=cur+' kg';
-  }else{sr.innerHTML+=`<div class="stat"><div class="s-lab">Weight</div><div class="s-val num">—</div></div>`;}
-
-  // Waist stat
-  if(wa.length){
-    const cur=wa[wa.length-1].v, total=wa.length>1?cur-wa[0].v:null;
-    const arrow=n=>n<0?'▼':n>0?'▲':'';const cls=n=>n<0?'down':n>0?'up':'';
-    let lines= total!=null?`<span class="s-chip ${cls(total)}">${arrow(total)} ${Math.abs(total).toFixed(1)} total</span>`:'';
-    sr.innerHTML+=`<div class="stat"><div class="s-lab">Waist</div><div class="s-val num">${cur}<small> cm</small></div><div class="s-chips">${lines}</div></div>`;
-    g('waistLatest').textContent=cur+' cm';
-  }else{sr.innerHTML+=`<div class="stat"><div class="s-lab">Waist</div><div class="s-val num">—</div></div>`;}
+  }else{sr.innerHTML+=`<div class="stat" style="flex:1"><div class="s-lab">Weight</div><div class="s-val num">—</div></div>`;}
 
   g('weightChart').innerHTML=lineChart(w,'kg',target,'wReadout');
-  g('waistChart').innerHTML=lineChart(wa,'cm',null,'waReadout');
+  g('macroChart').innerHTML=macroBars();
   wireChartTaps();
+  wireMacroBars();
+}
+function collectMacroDays(){
+  const out=[];
+  for(let d=1;d<=TOTAL_DAYS;d++){
+    const r=localStorage.getItem(K('day_'+d));if(!r)continue;
+    const o=JSON.parse(r);
+    const meals=o.meals||[];
+    if(!meals.length && !(o.kcal))continue;
+    const kcal=Math.round((o.kcal!=null)?o.kcal:meals.reduce((a,m)=>a+(+m.kcal||0),0));
+    const fat=Math.round(meals.reduce((a,m)=>a+(+m.fat||0),0));
+    const carbs=Math.round(meals.reduce((a,m)=>a+(+m.carbs||0),0));
+    const protein=Math.round(meals.reduce((a,m)=>a+(+m.protein||0),0));
+    if(kcal===0&&protein===0)continue;
+    out.push({day:d,kcal,fat,carbs,protein});
+  }
+  return out;
+}
+function macroBars(){
+  const data=collectMacroDays();
+  if(!data.length)return '<div class="chart-empty">Log some meals to see your macro history.</div>';
+  const W=440,H=150,padL=16,padR=16,padT=14,padB=26;
+  const n=data.length;
+  const bw=Math.min(26,(W-padL-padR)/n*0.6);
+  const gap=(W-padL-padR)/n;
+  const maxK=Math.max(CAL_RED,...data.map(d=>d.kcal))*1.1;
+  const ys=v=>H-padB-(v/maxK)*(H-padT-padB);
+  // target + red lines
+  const tY=ys(CAL_TARGET).toFixed(1), rY=ys(CAL_RED).toFixed(1);
+  let bars='';
+  data.forEach((d,i)=>{
+    const x=padL+gap*i+gap/2;
+    const h=(H-padB)-ys(d.kcal);
+    // color: green <=target, amber target-red, red >red
+    const col=d.kcal>CAL_RED?'#A13024':d.kcal>CAL_TARGET?'#B7791F':'#4a7a52';
+    bars+=`<rect class="mbar" data-day="${d.day}" data-k="${d.kcal}" data-p="${d.protein}" data-f="${d.fat}" data-c="${d.carbs}" x="${(x-bw/2).toFixed(1)}" y="${ys(d.kcal).toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(1,h).toFixed(1)}" rx="3" fill="${col}"/>`;
+  });
+  const first=data[0].day,last=data[data.length-1].day;
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet">
+    <line x1="${padL}" y1="${tY}" x2="${W-padR}" y2="${tY}" stroke="#4a7a52" stroke-width="1" stroke-dasharray="3 3" opacity="0.5"/>
+    <line x1="${padL}" y1="${rY}" x2="${W-padR}" y2="${rY}" stroke="#A13024" stroke-width="1" stroke-dasharray="3 3" opacity="0.4"/>
+    <text x="${W-padR}" y="${(+tY-4).toFixed(1)}" font-size="9" fill="#4a7a52" text-anchor="end" font-family="sans-serif">${CAL_TARGET}</text>
+    ${bars}
+    <text x="${padL}" y="${H-6}" font-size="10" fill="#938c7d" font-family="sans-serif">Day ${first}</text>
+    <text x="${W-padR}" y="${H-6}" font-size="10" fill="#938c7d" text-anchor="end" font-family="sans-serif">Day ${last}</text>
+  </svg>`;
+}
+function wireMacroBars(){
+  const ro=g('macroReadout');
+  const bars=document.querySelectorAll('#macroChart .mbar');
+  if(!bars.length){if(ro)ro.textContent='';return;}
+  const last=bars[bars.length-1];
+  const show=b=>{if(ro)ro.innerHTML=`Day ${b.dataset.day} · <b>${b.dataset.k}</b> kcal · ${b.dataset.p}P ${b.dataset.f}F ${b.dataset.c}C`;};
+  show(last);
+  bars.forEach(b=>b.onclick=()=>{bars.forEach(x=>x.setAttribute('opacity','0.55'));b.setAttribute('opacity','1');show(b);});
 }
 
 /* ---- meal sheet ---- */
@@ -1221,7 +1275,19 @@ function renderPlan(){
   const edited=!!planEdit[planDay];
   let tot={kcal:0,protein:0,fat:0,carbs:0};
   items.forEach(i=>{tot.kcal+=+i.kcal||0;tot.protein+=+i.protein||0;tot.fat+=+i.fat||0;tot.carbs+=+i.carbs||0;});
-  let html=`<div class="plan-total"><div><div class="pt-lab">Day ${planDay} total${edited?' · edited':''}</div><div class="pt-val num">${Math.round(tot.kcal)} kcal</div></div><div class="pt-macros">${Math.round(tot.protein)}P · ${Math.round(tot.fat)}F · ${Math.round(tot.carbs)}C</div></div>`;
+  const gs=(v,t,r)=>v>r?'over':v>t?'warn':'ok';
+  const kcalS=gs(tot.kcal,CAL_TARGET,CAL_RED);
+  const fatS=gs(tot.fat,FAT_TARGET,FAT_RED);
+  const carbS=gs(tot.carbs,CARB_TARGET,CARB_RED);
+  const ptgt=(profile&&profile.weight)?Math.round(profile.weight*PROTEIN_PER_KG):null;
+  let html=`<div class="plan-total">
+    <div class="ptt-row"><span class="ptt-lab">Day ${planDay}${edited?' · edited':''}</span></div>
+    <div class="ptt-grid">
+      <div class="ptt-cell ${kcalS}"><div class="ptt-v">${Math.round(tot.kcal)}<small>/${CAL_TARGET}</small></div><div class="ptt-k">kcal</div></div>
+      <div class="ptt-cell"><div class="ptt-v">${Math.round(tot.protein)}${ptgt?`<small>/${ptgt}</small>`:''}</div><div class="ptt-k">protein</div></div>
+      <div class="ptt-cell ${fatS}"><div class="ptt-v">${Math.round(tot.fat)}<small>/${FAT_TARGET}</small></div><div class="ptt-k">fat</div></div>
+      <div class="ptt-cell ${carbS}"><div class="ptt-v">${Math.round(tot.carbs)}<small>/${CARB_TARGET}</small></div><div class="ptt-k">carbs</div></div>
+    </div></div>`;
   if(!items.length)html+='<div class="plan-empty">No meals for this day.</div>';
   items.forEach((i,idx)=>{
     html+=`<div class="plan-meal">
@@ -1361,7 +1427,6 @@ function wire(){
   g('prevDay').onclick=()=>{saveDay(true);currentDay=Math.max(1,currentDay-1);loadDay();scrollTo(0,0);};
   g('nextDay').onclick=()=>{saveDay(true);currentDay=Math.min(TOTAL_DAYS,currentDay+1);loadDay();scrollTo(0,0);};
   g('fWeight').oninput=e=>day.weight=e.target.value;g('fWeight').onblur=()=>saveDay(true);
-  g('fWaist').oninput=e=>day.waist=e.target.value;g('fWaist').onblur=()=>saveDay(true);
   g('fNotes').oninput=e=>day.notes=e.target.value;g('fNotes').onblur=()=>saveDay(true);
   g('serumAM').onclick=()=>{day.serumAM=!day.serumAM;saveDay(true);render();};
   g('serumPM').onclick=()=>{day.serumPM=!day.serumPM;saveDay(true);render();};

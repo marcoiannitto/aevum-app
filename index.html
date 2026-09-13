@@ -220,7 +220,10 @@ textarea.notes::placeholder{color:var(--muted);}
 .plan-total .pt-val{font-family:var(--serif);font-size:20px;font-weight:500;}
 .plan-total .pt-macros{font-size:12px;color:var(--ink-soft);margin-top:2px;text-align:right;}
 .plan-meal{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:10px;}
-.plan-meal .pm-slot{font-size:11px;color:var(--gold-deep);font-weight:700;letter-spacing:.04em;text-transform:uppercase;margin-bottom:4px;}
+.plan-meal .pm-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;}
+.plan-meal .pm-remove{font-size:12px;color:var(--muted);padding:2px 4px;}
+.plan-meal .pm-slot{font-size:11px;color:var(--gold-deep);font-weight:700;letter-spacing:.04em;text-transform:uppercase;}
+.plan-reset{width:100%;padding:11px;color:var(--muted);font-size:13px;font-weight:500;margin-top:8px;}
 .plan-meal .pm-name{font-size:16px;font-weight:500;margin-bottom:5px;}
 .plan-meal .pm-macros{font-size:13px;color:var(--ink-soft);}
 .plan-meal .pm-macros b{font-family:var(--serif);font-weight:500;}
@@ -1140,12 +1143,17 @@ async function doFoodCheck(){
 }
 
 
-/* ---- meal plan ---- */
-let PLAN=[], planLoaded=false, planDay=1, planExtra={};
-function loadPlanExtra(){try{planExtra=JSON.parse(localStorage.getItem(K('planextra'))||'{}');}catch(e){planExtra={};}}
-function savePlanExtra(){localStorage.setItem(K('planextra'),JSON.stringify(planExtra));}
+/* ---- meal plan ----
+   PLAN = coach's plan from sheet. planEdit[day] = per-day local override that
+   fully replaces that day when the user edits it. Sheet is never touched. */
+let PLAN=[], planLoaded=false, planDay=1, planEdit={}, planAction=null;
+function loadPlanEdit(){try{planEdit=JSON.parse(localStorage.getItem(K('planedit'))||'{}');}catch(e){planEdit={};}}
+function savePlanEdit(){localStorage.setItem(K('planedit'),JSON.stringify(planEdit));}
+function baseItemsFor(day){return PLAN.filter(p=>p.day===day).map(p=>({meal:p.meal,recipe:p.recipe,kcal:p.kcal,protein:p.protein,fat:p.fat,carbs:p.carbs}));}
+function planItemsFor(day){return planEdit[day]?planEdit[day]:baseItemsFor(day);}
+function ensureEditable(day){if(!planEdit[day])planEdit[day]=baseItemsFor(day);}
 async function loadPlan(){
-  loadPlanExtra();
+  loadPlanEdit();
   if(planLoaded){renderPlan();return;}
   if(!BACKEND_URL){g('planList').innerHTML='<div class="plan-empty">Your plan loads once the backend is connected.</div>';return;}
   g('planList').innerHTML='<div class="plan-empty"><span class="thinking"></span> Loading your plan…</div>';
@@ -1161,10 +1169,9 @@ async function loadPlan(){
 }
 function planDaysAvailable(){
   const days=new Set(PLAN.map(p=>p.day));
-  Object.keys(planExtra).forEach(d=>days.add(+d));
+  Object.keys(planEdit).forEach(d=>days.add(+d));
   return [...days].filter(d=>d>0).sort((a,b)=>a-b);
 }
-function planItemsFor(day){ return PLAN.filter(p=>p.day===day).concat(planExtra[day]||[]); }
 function renderPlan(){
   const days=planDaysAvailable();
   if(!days.length){g('planDays').innerHTML='';g('planList').innerHTML='<div class="plan-empty">No meal plan yet. Your coach will set one up.</div>';return;}
@@ -1175,39 +1182,46 @@ function renderPlan(){
     b.textContent='Day '+d;b.onclick=()=>{planDay=d;renderPlan();};db.appendChild(b);
   });
   const items=planItemsFor(planDay);
+  const edited=!!planEdit[planDay];
   let tot={kcal:0,protein:0,fat:0,carbs:0};
   items.forEach(i=>{tot.kcal+=+i.kcal||0;tot.protein+=+i.protein||0;tot.fat+=+i.fat||0;tot.carbs+=+i.carbs||0;});
-  let html=`<div class="plan-total"><div><div class="pt-lab">Day ${planDay} total</div><div class="pt-val num">${Math.round(tot.kcal)} kcal</div></div><div class="pt-macros">${Math.round(tot.protein)}P · ${Math.round(tot.fat)}F · ${Math.round(tot.carbs)}C</div></div>`;
+  let html=`<div class="plan-total"><div><div class="pt-lab">Day ${planDay} total${edited?' · edited':''}</div><div class="pt-val num">${Math.round(tot.kcal)} kcal</div></div><div class="pt-macros">${Math.round(tot.protein)}P · ${Math.round(tot.fat)}F · ${Math.round(tot.carbs)}C</div></div>`;
   if(!items.length)html+='<div class="plan-empty">No meals for this day.</div>';
   items.forEach((i,idx)=>{
     html+=`<div class="plan-meal">
-      <div class="pm-slot">${esc(i.meal||('Meal '+(idx+1)))}</div>
+      <div class="pm-head"><span class="pm-slot">${esc(i.meal||('Meal '+(idx+1)))}</span><button class="pm-remove" data-i="${idx}">Remove</button></div>
       <div class="pm-name">${esc(i.recipe)}</div>
       <div class="pm-macros"><b>${Math.round(i.kcal)}</b> kcal<span class="sep">·</span>${Math.round(i.protein)}P<span class="sep">·</span>${Math.round(i.fat)}F<span class="sep">·</span>${Math.round(i.carbs)}C</div>
       <div class="pm-actions">
-        <button class="pm-btn pm-recipe" data-recipe="${esc(i.recipe)}">View recipe</button>
-        <button class="pm-btn pm-log" data-i="${idx}">Log this today</button>
+        <button class="pm-btn pm-recipe" data-recipe="${esc(i.recipe)}">View</button>
+        <button class="pm-btn pm-swap" data-i="${idx}">Swap</button>
+        <button class="pm-btn pm-log" data-i="${idx}">Log today</button>
       </div></div>`;
   });
-  html+=`<button class="plan-addmeal" id="planAddMeal">+ Add a meal from recipes</button>`;
+  html+=`<button class="plan-addmeal" id="planAddMeal">+ Add a meal</button>`;
+  if(edited)html+=`<button class="plan-reset" id="planReset">Reset to coach's plan</button>`;
   g('planList').innerHTML=html;
-  g('planList').querySelectorAll('.pm-recipe').forEach(b=>b.onclick=()=>{
-    const r=RECIPES.find(x=>x.name===b.dataset.recipe);
-    if(r)openRecipe(r); else g('meHint');
-  });
+  g('planList').querySelectorAll('.pm-recipe').forEach(b=>b.onclick=()=>{const r=RECIPES.find(x=>x.name===b.dataset.recipe);if(r)openRecipe(r);});
   g('planList').querySelectorAll('.pm-log').forEach(b=>b.onclick=()=>{
     const i=items[+b.dataset.i];
     day.meals.push({name:i.recipe,kcal:+i.kcal||0,protein:+i.protein||0,fat:+i.fat||0,carbs:+i.carbs||0,time:new Date().toTimeString().slice(0,5)});
     saveDay(true);render();b.textContent='✓ Logged';b.disabled=true;
   });
-  g('planAddMeal').onclick=openPlanPicker;
+  g('planList').querySelectorAll('.pm-remove').forEach(b=>b.onclick=()=>{
+    ensureEditable(planDay);planEdit[planDay].splice(+b.dataset.i,1);savePlanEdit();renderPlan();
+  });
+  g('planList').querySelectorAll('.pm-swap').forEach(b=>b.onclick=()=>{
+    planAction={type:'swap',day:planDay,idx:+b.dataset.i};switchSub('recipes');
+  });
+  g('planAddMeal').onclick=()=>{planAction={type:'add',day:planDay};switchSub('recipes');};
+  const rb=g('planReset');if(rb)rb.onclick=()=>{delete planEdit[planDay];savePlanEdit();renderPlan();};
 }
-let pickingForPlan=false;
-function openPlanPicker(){pickingForPlan=true;switchSub('recipes');}
-function addRecipeToPlan(r){
-  if(!planExtra[planDay])planExtra[planDay]=[];
-  planExtra[planDay].push({day:planDay,meal:'Added',recipe:r.name,kcal:r.kcal,protein:r.protein_g,fat:r.fat_g,carbs:r.carbs_g});
-  savePlanExtra();pickingForPlan=false;switchSub('plan');renderPlan();
+function applyRecipeToPlan(r){
+  const item={meal:'Added',recipe:r.name,kcal:r.kcal,protein:r.protein_g,fat:r.fat_g,carbs:r.carbs_g};
+  const d=planAction.day;ensureEditable(d);
+  if(planAction.type==='swap'){item.meal=planEdit[d][planAction.idx].meal;planEdit[d][planAction.idx]=item;}
+  else{planEdit[d].push(item);}
+  savePlanEdit();planAction=null;switchSub('plan');renderPlan();
 }
 
 let RECIPES=[], rcFilter={q:'',cuisine:'all'}, rcLoaded=false;
@@ -1264,7 +1278,7 @@ function renderRecipeList(){
         <div class="rc-macros"><b>${r.kcal}</b> kcal<span class="sep">·</span>${r.protein_g}P<span class="sep">·</span>${r.fat_g}F<span class="sep">·</span>${r.carbs_g}C</div>
       </div>
       <button class="rc-fav ${isFav?'on':''}" data-fav="${esc(r.name)}">${isFav?'★':'☆'}</button>`;
-    card.querySelector('.rc-body').onclick=()=>{ if(pickingForPlan)addRecipeToPlan(r); else openRecipe(r); };
+    card.querySelector('.rc-body').onclick=()=>{ if(planAction)applyRecipeToPlan(r); else openRecipe(r); };
     card.querySelector('.rc-fav').onclick=e=>{e.stopPropagation();toggleFav(r.name);};
     list.appendChild(card);
   });
@@ -1326,7 +1340,7 @@ function wire(){
   ['mKcal','mProtein','mFat','mCarbs'].forEach(id=>g(id).oninput=validateMeal);
   document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
   g('rcSearch').oninput=e=>{rcFilter.q=e.target.value;renderRecipeList();};
-  document.querySelectorAll('.sub-tab').forEach(t=>t.onclick=()=>{pickingForPlan=false;switchSub(t.dataset.sub);});
+  document.querySelectorAll('.sub-tab').forEach(t=>t.onclick=()=>{planAction=null;switchSub(t.dataset.sub);});
   g('rcScrim').onclick=closeRecipe;
   g('rcClose').onclick=closeRecipe;
   g('fcOpen').onclick=openFoodCheck;

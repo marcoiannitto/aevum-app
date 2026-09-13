@@ -172,6 +172,8 @@ textarea.notes::placeholder{color:var(--muted);}
 .chartcard{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:14px;}
 .chartcard .c-title{font-size:13px;color:var(--muted);margin-bottom:10px;display:flex;justify-content:space-between;}
 .chartcard .c-title b{font-family:var(--serif);font-weight:500;color:var(--ink);}
+.chart-readout{font-size:13px;color:var(--gold-deep);font-weight:600;height:18px;margin-bottom:6px;}
+.chart-dot-tappable{cursor:pointer;}
 .chart-empty{color:var(--muted);font-size:13px;text-align:center;padding:24px 0;}
 .export{width:100%;padding:14px;border:1px solid var(--line);border-radius:14px;font-weight:600;color:var(--ink-soft);background:var(--card);margin-top:2px;}
 .savenote{text-align:center;font-size:13px;color:var(--gold-deep);height:20px;margin:4px 0 0;}
@@ -416,10 +418,12 @@ textarea.notes::placeholder{color:var(--muted);}
     <div class="stat-row" id="statRow"></div>
     <div class="chartcard">
       <div class="c-title"><span>Weight</span><b id="wLatest">—</b></div>
+      <div class="chart-readout" id="wReadout"></div>
       <div id="weightChart"></div>
     </div>
     <div class="chartcard">
       <div class="c-title"><span>Waist</span><b id="waistLatest">—</b></div>
+      <div class="chart-readout" id="waReadout"></div>
       <div id="waistChart"></div>
     </div>
     <div class="savenote" id="saveNote"></div>
@@ -738,32 +742,71 @@ function collectSeries(field){
   }
   return out;
 }
-function lineChart(data,unit,target){
+function lineChart(data,unit,target,readoutId){
   if(data.length<2)return '<div class="chart-empty">Log at least two days to see a trend.</div>';
-  const W=440,H=150,pad=16,padB=24;
+  const W=440,H=180,padL=16,padR=16,padT=22,padB=28;
   const d0=data[0].day, dN=data[data.length-1].day, span=(dN-d0)||1;
-  const xs=d=>pad+(d.day-d0)/span*(W-2*pad);
-  let vals=data.map(d=>d.v);
-  if(target)vals=vals.concat([target]);
+  const xs=d=>padL+(d-d0)/span*(W-padL-padR);
+  let vals=data.map(d=>d.v); if(target)vals=vals.concat([target]);
   let min=Math.min(...vals),max=Math.max(...vals);
-  const rng=(max-min)||1; min-=rng*0.1; max+=rng*0.1;
+  const rng=(max-min)||1; min-=rng*0.12; max+=rng*0.18;
   const range=max-min;
-  const ys=v=>H-padB-((v-min)/range)*(H-pad-padB);
-  const pts=data.map(d=>`${xs(d).toFixed(1)},${ys(d.v).toFixed(1)}`).join(' ');
-  const dots=data.map(d=>`<circle cx="${xs(d).toFixed(1)}" cy="${ys(d.v).toFixed(1)}" r="3" fill="#B08D2E"/>`).join('');
+  const ys=v=>H-padB-((v-min)/range)*(H-padT-padB);
+
+  // smoothed trend (3-point moving average)
+  const sm=data.map((d,i)=>{
+    const a=data[Math.max(0,i-1)].v,b=d.v,c=data[Math.min(data.length-1,i+1)].v;
+    return {day:d.day,v:(a+b+c)/3};
+  });
+  const trendPts=sm.map(d=>`${xs(d.day).toFixed(1)},${ys(d.v).toFixed(1)}`).join(' ');
+  const linePts=data.map(d=>`${xs(d.day).toFixed(1)},${ys(d.v).toFixed(1)}`).join(' ');
+
+  // target line
   let tline='';
   if(target){
     const ty=ys(target).toFixed(1);
-    tline=`<line x1="${pad}" y1="${ty}" x2="${W-pad}" y2="${ty}" stroke="#B08D2E" stroke-width="1.2" stroke-dasharray="4 4" opacity="0.6"/>
-    <text x="${W-pad}" y="${(+ty-5).toFixed(1)}" font-size="10" fill="#8f6f1f" text-anchor="end" font-family="sans-serif">Target ${target}</text>`;
+    tline=`<line x1="${padL}" y1="${ty}" x2="${W-padR}" y2="${ty}" stroke="#B08D2E" stroke-width="1.2" stroke-dasharray="4 4" opacity="0.55"/>
+    <text x="${W-padR}" y="${(+ty-5).toFixed(1)}" font-size="10" fill="#8f6f1f" text-anchor="end" font-family="sans-serif">Target ${target}</text>`;
   }
-  return `<svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet">
+
+  // dots (tappable) — latest emphasized
+  const dots=data.map((d,i)=>{
+    const last=i===data.length-1;
+    const r=last?4.5:3;
+    return `<circle class="chart-dot-tappable" data-day="${d.day}" data-v="${d.v}" cx="${xs(d.day).toFixed(1)}" cy="${ys(d.v).toFixed(1)}" r="${r}" fill="${last?'#8f6f1f':'#B08D2E'}" stroke="#fff" stroke-width="1.5"/>`;
+  }).join('');
+
+  // always-visible: day1 anchor label + latest value
+  const first=data[0], latest=data[data.length-1];
+  const latestLabel=`<text x="${xs(latest.day).toFixed(1)}" y="${(ys(latest.v)-10).toFixed(1)}" font-size="11" font-weight="700" fill="#1A1A1A" text-anchor="middle" font-family="sans-serif">${latest.v}</text>`;
+
+  // x-axis day ticks (start, latest, and a couple between if room)
+  const ticks=[d0,dN];
+  const mid=Math.round((d0+dN)/2); if(mid!==d0&&mid!==dN)ticks.splice(1,0,mid);
+  const xlabels=ticks.map(dd=>`<text x="${xs(dd).toFixed(1)}" y="${H-6}" font-size="10" fill="#938c7d" text-anchor="${dd===d0?'start':dd===dN?'end':'middle'}" font-family="sans-serif">Day ${dd}</text>`).join('');
+
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet" data-readout="${readoutId||''}">
     ${tline}
-    <polyline points="${pts}" fill="none" stroke="#B08D2E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <polyline points="${trendPts}" fill="none" stroke="#B08D2E" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0.18"/>
+    <polyline points="${linePts}" fill="none" stroke="#B08D2E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
     ${dots}
-    <text x="${pad}" y="${H-4}" font-size="10" fill="#938c7d" font-family="sans-serif">Day ${d0}</text>
-    <text x="${W-pad}" y="${H-4}" font-size="10" fill="#938c7d" text-anchor="end" font-family="sans-serif">Day ${dN}</text>
+    ${latestLabel}
+    ${xlabels}
   </svg>`;
+}
+function wireChartTaps(){
+  document.querySelectorAll('#weightChart svg, #waistChart svg').forEach(svg=>{
+    const rid=svg.getAttribute('data-readout');
+    svg.querySelectorAll('.chart-dot-tappable').forEach(dot=>{
+      dot.onclick=()=>{
+        const dday=dot.getAttribute('data-day'), dv=dot.getAttribute('data-v');
+        // highlight
+        svg.querySelectorAll('.chart-dot-tappable').forEach(x=>x.setAttribute('r',x===dot?'5.5':'3'));
+        const ro=rid?g(rid):null;
+        if(ro)ro.textContent=`Day ${dday} · ${dv}`;
+      };
+    });
+  });
 }
 function renderTrends(){
   const w=collectSeries('weight'),wa=collectSeries('waist');
@@ -795,8 +838,9 @@ function renderTrends(){
     g('waistLatest').textContent=cur+' cm';
   }else{sr.innerHTML+=`<div class="stat"><div class="s-lab">Waist</div><div class="s-val num">—</div></div>`;}
 
-  g('weightChart').innerHTML=lineChart(w,'kg',target);
-  g('waistChart').innerHTML=lineChart(wa,'cm',null);
+  g('weightChart').innerHTML=lineChart(w,'kg',target,'wReadout');
+  g('waistChart').innerHTML=lineChart(wa,'cm',null,'waReadout');
+  wireChartTaps();
 }
 
 /* ---- meal sheet ---- */

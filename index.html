@@ -132,6 +132,8 @@ svg{display:block;}
 .meal-time{font-size:12px;color:var(--muted);width:42px;flex-shrink:0;padding-top:2px;font-variant-numeric:tabular-nums;}
 .meal-body{flex:1;min-width:0;}
 .meal-name{font-size:15px;font-weight:500;margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.meal-name.expanded{white-space:normal;overflow:visible;}
+.meal-body{cursor:pointer;}
 .meal-macros{font-size:13px;color:var(--ink-soft);}
 .meal-macros b{font-family:var(--serif);font-weight:500;}
 .meal-macros .sep{color:var(--line);margin:0 5px;}
@@ -783,10 +785,11 @@ function renderTimeline(){
   let html='<div class="tl-head">Today\u2019s meals</div>';
   [...day.meals].reverse().forEach(m=>{
     const i=day.meals.indexOf(m);
-    html+=`<div class="meal-row"><div class="meal-time">${m.time||''}</div><div class="meal-body"><div class="meal-name">${esc(m.name||'Meal')}</div><div class="meal-macros"><b>${Math.round(m.kcal||0)}</b> kcal<span class="sep">·</span>${Math.round(m.protein||0)}P<span class="sep">·</span>${Math.round(m.fat||0)}F<span class="sep">·</span>${Math.round(m.carbs||0)}C</div></div><button class="meal-del" data-i="${i}">×</button></div>`;
+    html+=`<div class="meal-row"><div class="meal-time">${m.time||''}</div><div class="meal-body" data-exp="${i}"><div class="meal-name">${esc(m.name||'Meal')}</div><div class="meal-macros"><b>${Math.round(m.kcal||0)}</b> kcal<span class="sep">·</span>${Math.round(m.protein||0)}P<span class="sep">·</span>${Math.round(m.fat||0)}F<span class="sep">·</span>${Math.round(m.carbs||0)}C</div></div><button class="meal-del" data-i="${i}">×</button></div>`;
   });
   tl.innerHTML=html;
   tl.querySelectorAll('.meal-del').forEach(b=>b.onclick=()=>{day.meals.splice(+b.dataset.i,1);saveDay(true);render();});
+  tl.querySelectorAll('.meal-body').forEach(b=>b.onclick=()=>{b.querySelector('.meal-name').classList.toggle('expanded');});
 }
 function renderWater(){
   const glasses=day.water||0;
@@ -990,7 +993,7 @@ function renderIngredients(){
   ingredients.forEach((ing,i)=>{
     const row=document.createElement('div');row.className='ing-row';
     row.innerHTML=`<input class="ing-food" placeholder="e.g. eggs" value="${esc(ing.food)}">
-      <input class="ing-qty" placeholder="e.g. 3 or 100g" value="${esc(ing.qty)}">
+      <input class="ing-qty" placeholder="100g / 3" value="${esc(ing.qty)}">
       <button class="ing-x">×</button>`;
     row.querySelector('.ing-food').oninput=e=>ingredients[i].food=e.target.value;
     row.querySelector('.ing-qty').oninput=e=>ingredients[i].qty=e.target.value;
@@ -1158,15 +1161,15 @@ async function loadPlan(){
   if(planLoaded){renderPlan();return;}
   if(!BACKEND_URL){g('planList').innerHTML='<div class="plan-empty">Your plan loads once the backend is connected.</div>';return;}
   g('planList').innerHTML='<div class="plan-empty"><span class="thinking"></span> Loading your plan…</div>';
+  const call=async()=>{const res=await fetch(BACKEND_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'mealplan',id:PID})});const d=await res.json();if(d.error)throw new Error(d.error);return d;};
   try{
     const cached=localStorage.getItem(K('plan_cache'));
     if(cached){PLAN=JSON.parse(cached);planLoaded=true;renderPlan();}
-    const res=await fetch(BACKEND_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'mealplan',id:PID})});
-    const d=await res.json();
+    let d; try{d=await call();}catch(e1){d=await call();} // retry cold start
     PLAN=d.plan||[];planLoaded=true;
     localStorage.setItem(K('plan_cache'),JSON.stringify(PLAN));
     renderPlan();
-  }catch(err){ if(!PLAN.length)g('planList').innerHTML='<div class="plan-empty">Could not load your plan.</div>'; }
+  }catch(err){ if(!PLAN.length)g('planList').innerHTML='<div class="plan-empty">Could not load your plan. Reopen the Nutrition tab to retry.</div>'; }
 }
 function planDaysAvailable(){
   const days=new Set(PLAN.map(p=>p.day));

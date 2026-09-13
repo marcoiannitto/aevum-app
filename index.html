@@ -231,6 +231,23 @@ textarea.notes::placeholder{color:var(--muted);}
 .ptt-cell.over{background:var(--over-bg);border-color:#e9c9c1;}
 .ptt-cell.over .ptt-v{color:var(--over);}
 .mbar{cursor:pointer;}
+/* shopping list */
+.shop-range-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+.shop-range-row label{font-size:12px;color:var(--muted);}
+.shop-range-row select{padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--card);font-size:15px;}
+.shop-gen{width:100%;padding:14px;background:var(--ink);color:#fff;border-radius:13px;font-weight:600;font-size:15px;}
+.shop-gen:disabled{opacity:.5;}
+.shop-result{margin-top:16px;}
+.shop-group{margin-bottom:16px;}
+.shop-group h4{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--gold-deep);margin-bottom:6px;font-weight:700;}
+.shop-item{display:flex;align-items:center;gap:10px;padding:10px 2px;border-bottom:1px solid var(--line-soft);}
+.shop-item:last-child{border-bottom:none;}
+.shop-item .chk{width:20px;height:20px;border:1.5px solid var(--line);border-radius:6px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;}
+.shop-item.done .chk{background:var(--gold);border-color:var(--gold);}
+.shop-item.done .si-name{text-decoration:line-through;color:var(--muted);}
+.shop-item .si-name{flex:1;font-size:15px;}
+.shop-item .si-qty{font-size:13px;color:var(--ink-soft);font-family:var(--serif);}
+.shop-disclaimer{font-size:12px;color:var(--muted);font-style:italic;margin-top:14px;line-height:1.4;}
 .plan-meal{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:10px;}
 .plan-meal .pm-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;}
 .plan-meal .pm-remove{font-size:12px;color:var(--muted);padding:2px 4px;}
@@ -598,6 +615,22 @@ textarea.notes::placeholder{color:var(--muted);}
   <div class="grab"></div>
   <button class="sheet-close" id="rcClose" aria-label="Close">×</button>
   <div class="rc-detail" id="rcDetail"></div>
+</div>
+
+<!-- SHOPPING LIST SHEET -->
+<div class="scrim" id="shopScrim"></div>
+<div class="sheet" id="shopSheet">
+  <div class="grab"></div>
+  <button class="sheet-close" id="shopClose" aria-label="Close">×</button>
+  <h2>Shopping list</h2>
+  <div class="shop-range">
+    <div class="shop-range-row">
+      <label>From day</label><select id="shopFrom"></select>
+      <label>To day</label><select id="shopTo"></select>
+    </div>
+    <button class="shop-gen" id="shopGen">Build list</button>
+  </div>
+  <div class="shop-result" id="shopResult"></div>
 </div>
 
 <!-- FOOD CHECK SHEET -->
@@ -1341,6 +1374,7 @@ function renderPlan(){
   });
   html+=`<button class="plan-addmeal" id="planAddMeal">+ Add a meal</button>`;
   html+=`<div class="plan-add-choice" id="planAddChoice"><button id="planFromRecipe">Choose a recipe</button><button id="planOwn">Add your own</button></div>`;
+  html+=`<button class="plan-addmeal" id="planShop" style="border-style:solid;border-color:var(--line);color:var(--ink-soft);margin-top:10px;">🛒 Shopping list</button>`;
   if(edited)html+=`<button class="plan-reset" id="planReset">Reset to coach's plan</button>`;
   g('planList').innerHTML=html;
   g('planList').querySelectorAll('.pm-recipe').forEach(b=>b.onclick=()=>{const r=RECIPES.find(x=>x.name===b.dataset.recipe);if(r)openRecipe(r);});
@@ -1358,10 +1392,12 @@ function renderPlan(){
   g('planAddMeal').onclick=()=>{
     const box=g('planAddChoice');
     box.classList.toggle('show');
+    if(box.classList.contains('show'))setTimeout(()=>box.scrollIntoView({behavior:'smooth',block:'center'}),50);
   };
   const pc=g('planFromRecipe'); if(pc)pc.onclick=()=>{g('planAddChoice').classList.remove('show');planAction={type:'add',day:planDay};switchSub('recipes');};
   const po=g('planOwn'); if(po)po.onclick=()=>{g('planAddChoice').classList.remove('show');openSheet('plan');};
   const rb=g('planReset');if(rb)rb.onclick=()=>{delete planEdit[planDay];savePlanEdit();renderPlan();};
+  g('planShop').onclick=openShop;
 }
 function applyRecipeToPlan(r){
   const item={meal:'Added',recipe:r.name,kcal:r.kcal,protein:r.protein_g,fat:r.fat_g,carbs:r.carbs_g};
@@ -1369,6 +1405,64 @@ function applyRecipeToPlan(r){
   if(planAction.type==='swap'){item.meal=planEdit[d][planAction.idx].meal;planEdit[d][planAction.idx]=item;}
   else{planEdit[d].push(item);}
   savePlanEdit();planAction=null;switchSub('plan');renderPlan();
+}
+/* ---- shopping list ---- */
+function openShop(){
+  const days=planDaysAvailable();
+  const from=g('shopFrom'),to=g('shopTo');
+  from.innerHTML='';to.innerHTML='';
+  days.forEach(d=>{
+    from.insertAdjacentHTML('beforeend',`<option value="${d}">Day ${d}</option>`);
+    to.insertAdjacentHTML('beforeend',`<option value="${d}">Day ${d}</option>`);
+  });
+  // default: today's day (or first) → +6 within available
+  const start=days.includes(planDay)?planDay:days[0];
+  from.value=start;
+  const endCandidates=days.filter(d=>d>=start);
+  to.value=endCandidates[Math.min(6,endCandidates.length-1)]||start;
+  g('shopResult').innerHTML='';
+  g('shopScrim').classList.add('show');g('shopSheet').classList.add('show');history.pushState({sheet:'shop'},'');
+}
+function closeShop(){
+  if(!g('shopSheet').classList.contains('show'))return;
+  if(history.state&&history.state.sheet){history.back();}
+  else{g('shopScrim').classList.remove('show');g('shopSheet').classList.remove('show');}
+}
+async function buildShopList(){
+  const from=+g('shopFrom').value, to=+g('shopTo').value;
+  if(to<from){g('shopResult').innerHTML='<div class="shop-disclaimer">End day must be after start day.</div>';return;}
+  // gather ingredients from the PLAN across the range
+  let ings=[];
+  for(let d=from;d<=to;d++){
+    planItemsFor(d).forEach(item=>{
+      const r=RECIPES.find(x=>x.name===item.recipe);
+      if(r&&r.ingredients&&r.ingredients.length){ ings=ings.concat(r.ingredients); }
+      else if(item.recipe){ ings.push(item.recipe); } // custom meal → use its name
+    });
+  }
+  if(!ings.length){g('shopResult').innerHTML='<div class="shop-disclaimer">No meals in that range yet.</div>';return;}
+  const btn=g('shopGen');btn.disabled=true;
+  g('shopResult').innerHTML='<div class="shop-disclaimer"><span class="thinking"></span> Building your list…</div>';
+  const call=async()=>{const res=await fetch(BACKEND_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'shoplist',ingredients:ings})});const d=await res.json();if(d.error)throw new Error(d.error);return d;};
+  try{
+    let d; try{d=await call();}catch(e1){d=await call();}
+    renderShopList(d.groups||[]);
+  }catch(err){g('shopResult').innerHTML='<div class="shop-disclaimer">Could not build the list. Try again.</div>';}
+  finally{btn.disabled=false;}
+}
+function renderShopList(groups){
+  if(!groups.length){g('shopResult').innerHTML='<div class="shop-disclaimer">Nothing to buy.</div>';return;}
+  let html='';
+  groups.forEach(gr=>{
+    html+=`<div class="shop-group"><h4>${esc(gr.category||'Other')}</h4>`;
+    (gr.items||[]).forEach(it=>{
+      html+=`<div class="shop-item"><div class="chk">✓</div><span class="si-name">${esc(it.name)}</span><span class="si-qty">${esc(it.qty||'')}</span></div>`;
+    });
+    html+='</div>';
+  });
+  html+='<div class="shop-disclaimer">Quantities are AI-estimated and may not be exact — treat them as a guide, and adjust to your needs.</div>';
+  g('shopResult').innerHTML=html;
+  g('shopResult').querySelectorAll('.shop-item').forEach(it=>it.onclick=()=>it.classList.toggle('done'));
 }
 
 let RECIPES=[], rcFilter={q:'',cuisine:'all'}, rcLoaded=false;
@@ -1493,6 +1587,9 @@ function wire(){
   g('fcClose').onclick=closeFoodCheck;
   g('fcScrim').onclick=closeFoodCheck;
   g('fcCheck').onclick=doFoodCheck;
+  g('shopGen')&&(g('shopGen').onclick=buildShopList);
+  g('shopClose')&&(g('shopClose').onclick=closeShop);
+  g('shopScrim')&&(g('shopScrim').onclick=closeShop);
   g('fcInput').oninput=()=>{g('fcResult').innerHTML='';};
   g('fcInput').onkeydown=e=>{if(e.key==='Enter')doFoodCheck();};
 }
@@ -1521,6 +1618,7 @@ window.addEventListener('popstate',()=>{
   if(mealOpen){g('scrim').classList.remove('show');g('sheet').classList.remove('show');}
   if(rcOpen){g('rcScrim').classList.remove('show');g('rcSheet').classList.remove('show');}
   if(fcOpen){g('fcScrim').classList.remove('show');g('fcSheet').classList.remove('show');}
+  if(g('shopSheet')&&g('shopSheet').classList.contains('show')){g('shopScrim').classList.remove('show');g('shopSheet').classList.remove('show');}
 });
 loadProfile();
 if(profile){g('onboard').classList.add('hidden');boot();}else{initOnboard();}

@@ -172,8 +172,8 @@ textarea.notes::placeholder{color:var(--muted);}
 .chartcard{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:14px;}
 .chartcard .c-title{font-size:13px;color:var(--muted);margin-bottom:10px;display:flex;justify-content:space-between;}
 .chartcard .c-title b{font-family:var(--serif);font-weight:500;color:var(--ink);}
-.chart-readout{font-size:13px;color:var(--gold-deep);font-weight:600;height:18px;margin-bottom:6px;}
-.chart-dot-tappable{cursor:pointer;}
+.chart-readout{font-size:13px;color:var(--ink-soft);height:18px;margin-bottom:6px;}
+.chart-readout b{font-family:var(--serif);font-weight:500;color:var(--ink);}
 .chart-empty{color:var(--muted);font-size:13px;text-align:center;padding:24px 0;}
 .export{width:100%;padding:14px;border:1px solid var(--line);border-radius:14px;font-weight:600;color:var(--ink-soft);background:var(--card);margin-top:2px;}
 .savenote{text-align:center;font-size:13px;color:var(--gold-deep);height:20px;margin:4px 0 0;}
@@ -744,68 +744,92 @@ function collectSeries(field){
 }
 function lineChart(data,unit,target,readoutId){
   if(data.length<2)return '<div class="chart-empty">Log at least two days to see a trend.</div>';
-  const W=440,H=180,padL=16,padR=16,padT=22,padB=28;
+  const W=440,H=190,padL=16,padR=16,padT=24,padB=30;
   const d0=data[0].day, dN=data[data.length-1].day, span=(dN-d0)||1;
   const xs=d=>padL+(d-d0)/span*(W-padL-padR);
   let vals=data.map(d=>d.v); if(target)vals=vals.concat([target]);
   let min=Math.min(...vals),max=Math.max(...vals);
-  const rng=(max-min)||1; min-=rng*0.12; max+=rng*0.18;
+  const rng=(max-min)||1; min-=rng*0.12; max+=rng*0.20;
   const range=max-min;
   const ys=v=>H-padB-((v-min)/range)*(H-padT-padB);
 
-  // smoothed trend (3-point moving average)
-  const sm=data.map((d,i)=>{
-    const a=data[Math.max(0,i-1)].v,b=d.v,c=data[Math.min(data.length-1,i+1)].v;
-    return {day:d.day,v:(a+b+c)/3};
-  });
+  // per-day vertical gridlines
+  let grid='';
+  for(let dd=d0; dd<=dN; dd++){
+    const x=xs(dd).toFixed(1);
+    grid+=`<line x1="${x}" y1="${padT}" x2="${x}" y2="${H-padB}" stroke="#EBE5D8" stroke-width="1" opacity="0.7"/>`;
+  }
+
+  // trend (smoothed) + main line
+  const sm=data.map((d,i)=>{const a=data[Math.max(0,i-1)].v,b=d.v,c=data[Math.min(data.length-1,i+1)].v;return {day:d.day,v:(a+b+c)/3};});
   const trendPts=sm.map(d=>`${xs(d.day).toFixed(1)},${ys(d.v).toFixed(1)}`).join(' ');
   const linePts=data.map(d=>`${xs(d.day).toFixed(1)},${ys(d.v).toFixed(1)}`).join(' ');
 
-  // target line
   let tline='';
-  if(target){
-    const ty=ys(target).toFixed(1);
-    tline=`<line x1="${padL}" y1="${ty}" x2="${W-padR}" y2="${ty}" stroke="#B08D2E" stroke-width="1.2" stroke-dasharray="4 4" opacity="0.55"/>
-    <text x="${W-padR}" y="${(+ty-5).toFixed(1)}" font-size="10" fill="#8f6f1f" text-anchor="end" font-family="sans-serif">Target ${target}</text>`;
-  }
+  if(target){const ty=ys(target).toFixed(1);
+    tline=`<line x1="${padL}" y1="${ty}" x2="${W-padR}" y2="${ty}" stroke="#B08D2E" stroke-width="1.2" stroke-dasharray="4 4" opacity="0.55"/><text x="${W-padR}" y="${(+ty-5).toFixed(1)}" font-size="10" fill="#8f6f1f" text-anchor="end" font-family="sans-serif">Target ${target}</text>`;}
 
-  // dots (tappable) — latest emphasized
   const dots=data.map((d,i)=>{
-    const last=i===data.length-1;
-    const r=last?4.5:3;
-    return `<circle class="chart-dot-tappable" data-day="${d.day}" data-v="${d.v}" cx="${xs(d.day).toFixed(1)}" cy="${ys(d.v).toFixed(1)}" r="${r}" fill="${last?'#8f6f1f':'#B08D2E'}" stroke="#fff" stroke-width="1.5"/>`;
+    const last=i===data.length-1, first=i===0;
+    if(last)return `<circle cx="${xs(d.day).toFixed(1)}" cy="${ys(d.v).toFixed(1)}" r="4.5" fill="#8f6f1f" stroke="#fff" stroke-width="1.5"/>`;
+    if(first)return `<circle cx="${xs(d.day).toFixed(1)}" cy="${ys(d.v).toFixed(1)}" r="4" fill="#fff" stroke="#B08D2E" stroke-width="2"/>`;
+    return `<circle cx="${xs(d.day).toFixed(1)}" cy="${ys(d.v).toFixed(1)}" r="2.5" fill="#B08D2E"/>`;
   }).join('');
 
-  // always-visible: day1 anchor label + latest value
-  const first=data[0], latest=data[data.length-1];
-  const latestLabel=`<text x="${xs(latest.day).toFixed(1)}" y="${(ys(latest.v)-10).toFixed(1)}" font-size="11" font-weight="700" fill="#1A1A1A" text-anchor="middle" font-family="sans-serif">${latest.v}</text>`;
+  const latest=data[data.length-1];
+  const ll=`<text x="${xs(latest.day).toFixed(1)}" y="${(ys(latest.v)-10).toFixed(1)}" font-size="11" font-weight="700" fill="#1A1A1A" text-anchor="middle" font-family="sans-serif">${latest.v}</text>`;
 
-  // x-axis day ticks (start, latest, and a couple between if room)
-  const ticks=[d0,dN];
-  const mid=Math.round((d0+dN)/2); if(mid!==d0&&mid!==dN)ticks.splice(1,0,mid);
-  const xlabels=ticks.map(dd=>`<text x="${xs(dd).toFixed(1)}" y="${H-6}" font-size="10" fill="#938c7d" text-anchor="${dd===d0?'start':dd===dN?'end':'middle'}" font-family="sans-serif">Day ${dd}</text>`).join('');
+  // x labels: Day 1 · Start  and  Day N · Today
+  const xlabels=`<text x="${padL}" y="${H-8}" font-size="10" fill="#938c7d" text-anchor="start" font-family="sans-serif">Day ${d0} · Start</text><text x="${W-padR}" y="${H-8}" font-size="10" fill="#938c7d" text-anchor="end" font-family="sans-serif">Day ${dN} · Today</text>`;
 
-  return `<svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet" data-readout="${readoutId||''}">
-    ${tline}
-    <polyline points="${trendPts}" fill="none" stroke="#B08D2E" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0.18"/>
+  // scrub indicator (hidden until touched)
+  const scrub=`<line id="scrubLine" x1="0" y1="${padT}" x2="0" y2="${H-padB}" stroke="#8f6f1f" stroke-width="1.5" opacity="0"/>`;
+
+  // embed data for scrub JS
+  const pts=JSON.stringify(data.map(d=>({d:d.day,v:d.v,x:+xs(d.day).toFixed(1)})));
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet" data-readout="${readoutId||''}" data-pts='${pts}'>
+    ${grid}${tline}
+    <polyline points="${trendPts}" fill="none" stroke="#B08D2E" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0.16"/>
     <polyline points="${linePts}" fill="none" stroke="#B08D2E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-    ${dots}
-    ${latestLabel}
-    ${xlabels}
+    ${scrub}${dots}${ll}${xlabels}
   </svg>`;
 }
+function fmtDelta(n){return n<0?`▼ ${Math.abs(n).toFixed(1)}`:n>0?`▲ ${Math.abs(n).toFixed(1)}`:'0.0';}
 function wireChartTaps(){
   document.querySelectorAll('#weightChart svg, #waistChart svg').forEach(svg=>{
     const rid=svg.getAttribute('data-readout');
-    svg.querySelectorAll('.chart-dot-tappable').forEach(dot=>{
-      dot.onclick=()=>{
-        const dday=dot.getAttribute('data-day'), dv=dot.getAttribute('data-v');
-        // highlight
-        svg.querySelectorAll('.chart-dot-tappable').forEach(x=>x.setAttribute('r',x===dot?'5.5':'3'));
-        const ro=rid?g(rid):null;
-        if(ro)ro.textContent=`Day ${dday} · ${dv}`;
-      };
-    });
+    const ro=rid?g(rid):null;
+    let pts; try{pts=JSON.parse(svg.getAttribute('data-pts'));}catch(e){return;}
+    if(!pts||!pts.length)return;
+    const line=svg.querySelector('#scrubLine');
+    const unit = rid==='wReadout'?'kg':'cm';
+    // default readout = latest
+    const setRO=(i)=>{
+      const p=pts[i];
+      let delta = i>0 ? p.v-pts[i-1].v : null;
+      const dtxt = delta!=null?` · ${fmtDelta(delta)}`:'';
+      if(ro)ro.innerHTML=`Day ${p.d} · <b>${p.v} ${unit}</b>${dtxt}`;
+    };
+    setRO(pts.length-1);
+    const nearest=(clientX)=>{
+      const r=svg.getBoundingClientRect();
+      const svgX=(clientX-r.left)/r.width*440;
+      let best=0,bd=1e9;
+      pts.forEach((p,i)=>{const d=Math.abs(p.x-svgX);if(d<bd){bd=d;best=i;}});
+      return best;
+    };
+    const move=(clientX)=>{
+      const i=nearest(clientX);const p=pts[i];
+      if(line){line.setAttribute('x1',p.x);line.setAttribute('x2',p.x);line.setAttribute('opacity','0.5');}
+      setRO(i);
+    };
+    const end=()=>{if(line)line.setAttribute('opacity','0');setRO(pts.length-1);};
+    svg.addEventListener('touchstart',e=>{move(e.touches[0].clientX);},{passive:true});
+    svg.addEventListener('touchmove',e=>{move(e.touches[0].clientX);},{passive:true});
+    svg.addEventListener('touchend',end,{passive:true});
+    svg.addEventListener('mousedown',e=>move(e.clientX));
+    svg.addEventListener('mousemove',e=>{if(e.buttons)move(e.clientX);});
+    svg.addEventListener('mouseup',end);
   });
 }
 function renderTrends(){

@@ -975,11 +975,7 @@ async function doFoodCheck(){
   if(!food)return;
   if(!BACKEND_URL){g('fcResult').innerHTML='<div class="fc-reason">Connect the backend to use this.</div>';return;}
   const btn=g('fcCheck');btn.disabled=true;
-  g('fcResult').innerHTML='<div class="fc-reason"><span class="thinking"></span> Checking…</div>';
-  try{
-    const res=await fetch(BACKEND_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'foodcheck',food})});
-    const d=await res.json();
-    if(d.error)throw new Error(d.error);
+  const showResult=(d)=>{
     const map={yes:{cls:'eat',ic:'✓',lab:'Yes'},limited:{cls:'caution',ic:'!',lab:'Limited'},no:{cls:'avoid',ic:'✕',lab:'No'}};
     const m=map[d.verdict]||map.limited;
     g('fcResult').innerHTML=`<div class="fc-card ${m.cls}">
@@ -988,8 +984,26 @@ async function doFoodCheck(){
       <div class="fc-food">${esc(d.food||food)}</div>
       <div class="fc-reason">${esc(d.reason||'')}</div>
       ${d.cap?`<div class="fc-portion">${esc(d.cap)}</div>`:''}</div></div>`;
+  };
+  // cache
+  const ck='aevum_fc_'+food.toLowerCase();
+  const cached=localStorage.getItem(ck);
+  if(cached){showResult(JSON.parse(cached));btn.disabled=false;return;}
+  g('fcResult').innerHTML='<div class="fc-reason"><span class="thinking"></span> Checking…</div>';
+  const call=async()=>{
+    const res=await fetch(BACKEND_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'foodcheck',food})});
+    const d=await res.json();
+    if(d.error)throw new Error(d.error);
+    return d;
+  };
+  try{
+    let d;
+    try{ d=await call(); }
+    catch(e1){ d=await call(); }  // silent retry (handles cold start)
+    localStorage.setItem(ck,JSON.stringify(d));
+    showResult(d);
   }catch(err){
-    g('fcResult').innerHTML='<div class="fc-reason">Could not check. Try again.</div>';
+    g('fcResult').innerHTML='<div class="fc-reason">Could not check. Tap Check to try again.</div>';
   }finally{btn.disabled=false;}
 }
 

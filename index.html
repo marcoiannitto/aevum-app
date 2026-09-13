@@ -202,6 +202,7 @@ textarea.notes::placeholder{color:var(--muted);}
 .fc-card.caution .fc-icon{color:var(--warn);}
 .fc-card.avoid .fc-icon{color:var(--over);}
 .fc-verdict{font-weight:600;font-size:16px;margin-bottom:3px;text-transform:capitalize;}
+.fc-food{font-size:13px;color:var(--muted);margin-bottom:3px;}
 .fc-reason{font-size:14px;color:var(--ink-soft);}
 .fc-portion{font-size:14px;color:var(--ink);margin-top:6px;font-weight:500;}
 
@@ -979,12 +980,14 @@ async function doFoodCheck(){
     const res=await fetch(BACKEND_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'foodcheck',food})});
     const d=await res.json();
     if(d.error)throw new Error(d.error);
-    const icon=d.verdict==='eat'?'✓':d.verdict==='avoid'?'✕':'!';
-    g('fcResult').innerHTML=`<div class="fc-card ${esc(d.verdict)}">
-      <div class="fc-icon">${icon}</div>
-      <div><div class="fc-verdict">${esc(d.verdict)}</div>
+    const map={yes:{cls:'eat',ic:'✓',lab:'Yes'},limited:{cls:'caution',ic:'!',lab:'Limited'},no:{cls:'avoid',ic:'✕',lab:'No'}};
+    const m=map[d.verdict]||map.limited;
+    g('fcResult').innerHTML=`<div class="fc-card ${m.cls}">
+      <div class="fc-icon">${m.ic}</div>
+      <div><div class="fc-verdict">${m.lab}</div>
+      <div class="fc-food">${esc(d.food||food)}</div>
       <div class="fc-reason">${esc(d.reason||'')}</div>
-      ${d.portion?`<div class="fc-portion">${esc(d.portion)}</div>`:''}</div></div>`;
+      ${d.cap?`<div class="fc-portion">${esc(d.cap)}</div>`:''}</div></div>`;
   }catch(err){
     g('fcResult').innerHTML='<div class="fc-reason">Could not check. Try again.</div>';
   }finally{btn.disabled=false;}
@@ -1109,6 +1112,7 @@ function wire(){
   g('fcClose').onclick=closeFoodCheck;
   g('fcScrim').onclick=closeFoodCheck;
   g('fcCheck').onclick=doFoodCheck;
+  g('fcInput').oninput=()=>{g('fcResult').innerHTML='';};
   g('fcInput').onkeydown=e=>{if(e.key==='Enter')doFoodCheck();};
 }
 function boot(){

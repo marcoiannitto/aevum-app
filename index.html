@@ -622,7 +622,8 @@ const TOTAL_DAYS=35, GLASS_ML=250;
 const FAT_TARGET=20, FAT_RED=25;             // fat: ok<=20, yellow 20-25, red>25
 const CARB_TARGET=25, CARB_RED=30;           // carbs: ok<=25, yellow 25-30, red>30
 const FAT_LIMIT=FAT_TARGET, CARB_LIMIT=CARB_TARGET; // bar fills against target
-const CAL_TARGET=500, CAL_RED=600;           // Activation calorie thresholds
+const CAL_LOW_RED=250, CAL_LOW_AMBER=350, CAL_HIGH_AMBER=600, CAL_HIGH_RED=700; // Activation/Transition bands
+const CAL_TARGET=500, CAL_RED=700; // legacy refs (target midpoint, red ceiling)
 const MEAL_KCAL=250, MEAL_FAT=10, MEAL_CARB=15; // per-meal red flags
 const PROTEIN_PER_KG=1.2;                     // protein target multiplier
 const WATER_GOAL_GLASSES=10; // 2.5 L at 250 ml/glass
@@ -739,6 +740,11 @@ function fastingSuffix(ph){
   // 3) 16h passed → free to start eating
   return ` <span class="fast-tag eating">You can eat now</span>`;
 }
+function calState(k){ // Activation/Transition 5-band
+  if(k<CAL_LOW_RED||k>CAL_HIGH_RED)return'over';
+  if(k<CAL_LOW_AMBER||k>CAL_HIGH_AMBER)return'warn';
+  return'ok';
+}
 function renderCalories(ph,t){
   g('calNum').textContent=t.kcal.toLocaleString();
   const wrap=g('calBarWrap'),bar=g('calBar');
@@ -751,13 +757,14 @@ function renderCalories(ph,t){
     g('calBarRight').textContent=t.exKcal>0?`+${t.exKcal} movement`:'';
     g('calUnit').textContent='kcal today';
   }else if(ph.key==='activation'||ph.key==='transition'){
-    // PSMF: target 500, orange 500-600, red >600
+    // 5-band: <250 red, 250-350 amber, 350-600 green, 600-700 amber, >700 red
     wrap.classList.remove('hidden');
-    const pct=t.kcal/CAL_TARGET*100;
-    bar.className='calbar'+(t.kcal>CAL_RED?' over':t.kcal>CAL_TARGET?' warn':'');
+    const st=calState(t.kcal);
+    const pct=t.kcal/CAL_HIGH_AMBER*100;
+    bar.className='calbar'+(st==='over'?' over':st==='warn'?' warn':'');
     bar.firstElementChild.style.width=Math.min(100,pct)+'%';
-    g('calBarLeft').textContent=`${t.kcal.toLocaleString()} / ${CAL_TARGET} kcal`;
-    g('calBarRight').textContent=t.kcal>CAL_RED?'over limit':t.kcal>CAL_TARGET?'above target':'';
+    g('calBarLeft').textContent=`${t.kcal.toLocaleString()} kcal`;
+    g('calBarRight').textContent = st==='over'?(t.kcal<CAL_LOW_RED?'too low':'too high') : st==='warn'?(t.kcal<CAL_TARGET?'a little low':'a little high') : 'on target';
     g('calUnit').textContent='kcal today';
   }else{
     wrap.classList.add('hidden');g('calUnit').textContent='kcal today';
@@ -859,16 +866,16 @@ function collectSeries(field){
   }
   return out;
 }
-function lineChart(data,unit,target,readoutId){
+function lineChart(data,unit,target,readoutId,range){
   if(data.length<2)return '<div class="chart-empty">Log at least two days to see a trend.</div>';
   const W=440,H=190,padL=16,padR=16,padT=24,padB=30;
-  const d0=data[0].day, dN=data[data.length-1].day, span=(dN-d0)||1;
+  const d0=range?range[0]:data[0].day, dN=range?range[1]:data[data.length-1].day, span=(dN-d0)||1;
   const xs=d=>padL+(d-d0)/span*(W-padL-padR);
   let vals=data.map(d=>d.v); if(target)vals=vals.concat([target]);
   let min=Math.min(...vals),max=Math.max(...vals);
   const rng=(max-min)||1; min-=rng*0.12; max+=rng*0.20;
-  const range=max-min;
-  const ys=v=>H-padB-((v-min)/range)*(H-padT-padB);
+  const yRange=max-min;
+  const ys=v=>H-padB-((v-min)/yRange)*(H-padT-padB);
 
   // per-day vertical gridlines
   let grid='';
@@ -962,16 +969,20 @@ function renderTrends(){
     const arrow=n=>n<0?'▼':n>0?'▲':'';
     const cls=n=>n<0?'down':n>0?'up':'';
     let lines='';
-    if(daily!=null)lines+=`<span class="s-chip ${cls(daily)}">${arrow(daily)} ${Math.abs(daily).toFixed(1)} today</span>`;
-    if(total!=null)lines+=`<span class="s-chip ${cls(total)}">${arrow(total)} ${Math.abs(total).toFixed(1)} total</span>`;
+    if(daily!=null)lines+=`<span class="s-chip ${cls(daily)}">${arrow(daily)} ${Math.abs(daily).toFixed(1)} kg today</span>`;
+    if(total!=null)lines+=`<span class="s-chip ${cls(total)}">${arrow(total)} ${Math.abs(total).toFixed(1)} kg total</span>`;
     let togo='';
     if(target){const diff=cur-target; togo=diff>0?`<div class="s-togo">${diff.toFixed(1)} kg to go</div>`:`<div class="s-togo done">Target reached</div>`;}
     sr.innerHTML+=`<div class="stat" style="flex:1"><div class="s-lab">Weight</div><div class="s-val num">${cur}<small> kg</small></div><div class="s-chips">${lines}</div>${togo}</div>`;
     g('wLatest').textContent=cur+' kg';
   }else{sr.innerHTML+=`<div class="stat" style="flex:1"><div class="s-lab">Weight</div><div class="s-val num">—</div></div>`;}
 
-  g('weightChart').innerHTML=lineChart(w,'kg',target,'wReadout');
-  g('macroChart').innerHTML=macroBars();
+  // shared x-range so weight + macro charts align
+  const md=collectMacroDays();
+  const allD=[...new Set([...w.map(d=>d.day),...md.map(d=>d.day)])].sort((a,b)=>a-b);
+  const range=allD.length?[allD[0],allD[allD.length-1]]:null;
+  g('weightChart').innerHTML=lineChart(w,'kg',target,'wReadout',range);
+  g('macroChart').innerHTML=macroBars(range);
   wireChartTaps();
   wireMacroBars();
 }
@@ -991,34 +1002,62 @@ function collectMacroDays(){
   }
   return out;
 }
-function macroBars(){
+function phaseTargetKcal(dayNum){
+  const ph=phaseFor(dayNum).key;
+  const bmr=(profile&&profile.need)?profile.need:2000; // need = BMR*activity
+  const basal=bmr/1.55*1; // rough BMR without activity for loading ref
+  if(ph==='loading')return Math.round((profile&&profile.need?profile.need:2000)*1.5);
+  if(ph==='activation'||ph==='transition')return 600; // mid of 500-700 for the bar reference
+  return (profile&&profile.need)?profile.need:2000; // consolidation
+}
+function dayCalState(dayNum,k){
+  const ph=phaseFor(dayNum).key;
+  if(ph==='activation'||ph==='transition')return calState(k);
+  const tgt=phaseTargetKcal(dayNum);if(!tgt)return'ok';
+  const pct=k/tgt*100;
+  if(ph==='loading')return k>=tgt*0.9?'ok':(k>=tgt*0.6?'warn':'over'); // want high
+  // consolidation: near need
+  if(pct>130||pct<60)return'over';if(pct>110||pct<80)return'warn';return'ok';
+}
+function macroBars(range){
   const data=collectMacroDays();
-  if(!data.length)return '<div class="chart-empty">Log some meals to see your macro history.</div>';
-  const W=440,H=150,padL=16,padR=16,padT=14,padB=26;
-  const n=data.length;
-  const bw=Math.min(26,(W-padL-padR)/n*0.6);
-  const gap=(W-padL-padR)/n;
-  const maxK=Math.max(CAL_RED,...data.map(d=>d.kcal))*1.1;
-  const ys=v=>H-padB-(v/maxK)*(H-padT-padB);
-  // target + red lines
-  const tY=ys(CAL_TARGET).toFixed(1), rY=ys(CAL_RED).toFixed(1);
+  if(data.length<1)return '<div class="chart-empty">Log some meals to see your calorie history.</div>';
+  const w=collectSeries('weight');
+  const allDays=range?[range[0],range[1]]:[...new Set([...data.map(d=>d.day),...w.map(d=>d.day)])].sort((a,b)=>a-b);
+  const d0=range?range[0]:allDays[0], dN=range?range[1]:allDays[allDays.length-1], span=(dN-d0)||1;
+  const dayCount=(dN-d0+1);
+  const W=440,H=150,padL=16,padR=16,padT=16,padB=28;
+  const xs=d=>padL+(d-d0)/span*(W-padL-padR);
+  const bw=Math.max(6,Math.min(22,(W-padL-padR)/Math.max(1,dayCount)*0.55));
+  const COL={ok:'#4a7a52',warn:'#B7791F',over:'#A13024'};
+  // bars as % of phase target (0-130 scale)
+  const barH=H-padT-padB;
+  const ys=pct=>H-padB-Math.min(130,pct)/130*barH;
+  const t100=ys(100).toFixed(1);
   let bars='';
-  data.forEach((d,i)=>{
-    const x=padL+gap*i+gap/2;
-    const h=(H-padB)-ys(d.kcal);
-    // color: green <=target, amber target-red, red >red
-    const col=d.kcal>CAL_RED?'#A13024':d.kcal>CAL_TARGET?'#B7791F':'#4a7a52';
-    bars+=`<rect class="mbar" data-day="${d.day}" data-k="${d.kcal}" data-p="${d.protein}" data-f="${d.fat}" data-c="${d.carbs}" x="${(x-bw/2).toFixed(1)}" y="${ys(d.kcal).toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(1,h).toFixed(1)}" rx="3" fill="${col}"/>`;
+  data.forEach(d=>{
+    const tgt=phaseTargetKcal(d.day)||1;
+    const pct=d.kcal/tgt*100;
+    const st=dayCalState(d.day,d.kcal);
+    const x=xs(d.day), y=ys(pct);
+    bars+=`<rect class="mbar" data-day="${d.day}" data-k="${d.kcal}" data-p="${d.protein}" data-f="${d.fat}" data-c="${d.carbs}" x="${(x-bw/2).toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(1,(H-padB-y)).toFixed(1)}" rx="3" fill="${COL[st]}"/>`;
   });
-  const first=data[0].day,last=data[data.length-1].day;
   return `<svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet">
-    <line x1="${padL}" y1="${tY}" x2="${W-padR}" y2="${tY}" stroke="#4a7a52" stroke-width="1" stroke-dasharray="3 3" opacity="0.5"/>
-    <line x1="${padL}" y1="${rY}" x2="${W-padR}" y2="${rY}" stroke="#A13024" stroke-width="1" stroke-dasharray="3 3" opacity="0.4"/>
-    <text x="${W-padR}" y="${(+tY-4).toFixed(1)}" font-size="9" fill="#4a7a52" text-anchor="end" font-family="sans-serif">${CAL_TARGET}</text>
+    <line x1="${padL}" y1="${t100}" x2="${W-padR}" y2="${t100}" stroke="#938c7d" stroke-width="1" stroke-dasharray="3 3" opacity="0.5"/>
+    <text x="${W-padR}" y="${(+t100-4).toFixed(1)}" font-size="9" fill="#938c7d" text-anchor="end" font-family="sans-serif">Target</text>
     ${bars}
-    <text x="${padL}" y="${H-6}" font-size="10" fill="#938c7d" font-family="sans-serif">Day ${first}</text>
-    <text x="${W-padR}" y="${H-6}" font-size="10" fill="#938c7d" text-anchor="end" font-family="sans-serif">Day ${last}</text>
+    <text x="${padL}" y="${H-8}" font-size="10" fill="#938c7d" font-family="sans-serif">Day ${d0} · Start</text>
+    <text x="${W-padR}" y="${H-8}" font-size="10" fill="#938c7d" text-anchor="end" font-family="sans-serif">Day ${dN} · Today</text>
   </svg>`;
+}
+function wireMacroBars(){
+  const ro=g('macroReadout');
+  const bars=document.querySelectorAll('#macroChart .mbar');
+  if(!bars.length){if(ro)ro.textContent='';return;}
+  const last=bars[bars.length-1];
+  const show=b=>{if(ro)ro.innerHTML=`Day ${b.dataset.day} · <b>${b.dataset.k}</b> kcal · ${b.dataset.p}P ${b.dataset.f}F ${b.dataset.c}C`;};
+  show(last);
+  bars.forEach(b=>b.onclick=()=>{bars.forEach(x=>x.setAttribute('opacity','0.55'));b.setAttribute('opacity','1');show(b);});
 }
 function wireMacroBars(){
   const ro=g('macroReadout');
@@ -1276,14 +1315,14 @@ function renderPlan(){
   let tot={kcal:0,protein:0,fat:0,carbs:0};
   items.forEach(i=>{tot.kcal+=+i.kcal||0;tot.protein+=+i.protein||0;tot.fat+=+i.fat||0;tot.carbs+=+i.carbs||0;});
   const gs=(v,t,r)=>v>r?'over':v>t?'warn':'ok';
-  const kcalS=gs(tot.kcal,CAL_TARGET,CAL_RED);
+  const kcalS=calState(tot.kcal);
   const fatS=gs(tot.fat,FAT_TARGET,FAT_RED);
   const carbS=gs(tot.carbs,CARB_TARGET,CARB_RED);
   const ptgt=(profile&&profile.weight)?Math.round(profile.weight*PROTEIN_PER_KG):null;
   let html=`<div class="plan-total">
     <div class="ptt-row"><span class="ptt-lab">Day ${planDay}${edited?' · edited':''}</span></div>
     <div class="ptt-grid">
-      <div class="ptt-cell ${kcalS}"><div class="ptt-v">${Math.round(tot.kcal)}<small>/${CAL_TARGET}</small></div><div class="ptt-k">kcal</div></div>
+      <div class="ptt-cell ${kcalS}"><div class="ptt-v">${Math.round(tot.kcal)}<small>/500-700</small></div><div class="ptt-k">kcal</div></div>
       <div class="ptt-cell"><div class="ptt-v">${Math.round(tot.protein)}${ptgt?`<small>/${ptgt}</small>`:''}</div><div class="ptt-k">protein</div></div>
       <div class="ptt-cell ${fatS}"><div class="ptt-v">${Math.round(tot.fat)}<small>/${FAT_TARGET}</small></div><div class="ptt-k">fat</div></div>
       <div class="ptt-cell ${carbS}"><div class="ptt-v">${Math.round(tot.carbs)}<small>/${CARB_TARGET}</small></div><div class="ptt-k">carbs</div></div>

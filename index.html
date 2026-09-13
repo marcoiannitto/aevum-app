@@ -248,10 +248,30 @@ textarea.notes::placeholder{color:var(--muted);}
 .sheet.show{transform:translateY(0);}
 .grab{width:40px;height:4px;border-radius:3px;background:var(--line);margin:8px auto 14px;}
 .sheet h2{font-family:var(--serif);font-size:22px;font-weight:500;margin-bottom:14px;}
-.sheet .me-name{width:100%;padding:13px 14px;border:1px solid var(--line);border-radius:13px;background:var(--card);margin-bottom:10px;font-weight:500;}
+.sheet .me-name{width:100%;padding:13px 14px;border:1px solid var(--line);border-radius:13px;background:var(--card);margin-bottom:12px;font-weight:500;}
 .sheet .me-name::placeholder{color:var(--muted);font-weight:400;}
+/* mode tabs */
+.mode-tabs{display:flex;gap:6px;background:var(--line-soft);border-radius:12px;padding:4px;margin-bottom:14px;}
+.mode-tab{flex:1;padding:10px;border-radius:9px;font-size:14px;font-weight:600;color:var(--muted);background:transparent;}
+.mode-tab.on{background:var(--card);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.06);}
+.mode-panel{margin-bottom:6px;}
+.calc-btn{width:100%;margin-top:11px;padding:14px;background:var(--gold);color:var(--ink);border-radius:13px;font-weight:600;font-size:15px;display:flex;align-items:center;justify-content:center;gap:8px;}
+.calc-btn:disabled{opacity:.5;}
+/* ingredients */
+.ing-row{display:flex;gap:8px;margin-bottom:8px;align-items:center;}
+.ing-row .ing-food{flex:2;padding:12px;border:1px solid var(--line);border-radius:11px;background:var(--card);}
+.ing-row .ing-qty{flex:1;padding:12px;border:1px solid var(--line);border-radius:11px;background:var(--card);min-width:0;}
+.ing-row .ing-x{color:var(--muted);font-size:20px;padding:4px 6px;flex-shrink:0;}
+.ing-row input::placeholder{color:var(--muted);}
+.add-ing{color:var(--gold-deep);font-weight:600;font-size:14px;padding:6px 0 2px;}
+/* photo drop */
+.photo-drop{width:100%;padding:28px;border:1.5px dashed var(--line);border-radius:14px;background:var(--card);display:flex;flex-direction:column;align-items:center;gap:10px;color:var(--muted);font-size:14px;font-weight:500;}
+.photo-drop svg{color:var(--gold-deep);}
+/* macro label */
+.macro-label{font-size:12px;color:var(--muted);margin:16px 0 8px;display:flex;justify-content:space-between;}
+.macro-label span{color:var(--gold-deep);}
 .desc-wrap{position:relative;}
-.sheet textarea.desc{width:100%;min-height:64px;padding:13px 46px 13px 14px;border:1px solid var(--line);border-radius:13px;background:var(--card);resize:vertical;line-height:1.45;}
+.sheet textarea.desc{width:100%;min-height:64px;padding:13px 14px;border:1px solid var(--line);border-radius:13px;background:var(--card);resize:vertical;line-height:1.45;}
 .sheet textarea.desc::placeholder{color:var(--muted);}
 .cam-icon{position:absolute;top:9px;right:9px;width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;color:var(--muted);background:var(--paper);}
 .cam-icon:active{color:var(--gold-deep);}
@@ -465,23 +485,49 @@ textarea.notes::placeholder{color:var(--muted);}
 <div class="scrim" id="scrim"></div>
 <div class="sheet" id="sheet">
   <div class="grab"></div>
+  <button class="sheet-close" id="mealClose" aria-label="Close">×</button>
   <h2>Log a meal</h2>
   <input class="me-name" id="mName" type="text" placeholder="Meal name (optional)">
-  <div class="desc-wrap">
-    <textarea class="desc" id="mDesc" placeholder="Describe it for AI, or just enter the macros below"></textarea>
-    <button class="cam-icon" id="photoBtn" aria-label="Add photo">
-      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+
+  <!-- mode switch -->
+  <div class="mode-tabs">
+    <button class="mode-tab on" data-mode="describe">Describe</button>
+    <button class="mode-tab" data-mode="ingredients">Ingredients</button>
+    <button class="mode-tab" data-mode="photo">Photo</button>
+  </div>
+
+  <!-- DESCRIBE -->
+  <div class="mode-panel" id="mode-describe">
+    <textarea class="desc" id="mDesc" placeholder="e.g. chicken salad with lettuce and mushroom, 300g"></textarea>
+    <button class="calc-btn" id="calcDesc"><span>✦</span> Calculate with AI</button>
+  </div>
+
+  <!-- INGREDIENTS -->
+  <div class="mode-panel hidden" id="mode-ingredients">
+    <div id="ingList"></div>
+    <button class="add-ing" id="addIng">+ Add ingredient</button>
+    <button class="calc-btn" id="calcIng"><span>✦</span> Calculate with AI</button>
+  </div>
+
+  <!-- PHOTO -->
+  <div class="mode-panel hidden" id="mode-photo">
+    <button class="photo-drop" id="photoBtn">
+      <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      <span>Take or choose a photo</span>
     </button>
     <input type="file" id="photoCam" accept="image/*" capture="environment" class="hidden">
     <input type="file" id="photoGallery" accept="image/*" class="hidden">
+    <div class="photo-choice" id="photoChoice">
+      <button id="chooseCam">Take Photo</button>
+      <button id="chooseGallery">Choose from Gallery</button>
+      <button id="chooseCancel" class="pc-cancel">Cancel</button>
+    </div>
+    <div class="photo-thumb" id="photoThumb"><img id="photoImg" alt=""><button class="thumb-x" id="photoRemove">×</button></div>
+    <button class="calc-btn" id="calcPhoto"><span>✦</span> Calculate with AI</button>
   </div>
-  <div class="photo-choice" id="photoChoice">
-    <button id="chooseCam">Take Photo</button>
-    <button id="chooseGallery">Choose from Gallery</button>
-    <button id="chooseCancel" class="pc-cancel">Cancel</button>
-  </div>
-  <div class="photo-thumb" id="photoThumb"><img id="photoImg" alt=""><button class="thumb-x" id="photoRemove">×</button></div>
-  <button class="estimate" id="estimateBtn"><span>✦</span> Estimate with AI</button>
+
+  <!-- MACROS (always visible, editable, manual entry works) -->
+  <div class="macro-label">Macros <span>tap to edit</span></div>
   <div class="me-grid">
     <div class="me-cell"><label>kcal<span class="me-max" id="maxKcal"></span></label><input id="mKcal" type="number" inputmode="numeric" placeholder="0"></div>
     <div class="me-cell"><label>protein</label><input id="mProtein" type="number" inputmode="numeric" placeholder="0"></div>
@@ -879,11 +925,43 @@ function renderTrends(){
 }
 
 /* ---- meal sheet ---- */
-function clearSheet(){photoData=null;['mName','mDesc','mKcal','mProtein','mFat','mCarbs'].forEach(id=>g(id).value='');g('photoThumb').style.display='none';g('meHint').textContent='';g('photoChoice').classList.remove('show');g('photoCam').value='';g('photoGallery').value='';}
-function openSheet(){clearSheet();const e=g('estimateBtn');e.classList.toggle('hidden',!BACKEND_URL);e.disabled=false;e.innerHTML='<span>✦</span> Estimate with AI';
+let ingredients=[];
+function clearSheet(){
+  photoData=null;ingredients=[];
+  ['mName','mDesc','mKcal','mProtein','mFat','mCarbs'].forEach(id=>g(id).value='');
+  g('photoThumb').style.display='none';g('meHint').textContent='';g('photoChoice').classList.remove('show');
+  g('photoCam').value='';g('photoGallery').value='';
+  renderIngredients();
+  switchMode('describe');
+}
+function switchMode(mode){
+  document.querySelectorAll('.mode-tab').forEach(t=>t.classList.toggle('on',t.dataset.mode===mode));
+  document.querySelectorAll('.mode-panel').forEach(p=>p.classList.add('hidden'));
+  g('mode-'+mode).classList.remove('hidden');
+}
+function renderIngredients(){
+  const el=g('ingList');el.innerHTML='';
+  ingredients.forEach((ing,i)=>{
+    const row=document.createElement('div');row.className='ing-row';
+    row.innerHTML=`<input class="ing-food" placeholder="e.g. eggs" value="${esc(ing.food)}">
+      <input class="ing-qty" placeholder="e.g. 3 or 100g" value="${esc(ing.qty)}">
+      <button class="ing-x">×</button>`;
+    row.querySelector('.ing-food').oninput=e=>ingredients[i].food=e.target.value;
+    row.querySelector('.ing-qty').oninput=e=>ingredients[i].qty=e.target.value;
+    row.querySelector('.ing-x').onclick=()=>{ingredients.splice(i,1);renderIngredients();};
+    el.appendChild(row);
+  });
+}
+function addIngredient(){ingredients.push({food:'',qty:''});renderIngredients();
+  const rows=g('ingList').querySelectorAll('.ing-food');if(rows.length)rows[rows.length-1].focus();}
+
+function openSheet(){
+  clearSheet();
   const ph=phaseFor(currentDay),flag=(ph.key==='activation'||ph.key==='transition');
   g('maxKcal').textContent=flag?MEAL_KCAL:'';g('maxFat').textContent=flag?MEAL_FAT:'';g('maxCarbs').textContent=flag?MEAL_CARB:'';
-  validateMeal();g('scrim').classList.add('show');g('sheet').classList.add('show');history.pushState({sheet:'meal'},'');}
+  if(!ingredients.length)addIngredient();
+  validateMeal();g('scrim').classList.add('show');g('sheet').classList.add('show');history.pushState({sheet:'meal'},'');
+}
 function closeSheet(){
   if(!g('sheet').classList.contains('show'))return;
   if(history.state&&history.state.sheet){history.back();}
@@ -894,24 +972,36 @@ function removePhoto(){photoData=null;g('photoCam').value='';g('photoGallery').v
 function fillMacros(v){if(v.name&&!g('mName').value.trim())g('mName').value=v.name;g('mKcal').value=v.kcal??'';g('mProtein').value=v.protein??'';g('mFat').value=v.fat??'';g('mCarbs').value=v.carbs??'';validateMeal();}
 function validateMeal(){
   g('addMeal').disabled=g('mKcal').value==='';
-  // per-meal red flags (Activation/Transition only)
-  const ph=phaseFor(currentDay);
-  const flag=(ph.key==='activation'||ph.key==='transition');
+  const ph=phaseFor(currentDay);const flag=(ph.key==='activation'||ph.key==='transition');
   const set=(id,over)=>{const el=g(id);el.classList.toggle('meal-over',flag&&over);el.parentElement.classList.toggle('meal-over',flag&&over);};
   set('mKcal',(+g('mKcal').value||0)>MEAL_KCAL);
   set('mFat',(+g('mFat').value||0)>MEAL_FAT);
   set('mCarbs',(+g('mCarbs').value||0)>MEAL_CARB);
 }
-async function estimate(){
-  const desc=g('mDesc').value.trim();
-  if(!desc&&!photoData){g('mDesc').focus();return;}
-  const btn=g('estimateBtn');btn.disabled=true;btn.innerHTML='<span class="thinking"></span> AI is analyzing your meal…';g('meHint').textContent='';
+async function calcMeal(btn,payloadBuilder,hintOnEmpty){
+  const payload=payloadBuilder();
+  if(!payload){hintOnEmpty();return;}
+  const orig=btn.innerHTML;btn.disabled=true;btn.innerHTML='<span class="thinking"></span> Calculating…';g('meHint').textContent='';
+  const call=async()=>{const res=await fetch(BACKEND_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});const d=await res.json();if(d.error)throw new Error(d.error);return d;};
   try{
-    const res=await fetch(BACKEND_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'estimate',description:desc,image:photoData||null})});
-    const data=await res.json();if(data.error)throw new Error(data.error);
-    fillMacros(data);g('meHint').textContent='AI estimate — check and adjust before adding.';
-  }catch(err){g('meHint').textContent='Could not reach the estimator. Enter the macros yourself.';}
-  finally{btn.disabled=false;btn.innerHTML='<span>✦</span> Estimate with AI';}
+    let d; try{d=await call();}catch(e1){d=await call();} // retry cold start
+    fillMacros(d);g('meHint').textContent='AI estimate. Tap any number to adjust.';
+  }catch(err){g('meHint').textContent='Could not calculate. Enter the macros yourself.';}
+  finally{btn.disabled=false;btn.innerHTML=orig;}
+}
+function calcDescribe(){
+  calcMeal(g('calcDesc'),()=>{const d=g('mDesc').value.trim();return d?{action:'estimate',description:d}:null;},()=>g('mDesc').focus());
+}
+function calcIngredients(){
+  calcMeal(g('calcIng'),()=>{
+    const list=ingredients.filter(i=>i.food.trim());
+    if(!list.length)return null;
+    const desc=list.map(i=>`${i.qty||''} ${i.food}`.trim()).join(', ');
+    return {action:'estimate',description:desc};
+  },()=>{g('meHint').textContent='Add at least one ingredient.';});
+}
+function calcPhoto(){
+  calcMeal(g('calcPhoto'),()=>photoData?{action:'estimate',description:g('mDesc').value.trim()||'(see photo)',image:photoData}:null,()=>{g('meHint').textContent='Add a photo first.';});
 }
 function commitMeal(){
   const name=g('mName').value.trim()||('Meal '+(day.meals.length+1));
@@ -1116,7 +1206,11 @@ function wire(){
   g('chooseGallery').onclick=()=>{g('photoChoice').classList.remove('show');g('photoGallery').click();};
   g('chooseCancel').onclick=()=>g('photoChoice').classList.remove('show');
   g('photoCam').onchange=onPhoto;g('photoGallery').onchange=onPhoto;g('photoRemove').onclick=removePhoto;
-  g('estimateBtn').onclick=estimate;g('addMeal').onclick=commitMeal;
+  document.querySelectorAll('.mode-tab').forEach(t=>t.onclick=()=>switchMode(t.dataset.mode));
+  g('addIng').onclick=addIngredient;
+  g('calcDesc').onclick=calcDescribe;g('calcIng').onclick=calcIngredients;g('calcPhoto').onclick=calcPhoto;
+  g('mealClose').onclick=closeSheet;
+  g('addMeal').onclick=commitMeal;
   ['mKcal','mProtein','mFat','mCarbs'].forEach(id=>g(id).oninput=validateMeal);
   document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
   g('rcSearch').oninput=e=>{rcFilter.q=e.target.value;renderRecipeList();};

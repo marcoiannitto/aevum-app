@@ -755,14 +755,14 @@ function fastingSuffix(ph){
   if(!times.length) return ` <span class="fast-tag fasting">Fasting</span>`;
 
   const lastMeal=times[times.length-1];
-  // first meal of the SAME calendar day as the last meal = window start
   const lastDate=new Date(lastMeal); lastDate.setHours(0,0,0,0);
   const dayStart=lastDate.getTime(), dayEnd=dayStart+86400000;
   const todaysMeals=times.filter(t=>t>=dayStart&&t<dayEnd);
-  const firstMeal=todaysMeals[0];
+  const firstMeal=todaysMeals.length?todaysMeals[0]:lastMeal;
 
-  const windowClose=firstMeal+WINDOW_H*3600000; // fixed: first meal +8h
-  const fastEnd=lastMeal+FAST_H*3600000;        // moving: latest meal +16h
+  const windowClose=firstMeal+WINDOW_H*3600000;
+  const fastEnd=lastMeal+FAST_H*3600000;
+  if(!isFinite(windowClose)||!isFinite(fastEnd)) return ` <span class="fast-tag fasting">Fasting</span>`;
 
   if(now<windowClose) return ` <span class="fast-tag eating">Eating window · till ${fmt(windowClose)}</span>`;
   if(now<fastEnd)     return ` <span class="fast-tag fasting">Fasting · eat at ${fmt(fastEnd)}</span>`;

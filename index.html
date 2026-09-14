@@ -217,6 +217,12 @@ textarea.notes::placeholder{color:var(--muted);}
 .plan-days::-webkit-scrollbar{display:none;}
 .plan-day-btn{flex-shrink:0;padding:9px 15px;border:1px solid var(--line);border-radius:20px;background:var(--card);font-size:13px;font-weight:600;color:var(--ink-soft);white-space:nowrap;}
 .plan-day-btn.on{background:var(--ink);border-color:var(--ink);color:#fff;}
+.plan-day-btn.today{border-color:var(--gold);}
+.plan-day-btn.today::after{content:'';display:block;width:5px;height:5px;border-radius:50%;background:var(--gold);margin:3px auto 0;}
+.plan-day-btn.on.today::after{background:#fff;}
+.plan-shop-row{width:100%;display:flex;align-items:center;gap:10px;padding:14px 16px;background:var(--card);border:1px solid var(--line);border-radius:14px;margin-bottom:14px;font-size:15px;font-weight:600;color:var(--ink);}
+.plan-shop-row .ps-ic{font-size:18px;}
+.plan-shop-row .ps-arrow{margin-left:auto;color:var(--muted);font-size:20px;}
 .plan-day-btn small{display:block;font-size:10px;font-weight:400;opacity:.7;margin-top:1px;}
 .plan-total{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:14px;}
 .ptt-row{margin-bottom:10px;}
@@ -519,6 +525,7 @@ textarea.notes::placeholder{color:var(--muted);}
     <!-- PLAN -->
     <div class="sub-panel" id="sub-plan">
       <div class="plan-days" id="planDays"></div>
+      <button class="plan-shop-row" id="planShop"><span class="ps-ic">🛒</span> Shopping list <span class="ps-arrow">›</span></button>
       <div id="planList"></div>
     </div>
 
@@ -733,44 +740,32 @@ function render(){
 function fastingSuffix(ph){
   if(ph.key!=='activation')return '';
   const WINDOW_H=8, FAST_H=16;
-  const now=new Date();
-  const fmt=dt=>String(dt.getHours()).padStart(2,'0')+':'+String(dt.getMinutes()).padStart(2,'0');
-  const ts=(dateStr,t)=>{const[h,m]=t.split(':').map(Number);const dt=new Date(dateStr+'T00:00:00');dt.setHours(h,m,0,0);return dt;};
+  const now=Date.now();
+  const fmt=ms=>{const dt=new Date(ms);return String(dt.getHours()).padStart(2,'0')+':'+String(dt.getMinutes()).padStart(2,'0');};
+  const reconstruct=(dateStr,t)=>{if(!dateStr||!t)return null;const[h,m]=t.split(':').map(Number);const dt=new Date(dateStr+'T00:00:00');dt.setHours(h,m,0,0);return dt.getTime();};
 
-  // collect ALL meal timestamps across days, pick the true first-of-current-window and the last meal
-  let allTimes=[];
+  // all meal timestamps across days
+  let times=[];
   for(let d=1; d<=TOTAL_DAYS; d++){
     const raw=localStorage.getItem(K('day_'+d));if(!raw)continue;
-    const o=JSON.parse(raw);const dateStr=o.date;if(!dateStr)continue;
-    (o.meals||[]).filter(m=>m.time).forEach(m=>allTimes.push(ts(dateStr,m.time)));
+    const o=JSON.parse(raw);
+    (o.meals||[]).forEach(m=>{const t=m.ts||reconstruct(o.date,m.time);if(t)times.push(t);});
   }
-  allTimes.sort((a,b)=>a-b);
-  if(!allTimes.length) return ` <span class="fast-tag fasting">Fasting</span>`;
+  times=times.filter(t=>t<=now).sort((a,b)=>a-b);
+  if(!times.length) return ` <span class="fast-tag fasting">Fasting</span>`;
 
-  const lastMeal=allTimes[allTimes.length-1];
-  const sinceLast=(now-lastMeal)/3600000; // hours since last meal
+  const lastMeal=times[times.length-1];
+  // first meal of the SAME calendar day as the last meal = window start
+  const lastDate=new Date(lastMeal); lastDate.setHours(0,0,0,0);
+  const dayStart=lastDate.getTime(), dayEnd=dayStart+86400000;
+  const todaysMeals=times.filter(t=>t>=dayStart&&t<dayEnd);
+  const firstMeal=todaysMeals[0];
 
-  // Find the start of the CURRENT eating window: the first meal in the run that isn't
-  // preceded by a >FAST_H gap. Walk back from the last meal.
-  let windowStart=lastMeal;
-  for(let i=allTimes.length-1;i>0;i--){
-    const gap=(allTimes[i]-allTimes[i-1])/3600000;
-    if(gap>WINDOW_H){ windowStart=allTimes[i]; break; }
-    windowStart=allTimes[i-1];
-  }
-  const windowClose=new Date(windowStart.getTime()+WINDOW_H*3600000);
+  const windowClose=firstMeal+WINDOW_H*3600000; // fixed: first meal +8h
+  const fastEnd=lastMeal+FAST_H*3600000;        // moving: latest meal +16h
 
-  // States:
-  // 1) within 8h of window start → Eating
-  if(now<windowClose){
-    return ` <span class="fast-tag eating">Eating window · till ${fmt(windowClose)}</span>`;
-  }
-  // 2) window closed, still under 16h since last meal → Fasting, show when they can eat
-  const canEat=new Date(lastMeal.getTime()+FAST_H*3600000);
-  if(now<canEat){
-    return ` <span class="fast-tag fasting">Fasting · eat at ${fmt(canEat)}</span>`;
-  }
-  // 3) 16h passed → free to start eating
+  if(now<windowClose) return ` <span class="fast-tag eating">Eating window · till ${fmt(windowClose)}</span>`;
+  if(now<fastEnd)     return ` <span class="fast-tag fasting">Fasting · eat at ${fmt(fastEnd)}</span>`;
   return ` <span class="fast-tag eating">You can eat now</span>`;
 }
 function calState(k){ // Activation/Transition 5-band
@@ -1197,7 +1192,7 @@ function commitMeal(){
     planEdit[planDay].push({meal:'Added',recipe:name,kcal:meal.kcal,protein:meal.protein,fat:meal.fat,carbs:meal.carbs});
     savePlanEdit();closeSheet();renderPlan();
   }else{
-    meal.time=new Date().toTimeString().slice(0,5);
+    meal.time=new Date().toTimeString().slice(0,5);meal.ts=Date.now();
     day.meals.push(meal);saveDay(true);closeSheet();render();
   }
 }
@@ -1337,8 +1332,10 @@ function renderPlan(){
     planDay=(todayDay&&days.includes(todayDay))?todayDay:days[0];
   }
   const db=g('planDays');db.innerHTML='';
+  let todayDay=null;
+  if(profile&&profile.start_date){const s=new Date(profile.start_date+'T00:00:00');if(!isNaN(s))todayDay=Math.floor((Date.now()-s.getTime())/86400000)+1;}
   days.forEach(d=>{
-    const b=document.createElement('button');b.className='plan-day-btn'+(d===planDay?' on':'');
+    const b=document.createElement('button');b.className='plan-day-btn'+(d===planDay?' on':'')+(d===todayDay?' today':'');
     const dt=dayToDate(d);
     b.innerHTML=dt?`Day ${d}<small>${fmtShort(dt)}</small>`:'Day '+d;
     b.onclick=()=>{planDay=d;renderPlan();};db.appendChild(b);
@@ -1374,13 +1371,12 @@ function renderPlan(){
   });
   html+=`<button class="plan-addmeal" id="planAddMeal">+ Add a meal</button>`;
   html+=`<div class="plan-add-choice" id="planAddChoice"><button id="planFromRecipe">Choose a recipe</button><button id="planOwn">Add your own</button></div>`;
-  html+=`<button class="plan-addmeal" id="planShop" style="border-style:solid;border-color:var(--line);color:var(--ink-soft);margin-top:10px;">🛒 Shopping list</button>`;
   if(edited)html+=`<button class="plan-reset" id="planReset">Reset to coach's plan</button>`;
   g('planList').innerHTML=html;
   g('planList').querySelectorAll('.pm-recipe').forEach(b=>b.onclick=()=>{const r=RECIPES.find(x=>x.name===b.dataset.recipe);if(r)openRecipe(r);});
   g('planList').querySelectorAll('.pm-log').forEach(b=>b.onclick=()=>{
     const i=items[+b.dataset.i];
-    day.meals.push({name:i.recipe,kcal:+i.kcal||0,protein:+i.protein||0,fat:+i.fat||0,carbs:+i.carbs||0,time:new Date().toTimeString().slice(0,5)});
+    day.meals.push({name:i.recipe,kcal:+i.kcal||0,protein:+i.protein||0,fat:+i.fat||0,carbs:+i.carbs||0,time:new Date().toTimeString().slice(0,5),ts:Date.now()});
     saveDay(true);render();b.textContent='✓ Logged';b.disabled=true;
   });
   g('planList').querySelectorAll('.pm-remove').forEach(b=>b.onclick=()=>{
@@ -1397,7 +1393,6 @@ function renderPlan(){
   const pc=g('planFromRecipe'); if(pc)pc.onclick=()=>{g('planAddChoice').classList.remove('show');planAction={type:'add',day:planDay};switchSub('recipes');};
   const po=g('planOwn'); if(po)po.onclick=()=>{g('planAddChoice').classList.remove('show');openSheet('plan');};
   const rb=g('planReset');if(rb)rb.onclick=()=>{delete planEdit[planDay];savePlanEdit();renderPlan();};
-  g('planShop').onclick=openShop;
 }
 function applyRecipeToPlan(r){
   const item={meal:'Added',recipe:r.name,kcal:r.kcal,protein:r.protein_g,fat:r.fat_g,carbs:r.carbs_g};
@@ -1543,7 +1538,7 @@ function openRecipe(r){
   g('rcScrim').classList.add('show');g('rcSheet').classList.add('show');
   history.pushState({sheet:'recipe'},'');
   g('rcAddBtn').onclick=()=>{
-    day.meals.push({name:r.name,kcal:r.kcal,protein:r.protein_g,fat:r.fat_g,carbs:r.carbs_g,time:new Date().toTimeString().slice(0,5)});
+    day.meals.push({name:r.name,kcal:r.kcal,protein:r.protein_g,fat:r.fat_g,carbs:r.carbs_g,time:new Date().toTimeString().slice(0,5),ts:Date.now()});
     saveDay(true);render();
     const b=g('rcAddBtn');b.textContent='✓ Added';b.classList.add('rc-added');
     setTimeout(closeRecipe,700);
@@ -1588,6 +1583,7 @@ function wire(){
   g('fcScrim').onclick=closeFoodCheck;
   g('fcCheck').onclick=doFoodCheck;
   g('shopGen')&&(g('shopGen').onclick=buildShopList);
+  g('planShop')&&(g('planShop').onclick=openShop);
   g('shopClose')&&(g('shopClose').onclick=closeShop);
   g('shopScrim')&&(g('shopScrim').onclick=closeShop);
   g('fcInput').oninput=()=>{g('fcResult').innerHTML='';};

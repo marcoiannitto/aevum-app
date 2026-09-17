@@ -924,8 +924,9 @@ function renderBuckets(ph){
   const mealsFmt=n=>{const r=Math.round(n*2)/2;return r>MEALS?MEALS+'+':(r%1?r:r);};
   const strip=types.map(ty=>{
     const used=sums[ty.k]/100; // grams → meal-portions
-    const over=used>MEALS;
-    const st=over?'over':(used>MEALS-0.1&&used<=MEALS?'warn':'');
+    // per-item thresholds ×2 (2 meals): green ≤222g, amber ≤262g, red >262g; fruit has no red
+    const gr=sums[ty.k], isFruit=ty.k==='fruit';
+    const st=(!isFruit&&gr>262)?'over':(gr>222?'warn':'');
     let pips='';
     for(let i=0;i<MEALS;i++){const frac=Math.max(0,Math.min(1,used-i));pips+=`<div class="pip"><span style="width:${(frac*100).toFixed(0)}%"></span></div>`;}
     return `<div class="bkt ${st}"><span class="bkt-lab">${ty.lab}</span><div class="bkt-pips">${pips}</div><span class="bkt-meals">${mealsFmt(used)} of ${MEALS} meals</span></div>`;

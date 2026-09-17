@@ -332,22 +332,27 @@ textarea.notes::placeholder{color:var(--muted);}
 .bkt-strip{display:flex;gap:10px;}
 .bkt{flex:1;display:flex;flex-direction:column;gap:8px;border:1px solid var(--line);border-radius:14px;padding:11px 12px;background:var(--card);}
 .bkt-lab{font-size:12px;color:var(--muted);line-height:1.1;}
-.bkt-bar{height:5px;border-radius:4px;background:var(--line-soft);overflow:hidden;}
-.bkt-bar>span{display:block;height:100%;background:#4a7c59;transition:width .35s ease;}
-.bkt-val{font-family:var(--serif);font-size:19px;font-weight:500;line-height:1;}
-.bkt-val em{font-style:normal;font-size:11px;color:var(--muted);font-family:var(--sans);}
+.bkt-pips{display:flex;gap:5px;}
+.pip{flex:1;height:8px;border-radius:4px;background:var(--line-soft);overflow:hidden;}
+.pip>span{display:block;height:100%;background:#4a7c59;transition:width .35s ease;}
+.bkt-meals{font-size:12px;color:var(--ink-soft);}
 .bkt.warn{border-color:#eBD9A8;background:var(--warn-bg);}
-.bkt.warn .bkt-lab,.bkt.warn .bkt-val{color:var(--warn);}
-.bkt.warn .bkt-bar>span{background:var(--warn);}
+.bkt.warn .bkt-lab,.bkt.warn .bkt-meals{color:var(--warn);}
+.bkt.warn .pip>span{background:var(--warn);}
 .bkt.over{border-color:#e9c9c1;background:var(--over-bg);}
-.bkt.over .bkt-lab,.bkt.over .bkt-val{color:var(--over);}
-.bkt.over .bkt-bar>span{background:var(--over);}
+.bkt.over .bkt-lab,.bkt.over .bkt-meals{color:var(--over);}
+.bkt.over .pip>span{background:var(--over);}
 .bkt-viol{margin-top:10px;padding:10px 12px;border-radius:12px;background:var(--over-bg);color:var(--over);font-size:14px;font-weight:600;border:1px solid #e9c9c1;text-align:center;}
 .bkt-more{text-align:center;font-size:11px;color:var(--muted);margin-top:9px;letter-spacing:.02em;}
 .bkt-detail{margin-top:12px;padding-top:12px;border-top:1px solid var(--line-soft);display:flex;flex-direction:column;gap:5px;}
 .bkt-sec{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-top:8px;}
 .bkt-sec.bad{color:var(--over);}
 .bkt-detail .mi-none{font-size:13px;color:var(--muted);padding:1px 0;}
+.bkt-totals{margin-top:12px;padding-top:10px;border-top:1px solid var(--line-soft);font-size:13px;color:var(--ink-soft);text-align:center;}
+.bkt-totals b{font-family:var(--serif);font-weight:500;}
+.bkt-totals .sep{color:var(--line);margin:0 5px;}
+.mac{margin-left:5px;}
+.mac.over{color:var(--over);font-weight:600;}
 
 .scrim{position:fixed;inset:0;background:rgba(26,26,26,.42);z-index:40;opacity:0;pointer-events:none;transition:opacity .25s;}
 .scrim.show{opacity:1;pointer-events:auto;}
@@ -871,12 +876,15 @@ function renderBuckets(ph){
     if(sums[t]===undefined)return; // allowed 'other' items don't draw a bucket
     sums[t]+=gr;fillers[t].push(it);
   });
-  const cap=BUCKET_CAP;
+  const MEALS=BUCKET_CAP/100; // 2 portions/meals per type
+  const mealsFmt=n=>{const r=Math.round(n*2)/2;return r>MEALS?MEALS+'+':(r%1?r:r);};
   const strip=types.map(ty=>{
-    const val=Math.round(sums[ty.k]);
-    const pct=Math.min(100,val/cap*100);
-    const st=val>cap?'over':(val>cap*0.9?'warn':'');
-    return `<div class="bkt ${st}"><span class="bkt-lab">${ty.lab}</span><div class="bkt-bar"><span style="width:${pct}%"></span></div><span class="bkt-val num">${val}<em> /${cap}g</em></span></div>`;
+    const used=sums[ty.k]/100; // grams → meal-portions
+    const over=used>MEALS;
+    const st=over?'over':(used>MEALS-0.1&&used<=MEALS?'warn':'');
+    let pips='';
+    for(let i=0;i<MEALS;i++){const frac=Math.max(0,Math.min(1,used-i));pips+=`<div class="pip"><span style="width:${(frac*100).toFixed(0)}%"></span></div>`;}
+    return `<div class="bkt ${st}"><span class="bkt-lab">${ty.lab}</span><div class="bkt-pips">${pips}</div><span class="bkt-meals">${mealsFmt(used)} of ${MEALS} meals</span></div>`;
   }).join('');
   const violLine=viol.length?`<div class="bkt-viol">⚠ ${viol.length} item${viol.length>1?'s':''} off protocol</div>`:'';
   const open=box.classList.contains('open');
@@ -884,7 +892,7 @@ function renderBuckets(ph){
   if(open){
     detail='<div class="bkt-detail">';
     types.forEach(ty=>{
-      detail+=`<div class="bkt-sec">${ty.lab} · ${Math.round(sums[ty.k])} / ${cap}g</div>`;
+      detail+=`<div class="bkt-sec">${ty.lab} · ${mealsFmt(sums[ty.k]/100)} of ${MEALS} meals</div>`;
       if(!fillers[ty.k].length){detail+='<div class="mi-none">Nothing yet</div>';}
       fillers[ty.k].forEach(it=>{
         const note=it.verdict==='limited'?(it.note||'Limited'):'';
@@ -895,6 +903,8 @@ function renderBuckets(ph){
       detail+='<div class="bkt-sec bad">Off protocol</div>';
       viol.forEach(it=>{detail+=`<div class="mi"><span class="mi-dot bad"></span><span class="mi-name">${esc(it.name)} ${+it.grams||0}g</span><span class="mi-flag bad">${esc(it.note||'Not allowed')}</span></div>`;});
     }
+    const t=totals();
+    detail+=`<div class="bkt-totals"><b>${t.kcal}</b> kcal<span class="sep">·</span>${t.protein}P<span class="sep">·</span>${t.fat}F<span class="sep">·</span>${t.carbs}C</div>`;
     detail+='</div>';
   }else if(items.length){
     detail='<div class="bkt-more">Tap for detail</div>';
@@ -942,7 +952,9 @@ function renderTimeline(){
     if(noMacros){
       const st=mealStatus(m);
       const flags=(m.items||[]).map(it=>{const f=itemFlag(it);return `<div class="mi"><span class="mi-dot ${f.cls}"></span><span class="mi-name">${esc(it.name)} ${it.grams||0}g</span><span class="mi-flag ${f.cls}">${esc(f.label)}</span></div>`;}).join('');
-      inner=`<div class="meal-head"><span class="meal-name">${esc(m.name||'Meal')}</span><span class="mi-dot ${st}"></span></div><div class="meal-macros"><b>${Math.round(m.kcal||0)}</b> kcal</div>${flags?`<div class="mi-list collapsed">${flags}</div>`:''}`;
+      const kc=Math.round(m.kcal||0),pv=Math.round(m.protein||0),fv=Math.round(m.fat||0),cv=Math.round(m.carbs||0);
+      const mac=`<b class="${kc>MEAL_KCAL?'mac over':''}">${kc}</b> kcal<span class="mac">${pv}P</span><span class="mac ${fv>MEAL_FAT?'over':''}">${fv}F</span><span class="mac ${cv>MEAL_CARB?'over':''}">${cv}C</span>`;
+      inner=`<div class="meal-head"><span class="meal-name">${esc(m.name||'Meal')}</span><span class="mi-dot ${st}"></span></div><div class="meal-macros">${mac}</div>${flags?`<div class="mi-list collapsed">${flags}</div>`:''}`;
     }else{
       inner=`<div class="meal-name">${esc(m.name||'Meal')}</div><div class="meal-macros"><b>${Math.round(m.kcal||0)}</b> kcal<span class="sep">·</span>${Math.round(m.protein||0)}P<span class="sep">·</span>${Math.round(m.fat||0)}F<span class="sep">·</span>${Math.round(m.carbs||0)}C</div>`;
     }

@@ -138,7 +138,13 @@ svg{display:block;}
 .meal-macros b{font-family:var(--serif);font-weight:500;}
 .meal-macros .sep{color:var(--line);margin:0 5px;}
 .meal-del{align-self:center;color:var(--muted);font-size:19px;padding:6px;flex-shrink:0;}
+.meal-head{display:flex;align-items:center;gap:8px;}
+.meal-head .meal-name{flex:1;min-width:0;margin-bottom:0;}
+.meal-head .mi-dot{width:9px;height:9px;flex-shrink:0;}
 .mi-list{margin-top:7px;display:flex;flex-direction:column;gap:5px;}
+.mi-list.collapsed{display:none;}
+.meal-body.open .mi-list.collapsed{display:flex;}
+.meal-body.open .meal-name{white-space:normal;overflow:visible;}
 .mi{display:flex;align-items:center;gap:8px;font-size:13px;}
 .mi-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
 .mi-dot.ok{background:#4a7c59;}.mi-dot.warn{background:var(--warn);}.mi-dot.bad{background:var(--over);}
@@ -675,7 +681,7 @@ textarea.notes::placeholder{color:var(--muted);}
 
 <script>
 /* ===== BACKEND CONFIG — paste your /exec URL between the quotes ===== */
-const BACKEND_URL = '';
+const BACKEND_URL = 'https://script.google.com/macros/s/AKfycby0jEwPEqESOu_SK8qYqiJxR-1MeT8Ax6fq0fHPHC6gfihMpPW4uJBt1lGwmK_inQ4-/exec';
 const AI_URL = 'https://sweet-fire-a436.marco-iannitto.workers.dev'; // Cloudflare Worker for AI calls
 function aiURL(){return AI_URL||BACKEND_URL;}
 
@@ -805,6 +811,12 @@ function itemFlag(it){
   if(grams>cap.amber)return {cls:'warn',label:`Over ${cap.amber}g`};
   return {cls:'ok',label:'Allowed'};
 }
+function mealStatus(m){
+  const items=m.items||[];
+  if(items.some(it=>itemFlag(it).cls==='bad'))return'bad';
+  if(items.some(it=>itemFlag(it).cls==='warn'))return'warn';
+  return'ok';
+}
 function renderCalories(ph,t){
   g('calNum').textContent=t.kcal.toLocaleString();
   const wrap=g('calBarWrap'),bar=g('calBar'),prot=g('protocol');
@@ -866,18 +878,19 @@ function renderTimeline(){
   const noMacros=(k=>k==='activation'||k==='transition')(phaseFor(currentDay).key);
   [...day.meals].reverse().forEach(m=>{
     const i=day.meals.indexOf(m);
-    let body;
+    let inner;
     if(noMacros){
+      const st=mealStatus(m);
       const flags=(m.items||[]).map(it=>{const f=itemFlag(it);return `<div class="mi"><span class="mi-dot ${f.cls}"></span><span class="mi-name">${esc(it.name)} ${it.grams||0}g</span><span class="mi-flag ${f.cls}">${esc(f.label)}</span></div>`;}).join('');
-      body=`<div class="meal-macros"><b>${Math.round(m.kcal||0)}</b> kcal</div>${flags?`<div class="mi-list">${flags}</div>`:''}`;
+      inner=`<div class="meal-head"><span class="meal-name">${esc(m.name||'Meal')}</span><span class="mi-dot ${st}"></span></div><div class="meal-macros"><b>${Math.round(m.kcal||0)}</b> kcal</div>${flags?`<div class="mi-list collapsed">${flags}</div>`:''}`;
     }else{
-      body=`<div class="meal-macros"><b>${Math.round(m.kcal||0)}</b> kcal<span class="sep">·</span>${Math.round(m.protein||0)}P<span class="sep">·</span>${Math.round(m.fat||0)}F<span class="sep">·</span>${Math.round(m.carbs||0)}C</div>`;
+      inner=`<div class="meal-name">${esc(m.name||'Meal')}</div><div class="meal-macros"><b>${Math.round(m.kcal||0)}</b> kcal<span class="sep">·</span>${Math.round(m.protein||0)}P<span class="sep">·</span>${Math.round(m.fat||0)}F<span class="sep">·</span>${Math.round(m.carbs||0)}C</div>`;
     }
-    html+=`<div class="meal-row"><div class="meal-time">${m.time||''}</div><div class="meal-body" data-exp="${i}"><div class="meal-name">${esc(m.name||'Meal')}</div>${body}</div><button class="meal-del" data-i="${i}">×</button></div>`;
+    html+=`<div class="meal-row"><div class="meal-time">${m.time||''}</div><div class="meal-body" data-exp="${i}">${inner}</div><button class="meal-del" data-i="${i}">×</button></div>`;
   });
   tl.innerHTML=html;
-  tl.querySelectorAll('.meal-del').forEach(b=>b.onclick=()=>{day.meals.splice(+b.dataset.i,1);saveDay(true);render();});
-  tl.querySelectorAll('.meal-body').forEach(b=>b.onclick=()=>{b.querySelector('.meal-name').classList.toggle('expanded');});
+  tl.querySelectorAll('.meal-del').forEach(b=>b.onclick=e=>{e.stopPropagation();day.meals.splice(+b.dataset.i,1);saveDay(true);render();});
+  tl.querySelectorAll('.meal-body').forEach(b=>b.onclick=()=>{b.classList.toggle('open');});
 }
 function renderWater(){
   const glasses=day.water||0;

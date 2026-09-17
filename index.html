@@ -1261,9 +1261,20 @@ function macroBars(range){
   // bars as % of phase target (0-130 scale)
   const barH=H-padT-padB;
   const ys=pct=>H-padB-Math.min(130,pct)/130*barH;
-  const t100=ys(100).toFixed(1);
   let grid='';
   for(let dd=d0;dd<=dN;dd++){const x=xs(dd).toFixed(1);grid+=`<line x1="${x}" y1="${padT}" x2="${x}" y2="${H-padB}" stroke="#EBE5D8" stroke-width="1" opacity="0.7"/>`;}
+  // ok-band as % of each phase's own target (stepped where phases change, aligned to the strip)
+  const okBand=k=>k==='loading'?[90,130]:(k==='consolidation'?[80,98]:[400/600*100,650/600*100]);
+  const L=phaseLens();let bands='',s=0,lastHi=null;
+  [['loading'],['activation'],['transition'],['consolidation']].forEach(([k])=>{
+    const len=L[k],a=s+1,b=s+len;s+=len;
+    const lo=Math.max(a,d0),hi=Math.min(b,dN);if(hi<lo)return;
+    const x1=(a<=d0)?padL:xs(a-0.5), x2=(b>=dN)?(W-padR):xs(b+0.5);
+    const[bl,bh]=okBand(k),yTop=ys(bh),yBot=ys(bl);
+    bands+=`<rect x="${x1.toFixed(1)}" y="${yTop.toFixed(1)}" width="${(x2-x1).toFixed(1)}" height="${(yBot-yTop).toFixed(1)}" fill="#B08D2E" opacity="0.10"/>`;
+    bands+=`<line x1="${x1.toFixed(1)}" y1="${yTop.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${yTop.toFixed(1)}" stroke="#B08D2E" stroke-width="1" stroke-dasharray="3 3" opacity="0.45"/>`;
+    lastHi=yTop;
+  });
   let bars='';
   data.forEach(d=>{
     const tgt=phaseTargetKcal(d.day)||1;
@@ -1274,8 +1285,8 @@ function macroBars(range){
   });
   return `<svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet">
     ${grid}
-    <line x1="${padL}" y1="${t100}" x2="${W-padR}" y2="${t100}" stroke="#938c7d" stroke-width="1" stroke-dasharray="3 3" opacity="0.5"/>
-    <text x="${W-padR}" y="${(+t100-4).toFixed(1)}" font-size="9" fill="#938c7d" text-anchor="end" font-family="sans-serif">On target</text>
+    ${bands}
+    <text x="${W-padR}" y="${(lastHi!=null?lastHi-4:padT).toFixed(1)}" font-size="9" fill="#8f6f1f" text-anchor="end" font-family="sans-serif">Target range</text>
     ${bars}
     <text x="${padL}" y="${H-8}" font-size="10" fill="#938c7d" font-family="sans-serif">Day ${d0} · Start</text>
     <text x="${W-padR}" y="${H-8}" font-size="10" fill="#938c7d" text-anchor="end" font-family="sans-serif">Day ${dN} · Today</text>

@@ -201,6 +201,10 @@ textarea.notes::placeholder{color:var(--muted);}
 .stat .s-chip.up{background:var(--over-bg);color:var(--over);}
 .stat .s-togo{font-size:12px;color:var(--gold-deep);font-weight:600;margin-top:8px;}
 .stat .s-togo.done{color:#3f7a4a;}
+.trphase{margin:2px 0 8px;}
+.trphase-labels{position:relative;height:14px;margin-top:5px;font-size:9.5px;color:var(--muted);letter-spacing:.02em;}
+.trphase-labels span{position:absolute;transform:translateX(-50%);white-space:nowrap;}
+.trphase-labels span.cur{color:var(--gold-deep);font-weight:700;}
 .chartcard{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:14px;}
 .chartcard .c-title{font-size:13px;color:var(--muted);margin-bottom:10px;display:flex;justify-content:space-between;}
 .chartcard .c-title b{font-family:var(--serif);font-weight:500;color:var(--ink);}
@@ -562,13 +566,14 @@ textarea.notes::placeholder{color:var(--muted);}
   <div class="tabpage" id="tab-trends">
     <div class="tr-head">Progress</div>
     <div class="stat-row" id="statRow"></div>
+    <div class="trphase" id="trPhase"></div>
     <div class="chartcard">
       <div class="c-title"><span>Weight</span><b id="wLatest">—</b></div>
       <div class="chart-readout" id="wReadout"></div>
       <div id="weightChart"></div>
     </div>
     <div class="chartcard">
-      <div class="c-title"><span>Macros across the program</span></div>
+      <div class="c-title"><span>Calories vs phase target</span></div>
       <div class="chart-readout" id="macroReadout"></div>
       <div id="macroChart"></div>
     </div>
@@ -733,7 +738,7 @@ function applyPhaseConfig(){TOTAL_DAYS=totalDays();if(currentDay>TOTAL_DAYS)curr
 const FAT_TARGET=20, FAT_RED=25;             // fat: ok<=20, yellow 20-25, red>25
 const CARB_TARGET=25, CARB_RED=30;           // carbs: ok<=25, yellow 25-30, red>30
 const FAT_LIMIT=FAT_TARGET, CARB_LIMIT=CARB_TARGET; // bar fills against target
-const CAL_LOW_RED=250, CAL_LOW_AMBER=350, CAL_HIGH_AMBER=600, CAL_HIGH_RED=700; // Activation/Transition bands
+const CAL_LOW_RED=300, CAL_LOW_AMBER=400, CAL_HIGH_AMBER=650, CAL_HIGH_RED=750; // Activation/Transition: ok 400-650
 const CAL_TARGET=500, CAL_RED=700; // legacy refs (target midpoint, red ceiling)
 const MEAL_KCAL=250, MEAL_FAT=10, MEAL_CARB=15; // per-meal red flags
 const BUCKET_CAP=200; // daily food allowance per type: 2 meals x 100g
@@ -892,7 +897,7 @@ function renderCalories(ph,t){
   if(ph.key==='consolidation'){
     wrap.classList.remove('hidden');
     const target=profile.need+t.exKcal, pct=target>0?t.kcal/target*100:0;
-    bar.className='calbar'+(pct>130?' over':pct>100?' warn':'');
+    bar.className='calbar'+((pct>110||pct<70)?' over':(pct>98||pct<80)?' warn':'');
     bar.firstElementChild.style.width=Math.min(100,pct)+'%';
     g('calBarLeft').textContent=`${t.kcal.toLocaleString()} / ${target.toLocaleString()} kcal`;
     g('calBarRight').textContent=t.exKcal>0?`+${t.exKcal} movement`:'';
@@ -1177,10 +1182,37 @@ function renderTrends(){
   const md=collectMacroDays();
   const allD=[...new Set([...w.map(d=>d.day),...md.map(d=>d.day)])].sort((a,b)=>a-b);
   const range=allD.length?[allD[0],allD[allD.length-1]]:null;
+  g('trPhase').innerHTML = range?trendsPhaseStrip(range[0],range[1]):'';
   g('weightChart').innerHTML=lineChart(w,'kg',target,'wReadout',range);
   g('macroChart').innerHTML=macroBars(range);
   wireChartTaps();
   wireMacroBars();
+}
+function trendsPhaseStrip(d0,dN){
+  const W=440,padL=16,padR=16,span=(dN-d0)||1;
+  const xs=d=>padL+(d-d0)/span*(W-padL-padR); // same mapping as the charts
+  const pctOf=x=>x/W*100;
+  const L=phaseLens();
+  const order=[['loading','Loading'],['activation','Activation'],['transition','Transition'],['consolidation','Consolidation']];
+  const cur=phaseFor(currentDay).key;
+  let s=0,segs='',labels='';
+  order.forEach(([k,name])=>{
+    const len=L[k],a=s+1,b=s+len;s+=len;
+    const lo=Math.max(a,d0),hi=Math.min(b,dN);
+    if(hi<lo)return; // phase not in view
+    const x1=(a<=d0)?padL:xs(a-0.5);        // interior boundaries land between day gridlines
+    const x2=(b>=dN)?(W-padR):xs(b+0.5);
+    const isCur=k===cur,wpx=x2-x1;
+    segs+=`<rect x="${x1.toFixed(1)}" y="0" width="${Math.max(2,wpx).toFixed(1)}" height="6" rx="3" fill="${isCur?'#B08D2E':'#E2D8C0'}"/>`;
+    labels+=`<span class="${isCur?'cur':''}" style="left:${pctOf((x1+x2)/2).toFixed(1)}%">${wpx>60?name:name[0]}</span>`;
+  });
+  return `<svg viewBox="0 0 ${W} 6" width="100%" preserveAspectRatio="none" height="6">${segs}</svg><div class="trphase-labels">${labels}</div>`;
+}
+function phaseTargetLabel(dayNum){
+  const ph=phaseFor(dayNum);
+  if(ph.key==='loading')return 'Loading, eat high';
+  if(ph.key==='activation'||ph.key==='transition')return ph.name+', target 400-650';
+  return 'Consolidation, target ~'+((profile&&profile.need)?Math.round(profile.need):0)+' kcal';
 }
 function collectMacroDays(){
   const out=[];
@@ -1212,8 +1244,8 @@ function dayCalState(dayNum,k){
   const tgt=phaseTargetKcal(dayNum);if(!tgt)return'ok';
   const pct=k/tgt*100;
   if(ph==='loading')return k>=tgt*0.9?'ok':(k>=tgt*0.6?'warn':'over'); // want high
-  // consolidation: near need
-  if(pct>130||pct<60)return'over';if(pct>110||pct<80)return'warn';return'ok';
+  // consolidation: near TDEE. ok 80-98%, amber 70-80/98-110, red <70 or >110
+  if(pct>110||pct<70)return'over';if(pct>98||pct<80)return'warn';return'ok';
 }
 function macroBars(range){
   const data=collectMacroDays();
@@ -1230,6 +1262,8 @@ function macroBars(range){
   const barH=H-padT-padB;
   const ys=pct=>H-padB-Math.min(130,pct)/130*barH;
   const t100=ys(100).toFixed(1);
+  let grid='';
+  for(let dd=d0;dd<=dN;dd++){const x=xs(dd).toFixed(1);grid+=`<line x1="${x}" y1="${padT}" x2="${x}" y2="${H-padB}" stroke="#EBE5D8" stroke-width="1" opacity="0.7"/>`;}
   let bars='';
   data.forEach(d=>{
     const tgt=phaseTargetKcal(d.day)||1;
@@ -1239,8 +1273,9 @@ function macroBars(range){
     bars+=`<rect class="mbar" data-day="${d.day}" data-k="${d.kcal}" data-p="${d.protein}" data-f="${d.fat}" data-c="${d.carbs}" x="${(x-bw/2).toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(1,(H-padB-y)).toFixed(1)}" rx="3" fill="${COL[st]}"/>`;
   });
   return `<svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet">
+    ${grid}
     <line x1="${padL}" y1="${t100}" x2="${W-padR}" y2="${t100}" stroke="#938c7d" stroke-width="1" stroke-dasharray="3 3" opacity="0.5"/>
-    <text x="${W-padR}" y="${(+t100-4).toFixed(1)}" font-size="9" fill="#938c7d" text-anchor="end" font-family="sans-serif">Target</text>
+    <text x="${W-padR}" y="${(+t100-4).toFixed(1)}" font-size="9" fill="#938c7d" text-anchor="end" font-family="sans-serif">On target</text>
     ${bars}
     <text x="${padL}" y="${H-8}" font-size="10" fill="#938c7d" font-family="sans-serif">Day ${d0} · Start</text>
     <text x="${W-padR}" y="${H-8}" font-size="10" fill="#938c7d" text-anchor="end" font-family="sans-serif">Day ${dN} · Today</text>
@@ -1251,7 +1286,7 @@ function wireMacroBars(){
   const bars=document.querySelectorAll('#macroChart .mbar');
   if(!bars.length){if(ro)ro.textContent='';return;}
   const last=bars[bars.length-1];
-  const show=b=>{if(ro)ro.innerHTML=`Day ${b.dataset.day} · <b>${b.dataset.k}</b> kcal · ${b.dataset.p}P ${b.dataset.f}F ${b.dataset.c}C`;};
+  const show=b=>{if(ro)ro.innerHTML=`Day ${b.dataset.day} · <b>${b.dataset.k}</b> kcal · ${phaseTargetLabel(+b.dataset.day)}`;};
   show(last);
   bars.forEach(b=>b.onclick=()=>{bars.forEach(x=>x.setAttribute('opacity','0.55'));b.setAttribute('opacity','1');show(b);});
 }
@@ -1260,7 +1295,7 @@ function wireMacroBars(){
   const bars=document.querySelectorAll('#macroChart .mbar');
   if(!bars.length){if(ro)ro.textContent='';return;}
   const last=bars[bars.length-1];
-  const show=b=>{if(ro)ro.innerHTML=`Day ${b.dataset.day} · <b>${b.dataset.k}</b> kcal · ${b.dataset.p}P ${b.dataset.f}F ${b.dataset.c}C`;};
+  const show=b=>{if(ro)ro.innerHTML=`Day ${b.dataset.day} · <b>${b.dataset.k}</b> kcal · ${phaseTargetLabel(+b.dataset.day)}`;};
   show(last);
   bars.forEach(b=>b.onclick=()=>{bars.forEach(x=>x.setAttribute('opacity','0.55'));b.setAttribute('opacity','1');show(b);});
 }

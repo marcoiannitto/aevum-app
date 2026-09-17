@@ -867,7 +867,13 @@ function itemFlag(it){
   const grams=+it.grams||0, v=it.verdict||'limited', t=it.type||'other';
   if(v==='no')  return {cls:'bad', label:'Not allowed'};
   if(v==='limited') return {cls:'warn',label:it.note||'Limited'};
-  // verdict yes: per-type cap. protein amber>100 red>130; veg amber>100 red>120; fruit/other amber>100
+  // verdict yes: per-type cap. egg whites judged by count (max 6 ≈ 200g), not the 100g cap
+  if(/egg\s*white/i.test(it.name||'')){
+    if(grams>250)return {cls:'bad', label:'Over 6'};
+    if(grams>200)return {cls:'warn',label:'Near 6'};
+    return {cls:'ok',label:'Allowed'};
+  }
+  // protein amber>100 red>130; veg amber>100 red>120; fruit/other amber>100
   const cap = t==='protein'?{amber:100,red:130} : t==='veg'?{amber:100,red:120} : {amber:100,red:Infinity};
   if(grams>cap.red)  return {cls:'bad', label:'Too much'};
   if(grams>cap.amber)return {cls:'warn',label:`Over ${cap.amber}g`};

@@ -327,6 +327,28 @@ textarea.notes::placeholder{color:var(--muted);}
 .rc-detail .rc-added{background:var(--gold);color:var(--ink);}
 
 
+/* ===== FOOD BUCKETS (Activation/Transition) ===== */
+.buckets{margin-top:14px;cursor:pointer;}
+.bkt-strip{display:flex;gap:10px;}
+.bkt{flex:1;display:flex;flex-direction:column;gap:8px;border:1px solid var(--line);border-radius:14px;padding:11px 12px;background:var(--card);}
+.bkt-lab{font-size:12px;color:var(--muted);line-height:1.1;}
+.bkt-bar{height:5px;border-radius:4px;background:var(--line-soft);overflow:hidden;}
+.bkt-bar>span{display:block;height:100%;background:#4a7c59;transition:width .35s ease;}
+.bkt-val{font-family:var(--serif);font-size:19px;font-weight:500;line-height:1;}
+.bkt-val em{font-style:normal;font-size:11px;color:var(--muted);font-family:var(--sans);}
+.bkt.warn{border-color:#eBD9A8;background:var(--warn-bg);}
+.bkt.warn .bkt-lab,.bkt.warn .bkt-val{color:var(--warn);}
+.bkt.warn .bkt-bar>span{background:var(--warn);}
+.bkt.over{border-color:#e9c9c1;background:var(--over-bg);}
+.bkt.over .bkt-lab,.bkt.over .bkt-val{color:var(--over);}
+.bkt.over .bkt-bar>span{background:var(--over);}
+.bkt-viol{margin-top:10px;padding:10px 12px;border-radius:12px;background:var(--over-bg);color:var(--over);font-size:14px;font-weight:600;border:1px solid #e9c9c1;text-align:center;}
+.bkt-more{text-align:center;font-size:11px;color:var(--muted);margin-top:9px;letter-spacing:.02em;}
+.bkt-detail{margin-top:12px;padding-top:12px;border-top:1px solid var(--line-soft);display:flex;flex-direction:column;gap:5px;}
+.bkt-sec{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-top:8px;}
+.bkt-sec.bad{color:var(--over);}
+.bkt-detail .mi-none{font-size:13px;color:var(--muted);padding:1px 0;}
+
 .scrim{position:fixed;inset:0;background:rgba(26,26,26,.42);z-index:40;opacity:0;pointer-events:none;transition:opacity .25s;}
 .scrim.show{opacity:1;pointer-events:auto;}
 .sheet{position:fixed;left:0;right:0;bottom:0;z-index:50;background:var(--paper);border-radius:24px 24px 0 0;padding:8px 20px calc(env(safe-area-inset-bottom) + 22px);transform:translateY(100%);transition:transform .3s cubic-bezier(.22,.61,.36,1);max-height:94vh;overflow-y:auto;}
@@ -456,6 +478,7 @@ textarea.notes::placeholder{color:var(--muted);}
         <div class="calbar-label"><span id="calBarLeft">0</span><span id="calBarRight"></span></div>
       </div>
       <div class="gates" id="gates"></div>
+      <div class="buckets hidden" id="buckets"></div>
       <div class="protocol hidden" id="protocol"></div>
     </div>
 
@@ -692,6 +715,7 @@ const FAT_LIMIT=FAT_TARGET, CARB_LIMIT=CARB_TARGET; // bar fills against target
 const CAL_LOW_RED=250, CAL_LOW_AMBER=350, CAL_HIGH_AMBER=600, CAL_HIGH_RED=700; // Activation/Transition bands
 const CAL_TARGET=500, CAL_RED=700; // legacy refs (target midpoint, red ceiling)
 const MEAL_KCAL=250, MEAL_FAT=10, MEAL_CARB=15; // per-meal red flags
+const BUCKET_CAP=200; // daily food allowance per type: 2 meals x 100g
 const PROTEIN_PER_KG=1.2;                     // protein target multiplier
 const WATER_GOAL_GLASSES=10; // 2.5 L at 250 ml/glass
 const params=new URLSearchParams(location.search);
@@ -755,7 +779,7 @@ function render(){
   g('dPhase').innerHTML=`<span class="phase-dot" style="background:${ph.color}"></span>${ph.name}${fastingSuffix(ph)}`;
   g('prevDay').disabled=currentDay<=1;g('nextDay').disabled=currentDay>=TOTAL_DAYS;
   const t=totals();
-  renderCalories(ph,t);renderGates(ph,t);renderTimeline();
+  renderCalories(ph,t);renderGates(ph,t);renderBuckets(ph);renderTimeline();
   // strip
   g('serumAM').classList.toggle('on',day.serumAM);
   g('serumPM').classList.toggle('on',day.serumPM);
@@ -828,19 +852,55 @@ function renderCalories(ph,t){
     bar.firstElementChild.style.width=Math.min(100,pct)+'%';
     g('calBarLeft').textContent=`${t.kcal.toLocaleString()} / ${target.toLocaleString()} kcal`;
     g('calBarRight').textContent=t.exKcal>0?`+${t.exKcal} movement`:'';
-  }else if(ph.key==='activation'||ph.key==='transition'){
-    // no macros/targets: protocol summary from logged item flags
-    prot.classList.remove('hidden');
-    const items=day.meals.flatMap(m=>m.items||[]);
-    const n=day.meals.length;
-    if(!n){prot.className='protocol';prot.textContent='No meals logged yet.';return;}
-    const bad=items.filter(it=>itemFlag(it).cls==='bad').length;
-    const warn=items.filter(it=>itemFlag(it).cls==='warn').length;
-    const mealWord=n===1?'meal':'meals';
-    if(bad){prot.className='protocol bad';prot.textContent=`${n} ${mealWord} · ${bad} not allowed`;}
-    else if(warn){prot.className='protocol warn';prot.textContent=`${n} ${mealWord} · ${warn} over the limit`;}
-    else{prot.className='protocol ok';prot.textContent=`${n} ${mealWord} · all on protocol ✓`;}
   }
+  // Activation/Transition: buckets replace the protocol line (see renderBuckets)
+}
+/* daily food buckets: how much of each food type the day's allowance is used.
+   yes/limited items fill their type's bucket; no items sit outside as violations. */
+function renderBuckets(ph){
+  const box=g('buckets');
+  const flag=(ph.key==='activation'||ph.key==='transition');
+  if(!flag){box.classList.add('hidden');box.innerHTML='';box.onclick=null;return;}
+  box.classList.remove('hidden');
+  const items=day.meals.flatMap(m=>m.items||[]);
+  const types=[{k:'protein',lab:'Protein foods'},{k:'veg',lab:'Vegetables'},{k:'fruit',lab:'Fruit'}];
+  const sums={protein:0,veg:0,fruit:0}, fillers={protein:[],veg:[],fruit:[]}, viol=[];
+  items.forEach(it=>{
+    const t=it.type, v=it.verdict||'limited', gr=+it.grams||0;
+    if(v==='no'){viol.push(it);return;}
+    if(sums[t]===undefined)return; // allowed 'other' items don't draw a bucket
+    sums[t]+=gr;fillers[t].push(it);
+  });
+  const cap=BUCKET_CAP;
+  const strip=types.map(ty=>{
+    const val=Math.round(sums[ty.k]);
+    const pct=Math.min(100,val/cap*100);
+    const st=val>cap?'over':(val>cap*0.9?'warn':'');
+    return `<div class="bkt ${st}"><span class="bkt-lab">${ty.lab}</span><div class="bkt-bar"><span style="width:${pct}%"></span></div><span class="bkt-val num">${val}<em> /${cap}g</em></span></div>`;
+  }).join('');
+  const violLine=viol.length?`<div class="bkt-viol">⚠ ${viol.length} item${viol.length>1?'s':''} off protocol</div>`:'';
+  const open=box.classList.contains('open');
+  let detail='';
+  if(open){
+    detail='<div class="bkt-detail">';
+    types.forEach(ty=>{
+      detail+=`<div class="bkt-sec">${ty.lab} · ${Math.round(sums[ty.k])} / ${cap}g</div>`;
+      if(!fillers[ty.k].length){detail+='<div class="mi-none">Nothing yet</div>';}
+      fillers[ty.k].forEach(it=>{
+        const note=it.verdict==='limited'?(it.note||'Limited'):'';
+        detail+=`<div class="mi"><span class="mi-dot ${it.verdict==='limited'?'warn':'ok'}"></span><span class="mi-name">${esc(it.name)} ${+it.grams||0}g</span>${note?`<span class="mi-flag warn">${esc(note)}</span>`:''}</div>`;
+      });
+    });
+    if(viol.length){
+      detail+='<div class="bkt-sec bad">Off protocol</div>';
+      viol.forEach(it=>{detail+=`<div class="mi"><span class="mi-dot bad"></span><span class="mi-name">${esc(it.name)} ${+it.grams||0}g</span><span class="mi-flag bad">${esc(it.note||'Not allowed')}</span></div>`;});
+    }
+    detail+='</div>';
+  }else if(items.length){
+    detail='<div class="bkt-more">Tap for detail</div>';
+  }
+  box.innerHTML=`<div class="bkt-strip">${strip}</div>${violLine}${detail}`;
+  box.onclick=()=>{box.classList.toggle('open');renderBuckets(ph);};
 }
 function gateState(v,target,red){if(v>red)return'over';if(v>target)return'warn';return'ok';}
 function renderGates(ph,t){

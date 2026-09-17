@@ -730,8 +730,8 @@ const AI_URL = 'https://sweet-fire-a436.marco-iannitto.workers.dev'; // Cloudfla
 function aiURL(){return AI_URL||BACKEND_URL;}
 
 let TOTAL_DAYS=35; const GLASS_ML=250;
-const PH_FIXED={loading:2,transition:3,consolidation:18}; // activation is per-person
-function actDays(){return (profile&&+profile.activation_days>0)?+profile.activation_days:14;}
+const PH_FIXED={loading:2,transition:3,consolidation:22}; // activation is per-person
+function actDays(){return (profile&&+profile.activation_days>0)?+profile.activation_days:8;}
 function phaseLens(){return {loading:PH_FIXED.loading,activation:actDays(),transition:PH_FIXED.transition,consolidation:PH_FIXED.consolidation};}
 function totalDays(){const L=phaseLens();return L.loading+L.activation+L.transition+L.consolidation;}
 function applyPhaseConfig(){TOTAL_DAYS=totalDays();if(currentDay>TOTAL_DAYS)currentDay=TOTAL_DAYS;}
@@ -878,8 +878,8 @@ function itemFlag(it){
     if(grams>200)return {cls:'warn',label:'Near 6'};
     return {cls:'ok',label:'Allowed'};
   }
-  // protein amber>100 red>130; veg amber>100 red>120; fruit/other amber>100
-  const cap = t==='protein'?{amber:100,red:130} : t==='veg'?{amber:100,red:120} : {amber:100,red:Infinity};
+  // ok ≤111g, amber ≤131g, red >131g (fruit/other: amber >111, no red)
+  const cap = (t==='protein'||t==='veg')?{amber:111,red:131} : {amber:111,red:Infinity};
   if(grams>cap.red)  return {cls:'bad', label:'Too much'};
   if(grams>cap.amber)return {cls:'warn',label:`Over ${cap.amber}g`};
   return {cls:'ok',label:'Allowed'};

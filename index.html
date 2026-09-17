@@ -1258,35 +1258,35 @@ function macroBars(range){
   const xs=d=>padL+(d-d0)/span*(W-padL-padR);
   const bw=Math.max(6,Math.min(22,(W-padL-padR)/Math.max(1,dayCount)*0.55));
   const COL={ok:'#4a7a52',warn:'#B7791F',over:'#A13024'};
-  // bars as % of phase target (0-130 scale)
+  // Each day is normalized to ITS OWN phase target band, so one flat "on target" zone
+  // works across every phase. The ok band (in kcal) is pinned to a fixed slice of the
+  // chart height; a bar landing inside the band = on target for that day's phase.
   const barH=H-padT-padB;
-  const ys=pct=>H-padB-Math.min(130,pct)/130*barH;
+  const BAND_LO=0.34, BAND_HI=0.60;         // fraction of barH the target band occupies
+  const okKcal=dayNum=>{
+    const k=phaseFor(dayNum).key;
+    if(k==='loading'){const t=phaseTargetKcal(dayNum)||1;return [t*0.9,t];}
+    if(k==='consolidation'){const n=(profile&&profile.need)||2000;return [n*0.80,n*0.98];}
+    return [400,650];                        // activation / transition
+  };
+  const fracFor=(dayNum,v)=>{const[lo,hi]=okKcal(dayNum);const s=(v-lo)/((hi-lo)||1);return Math.max(0.04,Math.min(0.97,BAND_LO+s*(BAND_HI-BAND_LO)));};
+  const yBot=(H-padB)-BAND_LO*barH, yTop=(H-padB)-BAND_HI*barH;
   let grid='';
   for(let dd=d0;dd<=dN;dd++){const x=xs(dd).toFixed(1);grid+=`<line x1="${x}" y1="${padT}" x2="${x}" y2="${H-padB}" stroke="#EBE5D8" stroke-width="1" opacity="0.7"/>`;}
-  // ok-band as % of each phase's own target (stepped where phases change, aligned to the strip)
-  const okBand=k=>k==='loading'?[90,130]:(k==='consolidation'?[80,98]:[400/600*100,650/600*100]);
-  const L=phaseLens();let bands='',s=0,lastHi=null;
-  [['loading'],['activation'],['transition'],['consolidation']].forEach(([k])=>{
-    const len=L[k],a=s+1,b=s+len;s+=len;
-    const lo=Math.max(a,d0),hi=Math.min(b,dN);if(hi<lo)return;
-    const x1=(a<=d0)?padL:xs(a-0.5), x2=(b>=dN)?(W-padR):xs(b+0.5);
-    const[bl,bh]=okBand(k),yTop=ys(bh),yBot=ys(bl);
-    bands+=`<rect x="${x1.toFixed(1)}" y="${yTop.toFixed(1)}" width="${(x2-x1).toFixed(1)}" height="${(yBot-yTop).toFixed(1)}" fill="#B08D2E" opacity="0.10"/>`;
-    bands+=`<line x1="${x1.toFixed(1)}" y1="${yTop.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${yTop.toFixed(1)}" stroke="#B08D2E" stroke-width="1" stroke-dasharray="3 3" opacity="0.45"/>`;
-    lastHi=yTop;
-  });
+  const band=`<rect x="${padL}" y="${yTop.toFixed(1)}" width="${(W-padL-padR).toFixed(1)}" height="${(yBot-yTop).toFixed(1)}" fill="#B08D2E" opacity="0.10"/>`+
+    `<line x1="${padL}" y1="${yTop.toFixed(1)}" x2="${W-padR}" y2="${yTop.toFixed(1)}" stroke="#B08D2E" stroke-width="1" stroke-dasharray="3 3" opacity="0.45"/>`+
+    `<line x1="${padL}" y1="${yBot.toFixed(1)}" x2="${W-padR}" y2="${yBot.toFixed(1)}" stroke="#B08D2E" stroke-width="1" stroke-dasharray="3 3" opacity="0.3"/>`;
   let bars='';
   data.forEach(d=>{
-    const tgt=phaseTargetKcal(d.day)||1;
-    const pct=d.kcal/tgt*100;
+    const h=fracFor(d.day,d.kcal)*barH, y=(H-padB)-h;
     const st=dayCalState(d.day,d.kcal);
-    const x=xs(d.day), y=ys(pct);
-    bars+=`<rect class="mbar" data-day="${d.day}" data-k="${d.kcal}" data-p="${d.protein}" data-f="${d.fat}" data-c="${d.carbs}" x="${(x-bw/2).toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(1,(H-padB-y)).toFixed(1)}" rx="3" fill="${COL[st]}"/>`;
+    const x=xs(d.day);
+    bars+=`<rect class="mbar" data-day="${d.day}" data-k="${d.kcal}" data-p="${d.protein}" data-f="${d.fat}" data-c="${d.carbs}" x="${(x-bw/2).toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(1,h).toFixed(1)}" rx="3" fill="${COL[st]}"/>`;
   });
   return `<svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet">
     ${grid}
-    ${bands}
-    <text x="${W-padR}" y="${(lastHi!=null?lastHi-4:padT).toFixed(1)}" font-size="9" fill="#8f6f1f" text-anchor="end" font-family="sans-serif">Target range</text>
+    ${band}
+    <text x="${W-padR}" y="${(yTop-4).toFixed(1)}" font-size="9" fill="#8f6f1f" text-anchor="end" font-family="sans-serif">Target range</text>
     ${bars}
     <text x="${padL}" y="${H-8}" font-size="10" fill="#938c7d" font-family="sans-serif">Day ${d0} · Start</text>
     <text x="${W-padR}" y="${H-8}" font-size="10" fill="#938c7d" text-anchor="end" font-family="sans-serif">Day ${dN} · Today</text>

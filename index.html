@@ -1438,7 +1438,7 @@ function syncDay(rec){
     weight:rec.weight,waist:rec.waist,serumAM:rec.serumAM,serumPM:rec.serumPM,
     kcal:rec.kcal,protein:rec.protein,fat:rec.fat,carbs:rec.carbs,water_ml:rec.water*GLASS_ML,
     exercise:rec.exercise.map(e=>`${e.type} ${e.min}min ${e.kcal}kcal`).join('; '),exercise_kcal:rec.exKcal,
-    energy:rec.energy,hunger:rec.hunger,sleep:rec.sleep,notes:rec.notes};
+    energy:rec.energy,hunger:rec.hunger,sleep:rec.sleep,notes:rec.notes,day_json:JSON.stringify(day)};
   fetch(BACKEND_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(p)}).catch(()=>{});
 }
 
@@ -1818,8 +1818,24 @@ function wire(){
 function boot(){
   g('top').classList.remove('hidden');g('scrollArea').classList.remove('hidden');g('nav').classList.remove('hidden');
   wire();applyPhaseConfig();currentDay=+(localStorage.getItem(K('lastDay'))||1);loadDay();
-  fetchProfile();
+  fetchProfile();hydrateFromBackend();
   setInterval(()=>{const ph=phaseFor(currentDay);if(ph.key==='activation')g('dPhase').innerHTML=`<span class="phase-dot" style="background:${ph.color}"></span>${ph.name}${fastingSuffix(ph)}`;},60000);
+}
+function hydrateFromBackend(){
+  // fill any days missing on THIS device from the Sheet (gap-fill only, never clobbers local)
+  if(!BACKEND_URL)return;
+  fetch(BACKEND_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'getdays',id:PID})})
+    .then(r=>r.json()).then(d=>{
+      if(!d||!Array.isArray(d.days))return;
+      let restored=0,maxDay=0;
+      d.days.forEach(row=>{
+        if(!row.day||!row.day_json)return;
+        maxDay=Math.max(maxDay,row.day);
+        const key=K('day_'+row.day);
+        if(!localStorage.getItem(key)){try{JSON.parse(row.day_json);localStorage.setItem(key,row.day_json);restored++;}catch(e){}}
+      });
+      if(restored){loadDay();} // refresh the current view with restored data
+    }).catch(()=>{});
 }
 function fetchProfile(){
   if(!BACKEND_URL)return;

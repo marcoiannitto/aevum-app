@@ -138,6 +138,17 @@ svg{display:block;}
 .meal-macros b{font-family:var(--serif);font-weight:500;}
 .meal-macros .sep{color:var(--line);margin:0 5px;}
 .meal-del{align-self:center;color:var(--muted);font-size:19px;padding:6px;flex-shrink:0;}
+.mi-list{margin-top:7px;display:flex;flex-direction:column;gap:5px;}
+.mi{display:flex;align-items:center;gap:8px;font-size:13px;}
+.mi-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+.mi-dot.ok{background:#4a7c59;}.mi-dot.warn{background:var(--warn);}.mi-dot.bad{background:var(--over);}
+.mi-name{color:var(--ink-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.mi-flag{margin-left:auto;flex-shrink:0;font-size:12px;font-weight:600;}
+.mi-flag.ok{color:#4a7c59;}.mi-flag.warn{color:var(--warn);}.mi-flag.bad{color:var(--over);}
+.protocol{margin-top:14px;padding:11px 14px;border-radius:12px;font-size:14px;font-weight:600;text-align:center;background:var(--paper-2,#F3F0E8);color:var(--ink-soft);}
+.protocol.ok{background:#EAF2EC;color:#3d6b4d;}
+.protocol.warn{background:var(--warn-bg);color:var(--warn);}
+.protocol.bad{background:var(--over-bg);color:var(--over);}
 
 /* ===== BLOCKS (Daily) ===== */
 .block{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:6px 16px;margin-bottom:14px;}
@@ -436,6 +447,7 @@ textarea.notes::placeholder{color:var(--muted);}
         <div class="calbar-label"><span id="calBarLeft">0</span><span id="calBarRight"></span></div>
       </div>
       <div class="gates" id="gates"></div>
+      <div class="protocol hidden" id="protocol"></div>
     </div>
 
     <!-- WATER -->
@@ -678,7 +690,7 @@ const K=s=>`aevum_${PID}_${s}`;
 function phaseFor(d){
   if(d<=2)  return {key:'loading',name:'Loading',color:'#8a8a8a'};
   if(d<=14) return {key:'activation',name:'Activation',color:'#B08D2E'};
-  if(d<=16) return {key:'transition',name:'Transition',color:'#B08D2E'};
+  if(d<=17) return {key:'transition',name:'Transition',color:'#B08D2E'};
   return {key:'consolidation',name:'Consolidation',color:'#4a463f'};
 }
 function gatesFor(k){
@@ -687,7 +699,7 @@ function gatesFor(k){
   return{fat:false,carb:false};
 }
 
-let profile=null,currentDay=1,day=null,photoData=null;
+let profile=null,currentDay=1,day=null,photoData=null,mealItems=[];
 
 /* ---- profile ---- */
 function loadProfile(){const r=localStorage.getItem(K('profile'));profile=r?JSON.parse(r):null;}
@@ -777,9 +789,18 @@ function calState(k){ // Activation/Transition 5-band
   if(k<CAL_LOW_AMBER||k>CAL_HIGH_AMBER)return'warn';
   return'ok';
 }
+// item flag: {cls, label} from a meal item's verdict + grams
+function itemFlag(it){
+  const g=+it.grams||0, v=it.verdict||'limited';
+  if(v==='no')  return {cls:'bad', label:it.note||'Not allowed'};
+  if(v==='limited') return {cls:'warn',label:it.note||'Limited'};
+  if(g>100)     return {cls:'warn',label:'Over 100g'};
+  return {cls:'ok',label:'Allowed'};
+}
 function renderCalories(ph,t){
   g('calNum').textContent=t.kcal.toLocaleString();
-  const wrap=g('calBarWrap'),bar=g('calBar');
+  const wrap=g('calBarWrap'),bar=g('calBar'),prot=g('protocol');
+  wrap.classList.add('hidden');prot.classList.add('hidden');g('calUnit').textContent='kcal today';
   if(ph.key==='consolidation'){
     wrap.classList.remove('hidden');
     const target=profile.need+t.exKcal, pct=target>0?t.kcal/target*100:0;
@@ -787,24 +808,25 @@ function renderCalories(ph,t){
     bar.firstElementChild.style.width=Math.min(100,pct)+'%';
     g('calBarLeft').textContent=`${t.kcal.toLocaleString()} / ${target.toLocaleString()} kcal`;
     g('calBarRight').textContent=t.exKcal>0?`+${t.exKcal} movement`:'';
-    g('calUnit').textContent='kcal today';
   }else if(ph.key==='activation'||ph.key==='transition'){
-    // 5-band: <250 red, 250-350 amber, 350-600 green, 600-700 amber, >700 red
-    wrap.classList.remove('hidden');
-    const st=calState(t.kcal);
-    const pct=t.kcal/CAL_HIGH_AMBER*100;
-    bar.className='calbar'+(st==='over'?' over':st==='warn'?' warn':'');
-    bar.firstElementChild.style.width=Math.min(100,pct)+'%';
-    g('calBarLeft').textContent=`${t.kcal.toLocaleString()} kcal`;
-    g('calBarRight').textContent = st==='over'?(t.kcal<CAL_LOW_RED?'too low':'too high') : st==='warn'?(t.kcal<CAL_TARGET?'a little low':'a little high') : 'on target';
-    g('calUnit').textContent='kcal today';
-  }else{
-    wrap.classList.add('hidden');g('calUnit').textContent='kcal today';
+    // no macros/targets: protocol summary from logged item flags
+    prot.classList.remove('hidden');
+    const items=day.meals.flatMap(m=>m.items||[]);
+    const n=day.meals.length;
+    if(!n){prot.className='protocol';prot.textContent='No meals logged yet.';return;}
+    const bad=items.filter(it=>itemFlag(it).cls==='bad').length;
+    const warn=items.filter(it=>itemFlag(it).cls==='warn').length;
+    const mealWord=n===1?'meal':'meals';
+    if(bad){prot.className='protocol bad';prot.textContent=`${n} ${mealWord} · ${bad} off protocol`;}
+    else if(warn){prot.className='protocol warn';prot.textContent=`${n} ${mealWord} · ${warn} over the cap`;}
+    else{prot.className='protocol ok';prot.textContent=`${n} ${mealWord} · all on protocol ✓`;}
   }
 }
 function gateState(v,target,red){if(v>red)return'over';if(v>target)return'warn';return'ok';}
 function renderGates(ph,t){
-  const cfg=gatesFor(ph.key),wrap=g('gates');wrap.innerHTML='';
+  const wrap=g('gates');wrap.innerHTML='';
+  if(ph.key==='activation'||ph.key==='transition')return; // macros hidden in these phases
+  const cfg=gatesFor(ph.key);
   // ceiling gate (fat/carbs)
   const makeGate=(name,val,target,red,gated)=>{
     const st=gated?gateState(val,target,red):'', pct=gated?Math.min(100,val/target*100):0;
@@ -833,9 +855,17 @@ function renderTimeline(){
   const tl=g('timeline');
   if(!day.meals.length){tl.innerHTML='<div class="tl-empty">No meals logged yet.</div>';return;}
   let html='<div class="tl-head">Today\u2019s meals</div>';
+  const noMacros=(k=>k==='activation'||k==='transition')(phaseFor(currentDay).key);
   [...day.meals].reverse().forEach(m=>{
     const i=day.meals.indexOf(m);
-    html+=`<div class="meal-row"><div class="meal-time">${m.time||''}</div><div class="meal-body" data-exp="${i}"><div class="meal-name">${esc(m.name||'Meal')}</div><div class="meal-macros"><b>${Math.round(m.kcal||0)}</b> kcal<span class="sep">·</span>${Math.round(m.protein||0)}P<span class="sep">·</span>${Math.round(m.fat||0)}F<span class="sep">·</span>${Math.round(m.carbs||0)}C</div></div><button class="meal-del" data-i="${i}">×</button></div>`;
+    let body;
+    if(noMacros){
+      const flags=(m.items||[]).map(it=>{const f=itemFlag(it);return `<div class="mi"><span class="mi-dot ${f.cls}"></span><span class="mi-name">${esc(it.name)} ${it.grams||0}g</span><span class="mi-flag ${f.cls}">${esc(f.label)}</span></div>`;}).join('');
+      body=`<div class="meal-macros"><b>${Math.round(m.kcal||0)}</b> kcal</div>${flags?`<div class="mi-list">${flags}</div>`:''}`;
+    }else{
+      body=`<div class="meal-macros"><b>${Math.round(m.kcal||0)}</b> kcal<span class="sep">·</span>${Math.round(m.protein||0)}P<span class="sep">·</span>${Math.round(m.fat||0)}F<span class="sep">·</span>${Math.round(m.carbs||0)}C</div>`;
+    }
+    html+=`<div class="meal-row"><div class="meal-time">${m.time||''}</div><div class="meal-body" data-exp="${i}"><div class="meal-name">${esc(m.name||'Meal')}</div>${body}</div><button class="meal-del" data-i="${i}">×</button></div>`;
   });
   tl.innerHTML=html;
   tl.querySelectorAll('.meal-del').forEach(b=>b.onclick=()=>{day.meals.splice(+b.dataset.i,1);saveDay(true);render();});
@@ -1135,7 +1165,7 @@ function addIngredient(){ingredients.push({food:'',qty:''});renderIngredients();
 let sheetMode='log';
 function openSheet(mode){
   sheetMode=(mode==='plan')?'plan':'log';
-  clearSheet();
+  clearSheet();mealItems=[];
   const ph=phaseFor(currentDay),flag=(ph.key==='activation'||ph.key==='transition');
   g('maxKcal').textContent=flag?MEAL_KCAL:'';g('maxFat').textContent=flag?MEAL_FAT:'';g('maxCarbs').textContent=flag?MEAL_CARB:'';
   if(!ingredients.length)addIngredient();
@@ -1154,7 +1184,7 @@ function closeSheet(){
 }
 function onPhoto(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{photoData=r.result;g('photoImg').src=photoData;g('photoThumb').style.display='block';g('photoChoice').classList.remove('show');};r.readAsDataURL(f);}
 function removePhoto(){photoData=null;g('photoCam').value='';g('photoGallery').value='';g('photoThumb').style.display='none';}
-function fillMacros(v){if(v.name&&!g('mName').value.trim())g('mName').value=v.name;g('mKcal').value=v.kcal??'';g('mProtein').value=v.protein??'';g('mFat').value=v.fat??'';g('mCarbs').value=v.carbs??'';validateMeal();}
+function fillMacros(v){if(v.name&&!g('mName').value.trim())g('mName').value=v.name;g('mKcal').value=v.kcal??'';g('mProtein').value=v.protein??'';g('mFat').value=v.fat??'';g('mCarbs').value=v.carbs??'';mealItems=Array.isArray(v.items)?v.items:[];validateMeal();}
 function validateMeal(){
   g('addMeal').disabled=g('mKcal').value==='';
   const ph=phaseFor(currentDay);const flag=(ph.key==='activation'||ph.key==='transition');
@@ -1190,7 +1220,7 @@ function calcPhoto(){
 }
 function commitMeal(){
   const name=g('mName').value.trim()||'Meal';
-  const meal={name,kcal:+g('mKcal').value||0,protein:+g('mProtein').value||0,fat:+g('mFat').value||0,carbs:+g('mCarbs').value||0};
+  const meal={name,kcal:+g('mKcal').value||0,protein:+g('mProtein').value||0,fat:+g('mFat').value||0,carbs:+g('mCarbs').value||0,items:mealItems.slice()};
   if(sheetMode==='plan'){
     ensureEditable(planDay);
     planEdit[planDay].push({meal:'Added',recipe:name,kcal:meal.kcal,protein:meal.protein,fat:meal.fat,carbs:meal.carbs});

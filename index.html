@@ -476,7 +476,7 @@ textarea.notes::placeholder{color:var(--muted);}
   <div class="tabpage active" id="tab-today">
 
     <!-- SERUM -->
-    <div class="block serum-block">
+    <div class="block serum-block" id="serumBlock">
       <div class="b-title">Serum</div>
       <div class="serum-row">
         <button class="serum-btn" id="serumAM">
@@ -724,6 +724,14 @@ textarea.notes::placeholder{color:var(--muted);}
 </div>
 
 <script>
+/* ===== AEVUM tracker · v1.1.0 · 2026-09-18 =====
+   CHANGELOG
+   v1.1.0 — Serum block hidden in Transition + Consolidation (shown only in Loading + Activation).
+            Fasting/eating window tag now shown in Transition (was Activation only).
+            Egg whites count at half weight in the protein bucket (6 eggs ≈ 1 meal-portion, not 2).
+   v1.0.0 — Baseline. */
+const APP_VERSION='v1.1.0';
+
 /* ===== BACKEND CONFIG — paste your /exec URL between the quotes ===== */
 const BACKEND_URL = 'https://script.google.com/macros/s/AKfycby0jEwPEqESOu_SK8qYqiJxR-1MeT8Ax6fq0fHPHC6gfihMpPW4uJBt1lGwmK_inQ4-/exec';
 const AI_URL = 'https://sweet-fire-a436.marco-iannitto.workers.dev'; // Cloudflare Worker for AI calls
@@ -808,6 +816,8 @@ function render(){
   g('prevDay').disabled=currentDay<=1;g('nextDay').disabled=currentDay>=TOTAL_DAYS;
   const t=totals();
   renderCalories(ph,t);renderGates(ph,t);renderBuckets(ph);renderTimeline();renderPhaseBar();
+  // serum block: only in Loading + Activation
+  g('serumBlock').classList.toggle('hidden',!(ph.key==='loading'||ph.key==='activation'));
   // strip
   g('serumAM').classList.toggle('on',day.serumAM);
   g('serumPM').classList.toggle('on',day.serumPM);
@@ -832,7 +842,7 @@ function renderPhaseBar(){
   el.innerHTML=html;
 }
 function fastingSuffix(ph){
-  if(ph.key!=='activation')return '';
+  if(ph.key!=='activation'&&ph.key!=='transition')return '';
   const WINDOW_H=8, FAST_H=16;
   const now=Date.now();
   const fmt=ms=>{const dt=new Date(ms);return String(dt.getHours()).padStart(2,'0')+':'+String(dt.getMinutes()).padStart(2,'0');};
@@ -905,7 +915,8 @@ function renderCalories(ph,t){
   // Activation/Transition: buckets replace the protocol line (see renderBuckets)
 }
 /* daily food buckets: how much of each food type the day's allowance is used.
-   yes/limited items fill their type's bucket; no items sit outside as violations. */
+   yes/limited items fill their type's bucket; no items sit outside as violations.
+   egg whites count at half weight (6 eggs ≈ 200g ≈ 1 meal-portion). */
 function renderBuckets(ph){
   const box=g('buckets');
   const flag=(ph.key==='activation'||ph.key==='transition');
@@ -914,11 +925,12 @@ function renderBuckets(ph){
   const items=day.meals.flatMap(m=>m.items||[]);
   const types=[{k:'protein',lab:'Protein foods'},{k:'veg',lab:'Vegetables'},{k:'fruit',lab:'Fruit'}];
   const sums={protein:0,veg:0,fruit:0}, fillers={protein:[],veg:[],fruit:[]}, viol=[];
+  const bucketGrams=it=>{const gr=+it.grams||0;return (it.type==='protein'&&/egg\s*white/i.test(it.name||''))?gr*0.5:gr;};
   items.forEach(it=>{
-    const t=it.type, v=it.verdict||'limited', gr=+it.grams||0;
+    const t=it.type, v=it.verdict||'limited';
     if(v==='no'){viol.push(it);return;}
     if(sums[t]===undefined)return; // allowed 'other' items don't draw a bucket
-    sums[t]+=gr;fillers[t].push(it);
+    sums[t]+=bucketGrams(it);fillers[t].push(it);
   });
   const MEALS=BUCKET_CAP/100; // 2 portions/meals per type
   const mealsFmt=n=>{const r=Math.round(n*2)/2;return r>MEALS?MEALS+'+':(r%1?r:r);};
@@ -1292,15 +1304,6 @@ function macroBars(range){
     <text x="${padL}" y="${H-8}" font-size="10" fill="#938c7d" font-family="sans-serif">Day ${d0} · Start</text>
     <text x="${W-padR}" y="${H-8}" font-size="10" fill="#938c7d" text-anchor="end" font-family="sans-serif">Day ${dN} · Today</text>
   </svg>`;
-}
-function wireMacroBars(){
-  const ro=g('macroReadout');
-  const bars=document.querySelectorAll('#macroChart .mbar');
-  if(!bars.length){if(ro)ro.textContent='';return;}
-  const last=bars[bars.length-1];
-  const show=b=>{if(ro)ro.innerHTML=`Day ${b.dataset.day} · <b>${b.dataset.k}</b> kcal · ${phaseTargetLabel(+b.dataset.day)}`;};
-  show(last);
-  bars.forEach(b=>b.onclick=()=>{bars.forEach(x=>x.setAttribute('opacity','0.55'));b.setAttribute('opacity','1');show(b);});
 }
 function wireMacroBars(){
   const ro=g('macroReadout');
@@ -1819,7 +1822,7 @@ function boot(){
   g('top').classList.remove('hidden');g('scrollArea').classList.remove('hidden');g('nav').classList.remove('hidden');
   wire();applyPhaseConfig();currentDay=+(localStorage.getItem(K('lastDay'))||1);loadDay();
   fetchProfile();hydrateFromBackend();
-  setInterval(()=>{const ph=phaseFor(currentDay);if(ph.key==='activation')g('dPhase').innerHTML=`<span class="phase-dot" style="background:${ph.color}"></span>${ph.name}${fastingSuffix(ph)}`;},60000);
+  setInterval(()=>{const ph=phaseFor(currentDay);if(ph.key==='activation'||ph.key==='transition')g('dPhase').innerHTML=`<span class="phase-dot" style="background:${ph.color}"></span>${ph.name}${fastingSuffix(ph)}`;},60000);
 }
 function hydrateFromBackend(){
   // fill any days missing on THIS device from the Sheet (gap-fill only, never clobbers local)

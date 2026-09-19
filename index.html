@@ -55,6 +55,7 @@ svg{display:block;}
 .daybar .arrow:disabled{opacity:.3;}
 .daybar .center{text-align:center;}
 .daybar .dnum{font-family:var(--serif);font-size:24px;font-weight:500;line-height:1;}
+.daybar .dnum .dday-date{display:block;font-family:var(--sans);font-size:11px;font-weight:500;color:var(--muted);margin-top:3px;letter-spacing:.01em;}
 .daybar .phase{margin-top:5px;font-size:12px;}
 .phase-dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:6px;vertical-align:middle;}
 .fast-tag{font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;margin-left:6px;vertical-align:middle;letter-spacing:.01em;}
@@ -199,6 +200,9 @@ textarea.notes::placeholder{color:var(--muted);}
 .stat .s-chip{font-size:11px;font-weight:600;padding:2px 7px;border-radius:8px;background:var(--line-soft);color:var(--ink-soft);}
 .stat .s-chip.down{background:#eef4ec;color:#3f7a4a;}
 .stat .s-chip.up{background:var(--over-bg);color:var(--over);}
+.stat .s-chip.hold-ok{background:#eef4ec;color:#3f7a4a;}
+.stat .s-chip.hold-warn{background:var(--warn-bg);color:var(--warn);}
+.stat .s-chip.hold-over{background:var(--over-bg);color:var(--over);}
 .stat .s-togo{font-size:12px;color:var(--gold-deep);font-weight:600;margin-top:8px;}
 .stat .s-togo.done{color:#3f7a4a;}
 .trphase{margin:2px 0 8px;}
@@ -724,13 +728,21 @@ textarea.notes::placeholder{color:var(--muted);}
 </div>
 
 <script>
-/* ===== AEVUM tracker · v1.1.0 · 2026-09-18 =====
+/* ===== AEVUM tracker · v1.3.0 · 2026-09-19 =====
    CHANGELOG
+   v1.3.0 — Day header now shows the calendar date under "Day X" (all phases, incl. Transition).
+            Stabilization calorie target tapers: 600 +200/day, capped at need*0.9, +exercise kcal.
+            Stabilization weight hold target = avg(last Activation day + 3 Transition weigh-ins),
+            averaging whatever of the 4 exists. Weight chart shows a hold band (green ±350g,
+            amber ±500g) and the day's weight is coloured by distance from it (red >500g).
+            Hold target is used only during Stabilization; earlier phases still use onboarding TGT.
+   v1.2.0 — Consolidation (stabilization) calorie target now need*0.9 + exercise kcal
+            (was need + exercise). Applied to Today bar, phase target, and Trends band.
    v1.1.0 — Serum block hidden in Transition + Consolidation (shown only in Loading + Activation).
             Fasting/eating window tag now shown in Transition (was Activation only).
             Egg whites count at half weight in the protein bucket (6 eggs ≈ 1 meal-portion, not 2).
    v1.0.0 — Baseline. */
-const APP_VERSION='v1.1.0';
+const APP_VERSION='v1.3.0';
 
 /* ===== BACKEND CONFIG — paste your /exec URL between the quotes ===== */
 const BACKEND_URL = 'https://script.google.com/macros/s/AKfycby0jEwPEqESOu_SK8qYqiJxR-1MeT8Ax6fq0fHPHC6gfihMpPW4uJBt1lGwmK_inQ4-/exec';
@@ -751,6 +763,7 @@ const CAL_TARGET=500, CAL_RED=700; // legacy refs (target midpoint, red ceiling)
 const MEAL_KCAL=250, MEAL_FAT=10, MEAL_CARB=15; // per-meal red flags
 const BUCKET_CAP=200; // daily food allowance per type: 2 meals x 100g
 const PROTEIN_PER_KG=1.2;                     // protein target multiplier
+const CONSOL_FACTOR=0.9;                       // stabilization: target = need*0.9 + exercise kcal
 const WATER_GOAL_GLASSES=10; // 2.5 L at 250 ml/glass
 const params=new URLSearchParams(location.search);
 const PID=(params.get('id')||'me').toLowerCase().replace(/[^a-z0-9_-]/g,'');
@@ -768,6 +781,34 @@ function gatesFor(k){
   if(k==='activation'||k==='transition')return{fat:true,carb:true};
   if(k==='consolidation')return{fat:false,carb:true};
   return{fat:false,carb:false};
+}
+/* ---- stabilization (consolidation) helpers ---- */
+function consolStartDay(){const L=phaseLens();return L.loading+L.activation+L.transition+1;}
+/* calorie taper: 600 +200/day, capped at need*0.9 (day 1 of stabilization = 800) */
+function stabTargetKcal(dayNum){
+  const need=(profile&&profile.need)?profile.need:2000;
+  const cap=Math.round(need*CONSOL_FACTOR);
+  const dayIn=dayNum-consolStartDay()+1;      // 1-based day within stabilization
+  return Math.min(cap, 600+200*Math.max(1,dayIn));
+}
+/* weight hold target: avg of last Activation day + the 3 Transition weigh-ins.
+   Averages whatever exists; null until at least one of the 4 is logged. */
+function stabTargetWeight(){
+  const L=phaseLens();
+  const actLast=L.loading+L.activation;        // last day of Activation
+  const vals=[];
+  for(let d=actLast; d<=actLast+3; d++){       // actLast + 3 Transition days
+    const r=localStorage.getItem(K('day_'+d));if(!r)continue;
+    const v=parseFloat(JSON.parse(r).weight);
+    if(!isNaN(v)&&v>0)vals.push(v);
+  }
+  return vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:null;
+}
+/* weight band class by distance from hold target (grams): green ≤350, amber ≤500, red >500 */
+function stabWeightClass(w){
+  const t=stabTargetWeight();if(t==null||w==null||isNaN(w))return'';
+  const g=Math.abs(w-t)*1000;
+  return g<=350?'ok':g<=500?'warn':'over';
 }
 
 let profile=null,currentDay=1,day=null,photoData=null,mealItems=[];
@@ -811,7 +852,7 @@ function totals(){
 function render(){
   const ph=phaseFor(currentDay);
   g('whoName').textContent=profile.name;
-  g('dNum').textContent='Day '+currentDay;
+  {const dt=dayToDate(currentDay);g('dNum').innerHTML='Day '+currentDay+(dt?`<span class="dday-date">${fmtShort(dt)}</span>`:'');}
   g('dPhase').innerHTML=`<span class="phase-dot" style="background:${ph.color}"></span>${ph.name}${fastingSuffix(ph)}`;
   g('prevDay').disabled=currentDay<=1;g('nextDay').disabled=currentDay>=TOTAL_DAYS;
   const t=totals();
@@ -906,7 +947,7 @@ function renderCalories(ph,t){
   wrap.classList.add('hidden');prot.classList.add('hidden');g('calUnit').textContent='kcal today';
   if(ph.key==='consolidation'){
     wrap.classList.remove('hidden');
-    const target=profile.need+t.exKcal, pct=target>0?t.kcal/target*100:0;
+    const target=stabTargetKcal(currentDay)+t.exKcal, pct=target>0?t.kcal/target*100:0;
     bar.className='calbar'+((pct>110||pct<70)?' over':(pct>98||pct<80)?' warn':'');
     bar.firstElementChild.style.width=Math.min(100,pct)+'%';
     g('calBarLeft').textContent=`${t.kcal.toLocaleString()} / ${target.toLocaleString()} kcal`;
@@ -1080,12 +1121,13 @@ function collectSeries(field){
   }
   return out;
 }
-function lineChart(data,unit,target,readoutId,range){
+function lineChart(data,unit,target,readoutId,range,band){
   if(data.length<2)return '<div class="chart-empty">Log at least two days to see a trend.</div>';
   const W=440,H=190,padL=16,padR=16,padT=24,padB=30;
   const d0=range?range[0]:data[0].day, dN=range?range[1]:data[data.length-1].day, span=(dN-d0)||1;
   const xs=d=>padL+(d-d0)/span*(W-padL-padR);
   let vals=data.map(d=>d.v); if(target)vals=vals.concat([target]);
+  if(band)vals=vals.concat([band.center+band.amber,band.center-band.amber]);
   let min=Math.min(...vals),max=Math.max(...vals);
   const rng=(max-min)||1; min-=rng*0.12; max+=rng*0.20;
   const yRange=max-min;
@@ -1104,7 +1146,16 @@ function lineChart(data,unit,target,readoutId,range){
   const linePts=data.map(d=>`${xs(d.day).toFixed(1)},${ys(d.v).toFixed(1)}`).join(' ');
 
   let tline='';
-  if(target){const ty=ys(target).toFixed(1);
+  if(band){
+    // hold band: amber ±band.amber, green ±band.green, solid line at center
+    const yA1=ys(band.center+band.amber),yA2=ys(band.center-band.amber);
+    const yG1=ys(band.center+band.green),yG2=ys(band.center-band.green);
+    const cy=ys(band.center).toFixed(1);
+    tline=`<rect x="${padL}" y="${Math.min(yA1,yA2).toFixed(1)}" width="${(W-padL-padR).toFixed(1)}" height="${Math.abs(yA2-yA1).toFixed(1)}" fill="#B7791F" opacity="0.10"/>`+
+      `<rect x="${padL}" y="${Math.min(yG1,yG2).toFixed(1)}" width="${(W-padL-padR).toFixed(1)}" height="${Math.abs(yG2-yG1).toFixed(1)}" fill="#4a7a52" opacity="0.13"/>`+
+      `<line x1="${padL}" y1="${cy}" x2="${W-padR}" y2="${cy}" stroke="#8f6f1f" stroke-width="1.4" stroke-dasharray="4 4" opacity="0.7"/>`+
+      `<text x="${W-padR}" y="${(+cy-5).toFixed(1)}" font-size="10" fill="#8f6f1f" text-anchor="end" font-family="sans-serif">Hold ${band.center.toFixed(1)} ±0.5</text>`;
+  }else if(target){const ty=ys(target).toFixed(1);
     tline=`<line x1="${padL}" y1="${ty}" x2="${W-padR}" y2="${ty}" stroke="#B08D2E" stroke-width="1.2" stroke-dasharray="4 4" opacity="0.55"/><text x="${W-padR}" y="${(+ty-5).toFixed(1)}" font-size="10" fill="#8f6f1f" text-anchor="end" font-family="sans-serif">Target ${target}</text>`;}
 
   const dots=data.map((d,i)=>{
@@ -1174,6 +1225,9 @@ function renderTrends(){
   const w=collectSeries('weight');
   const sr=g('statRow');sr.innerHTML='';
   const target=(profile&&profile.target_kg)||null;
+  // stabilization: hold target replaces onboarding TGT as the reference, only during stabilization
+  const inStab=phaseFor(currentDay).key==='consolidation';
+  const holdT=inStab?stabTargetWeight():null;
 
   // Weight stat
   if(w.length){
@@ -1182,11 +1236,18 @@ function renderTrends(){
     const daily=w.length>1?cur-w[w.length-2].v:null;
     const arrow=n=>n<0?'▼':n>0?'▲':'';
     const cls=n=>n<0?'down':n>0?'up':'';
-    let lines='';
-    if(daily!=null)lines+=`<span class="s-chip ${cls(daily)}">${arrow(daily)} ${Math.abs(daily).toFixed(1)} kg today</span>`;
-    if(total!=null)lines+=`<span class="s-chip ${cls(total)}">${arrow(total)} ${Math.abs(total).toFixed(1)} kg total</span>`;
-    let togo='';
-    if(target){const diff=cur-target; togo=diff>0?`<div class="s-togo">${diff.toFixed(1)} kg to go</div>`:`<div class="s-togo done">Target reached</div>`;}
+    let lines='',togo='';
+    if(holdT!=null){
+      // during stabilization: colour the day's weight by distance from the hold target
+      const dg=Math.round((cur-holdT)*1000), band=stabWeightClass(cur);
+      lines+=`<span class="s-chip hold-${band}">${dg>0?'+':''}${dg} g from hold</span>`;
+      if(daily!=null)lines+=`<span class="s-chip ${cls(daily)}">${arrow(daily)} ${Math.abs(daily).toFixed(1)} kg today</span>`;
+      togo=`<div class="s-togo${band==='ok'?' done':''}">Hold target ${holdT.toFixed(1)} kg · keep within ±0.5</div>`;
+    }else{
+      if(daily!=null)lines+=`<span class="s-chip ${cls(daily)}">${arrow(daily)} ${Math.abs(daily).toFixed(1)} kg today</span>`;
+      if(total!=null)lines+=`<span class="s-chip ${cls(total)}">${arrow(total)} ${Math.abs(total).toFixed(1)} kg total</span>`;
+      if(target){const diff=cur-target; togo=diff>0?`<div class="s-togo">${diff.toFixed(1)} kg to go</div>`:`<div class="s-togo done">Target reached</div>`;}
+    }
     sr.innerHTML+=`<div class="stat" style="flex:1"><div class="s-lab">Weight</div><div class="s-val num">${cur}<small> kg</small></div><div class="s-chips">${lines}</div>${togo}</div>`;
     g('wLatest').textContent=cur+' kg';
   }else{sr.innerHTML+=`<div class="stat" style="flex:1"><div class="s-lab">Weight</div><div class="s-val num">—</div></div>`;}
@@ -1196,7 +1257,8 @@ function renderTrends(){
   const allD=[...new Set([...w.map(d=>d.day),...md.map(d=>d.day)])].sort((a,b)=>a-b);
   const range=allD.length?[allD[0],allD[allD.length-1]]:null;
   g('trPhase').innerHTML = range?trendsPhaseStrip(range[0],range[1]):'';
-  g('weightChart').innerHTML=lineChart(w,'kg',target,'wReadout',range);
+  const band=(holdT!=null)?{center:holdT,green:0.35,amber:0.5}:null;
+  g('weightChart').innerHTML=lineChart(w,'kg',band?null:target,'wReadout',range,band);
   g('macroChart').innerHTML=macroBars(range);
   wireChartTaps();
   wireMacroBars();
@@ -1225,7 +1287,7 @@ function phaseTargetLabel(dayNum){
   const ph=phaseFor(dayNum);
   if(ph.key==='loading')return 'Loading, eat high';
   if(ph.key==='activation'||ph.key==='transition')return ph.name+', target 400-650';
-  return 'Consolidation, target ~'+((profile&&profile.need)?Math.round(profile.need):0)+' kcal';
+  return 'Consolidation, target ~'+stabTargetKcal(dayNum)+' kcal';
 }
 function collectMacroDays(){
   const out=[];
@@ -1249,7 +1311,7 @@ function phaseTargetKcal(dayNum){
   const basal=bmr/1.55*1; // rough BMR without activity for loading ref
   if(ph==='loading')return Math.round((profile&&profile.need?profile.need:2000)*1.5);
   if(ph==='activation'||ph==='transition')return 600; // mid of 500-700 for the bar reference
-  return (profile&&profile.need)?profile.need:2000; // consolidation
+  return stabTargetKcal(dayNum); // consolidation (tapered)
 }
 function dayCalState(dayNum,k){
   const ph=phaseFor(dayNum).key;
@@ -1279,7 +1341,7 @@ function macroBars(range){
   const okKcal=dayNum=>{
     const k=phaseFor(dayNum).key;
     if(k==='loading'){const t=phaseTargetKcal(dayNum)||1;return [t*0.9,t];}
-    if(k==='consolidation'){const n=(profile&&profile.need)||2000;return [n*0.80,n*0.98];}
+    if(k==='consolidation'){const n=stabTargetKcal(dayNum);return [n*0.80,n*0.98];}
     return [400,650];                        // activation / transition
   };
   const fracFor=(dayNum,v)=>{const[lo,hi]=okKcal(dayNum);const s=(v-lo)/((hi-lo)||1);return Math.max(0.04,Math.min(0.97,BAND_LO+s*(BAND_HI-BAND_LO)));};

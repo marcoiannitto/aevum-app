@@ -105,6 +105,10 @@ svg{display:block;}
 .gate.over .g-bar>span{background:var(--over);}
 .gate.protein-target .g-bar>span{background:var(--gold);}
 .gate.protein-target .g-val em{color:var(--muted);}
+.gate.prot-ok{border-color:#cfe0c9;background:#eef4ec;}
+.gate.prot-ok .g-val,.gate.prot-ok .g-name{color:#3f7a4a;}
+.gate.prot-ok .g-bar>span{background:#4a7c59;}
+.gate.prot-ok .g-val em{color:#5a8a63;}
 
 /* ===== SERUM BLOCK ===== */
 .serum-block .b-title{justify-content:flex-start;}
@@ -728,8 +732,18 @@ textarea.notes::placeholder{color:var(--muted);}
 </div>
 
 <script>
-/* ===== AEVUM tracker · v1.3.0 · 2026-09-19 =====
+/* ===== AEVUM tracker · v1.5.0 · 2026-09-19 =====
    CHANGELOG
+   v1.5.0 — Carbs gate bands changed to green<40 / amber 40-50 / red>50.
+            Calorie taper is now an S-curve over 6 days (15/35/55/75/90/100% of the
+            gap from 600 to need*0.9), replacing the linear +200/day. Exercise kcal on top.
+            Protein shown as a range in Stabilization only: green 1.2-1.5 g/kg,
+            amber 1.0-1.19 and >1.5-1.9, red <1.0 and >1.9. No protein bar in Activation/Transition.
+   v1.4.0 — Phase-aware nutrition. estimate + foodcheck now send the phase
+            (loading | activation | stabilization) so the Worker applies the right rulebook.
+            Can I Eat helper line changes per phase; foodcheck cache is now per phase.
+            Recipes filter by a new Recipes-tab "phase" column (untagged = shown in every phase).
+            REQUIRES: updated Cloudflare Worker + Apps Script getRecipes (phase field). See notes.
    v1.3.0 — Day header now shows the calendar date under "Day X" (all phases, incl. Transition).
             Stabilization calorie target tapers: 600 +200/day, capped at need*0.9, +exercise kcal.
             Stabilization weight hold target = avg(last Activation day + 3 Transition weigh-ins),
@@ -742,7 +756,7 @@ textarea.notes::placeholder{color:var(--muted);}
             Fasting/eating window tag now shown in Transition (was Activation only).
             Egg whites count at half weight in the protein bucket (6 eggs ≈ 1 meal-portion, not 2).
    v1.0.0 — Baseline. */
-const APP_VERSION='v1.3.0';
+const APP_VERSION='v1.5.0';
 
 /* ===== BACKEND CONFIG — paste your /exec URL between the quotes ===== */
 const BACKEND_URL = 'https://script.google.com/macros/s/AKfycby0jEwPEqESOu_SK8qYqiJxR-1MeT8Ax6fq0fHPHC6gfihMpPW4uJBt1lGwmK_inQ4-/exec';
@@ -756,7 +770,7 @@ function phaseLens(){return {loading:PH_FIXED.loading,activation:actDays(),trans
 function totalDays(){const L=phaseLens();return L.loading+L.activation+L.transition+L.consolidation;}
 function applyPhaseConfig(){TOTAL_DAYS=totalDays();if(currentDay>TOTAL_DAYS)currentDay=TOTAL_DAYS;}
 const FAT_TARGET=20, FAT_RED=25;             // fat: ok<=20, yellow 20-25, red>25
-const CARB_TARGET=25, CARB_RED=30;           // carbs: ok<=25, yellow 25-30, red>30
+const CARB_TARGET=40, CARB_RED=50;           // carbs: green<=40, amber 40-50, red>50
 const FAT_LIMIT=FAT_TARGET, CARB_LIMIT=CARB_TARGET; // bar fills against target
 const CAL_LOW_RED=300, CAL_LOW_AMBER=400, CAL_HIGH_AMBER=650, CAL_HIGH_RED=750; // Activation/Transition: ok 400-650
 const CAL_TARGET=500, CAL_RED=700; // legacy refs (target midpoint, red ceiling)
@@ -782,14 +796,33 @@ function gatesFor(k){
   if(k==='consolidation')return{fat:false,carb:true};
   return{fat:false,carb:false};
 }
+/* AI ruleset key for the current day: loading | activation (covers transition) | stabilization */
+function aiPhaseKey(d){const k=phaseFor(d).key;if(k==='consolidation')return'stabilization';if(k==='transition')return'activation';return k;}
+/* short helper line shown in the Can I Eat sheet, per phase */
+function foodRuleLine(d){
+  const k=aiPhaseKey(d);
+  if(k==='loading')return 'Loading: eat freely to your target. Avoid only sweets, sugary drinks and alcohol.';
+  if(k==='stabilization')return 'Stabilization: protein + fat + low-carb veg. Berries only. No sugar, starch, grains or added-sugar foods.';
+  return 'Grilled protein + vegetables. No rice, bread, noodles or potato. No oil, no sauce.';
+}
+/* recipe phase tag matches the current phase (untagged = shows in every phase) */
+function recipePhaseMatch(recipe){
+  const raw=String(recipe.phase||'').toLowerCase();
+  if(!raw.trim())return true;
+  const tags=raw.split(/[,|/]/).map(s=>s.trim()).filter(Boolean).map(s=>s==='transition'?'activation':s==='consolidation'?'stabilization':s);
+  return tags.includes(aiPhaseKey(currentDay));
+}
 /* ---- stabilization (consolidation) helpers ---- */
 function consolStartDay(){const L=phaseLens();return L.loading+L.activation+L.transition+1;}
-/* calorie taper: 600 +200/day, capped at need*0.9 (day 1 of stabilization = 800) */
+/* calorie taper: S-curve over 6 days from 600 to need*0.9, then hold.
+   Day1 +15% of gap, D2 +35%, D3 +55%, D4 +75%, D5 +90%, D6+ 100%. */
+const TAPER_PCT=[0,0.15,0.35,0.55,0.75,0.90,1.0]; // index by day-into-stabilization (1-based)
 function stabTargetKcal(dayNum){
   const need=(profile&&profile.need)?profile.need:2000;
-  const cap=Math.round(need*CONSOL_FACTOR);
+  const start=600, target=Math.round(need*CONSOL_FACTOR), gap=target-start;
   const dayIn=dayNum-consolStartDay()+1;      // 1-based day within stabilization
-  return Math.min(cap, 600+200*Math.max(1,dayIn));
+  const f=dayIn<=0?0:dayIn>=6?1:TAPER_PCT[dayIn];
+  return Math.round(start+gap*f);
 }
 /* weight hold target: avg of last Activation day + the 3 Transition weigh-ins.
    Averages whatever exists; null until at least one of the 4 is logged. */
@@ -1022,15 +1055,18 @@ function renderGates(ph,t){
     el.innerHTML=`<div class="g-top"><span class="g-name">${name}</span><span class="g-val num">${val}${gated?`<em> /${target}g</em>`:'<em>g</em>'}</span></div>${gated?`<div class="g-bar"><span style="width:${pct}%"></span></div>`:''}`;
     return el;
   };
-  // protein target (progress only, never "fails")
+  // protein: range bands in Stabilization (1.2–1.5 g/kg green); plain grams in Loading
   const makeProtein=()=>{
-    const showTarget = ph.key==='activation'||ph.key==='transition';
-    const el=document.createElement('div');el.className='gate protein-target';
-    if(showTarget && profile.weight){
-      const tgt=Math.round(profile.weight*PROTEIN_PER_KG);
-      const pct=Math.min(100,t.protein/tgt*100);
-      el.innerHTML=`<div class="g-top"><span class="g-name">Protein</span><span class="g-val num">${t.protein}<em> /${tgt}g</em></span></div><div class="g-bar"><span style="width:${pct}%"></span></div>`;
+    const el=document.createElement('div');
+    if(ph.key==='consolidation' && profile.weight){
+      const w=profile.weight, lo=Math.round(w*1.2), hi=Math.round(w*1.5), ratio=t.protein/w;
+      // green 1.2–1.5 · amber 1.0–1.19 and >1.5–1.9 · red <1.0 and >1.9
+      const cls=ratio<1.0?'over':ratio<1.2?'warn':ratio<=1.5?'ok':ratio<=1.9?'warn':'over';
+      const pct=Math.min(100,hi?t.protein/hi*100:0);
+      el.className='gate '+(cls==='ok'?'prot-ok':cls);
+      el.innerHTML=`<div class="g-top"><span class="g-name">Protein</span><span class="g-val num">${t.protein}<em> /${lo}–${hi}g</em></span></div><div class="g-bar"><span style="width:${pct}%"></span></div>`;
     }else{
+      el.className='gate protein-target';
       el.innerHTML=`<div class="g-top"><span class="g-name">Protein</span><span class="g-val num">${t.protein}<em>g</em></span></div>`;
     }
     return el;
@@ -1462,18 +1498,18 @@ async function calcMeal(btn,payloadBuilder,hintOnEmpty){
   finally{btn.disabled=false;btn.innerHTML=orig;}
 }
 function calcDescribe(){
-  calcMeal(g('calcDesc'),()=>{const d=g('mDesc').value.trim();return d?{action:'estimate',description:d}:null;},()=>g('mDesc').focus());
+  calcMeal(g('calcDesc'),()=>{const d=g('mDesc').value.trim();return d?{action:'estimate',description:d,phase:aiPhaseKey(currentDay)}:null;},()=>g('mDesc').focus());
 }
 function calcIngredients(){
   calcMeal(g('calcIng'),()=>{
     const list=ingredients.filter(i=>i.food.trim());
     if(!list.length)return null;
     const desc=list.map(i=>`${i.qty||''} ${i.food}`.trim()).join(', ');
-    return {action:'estimate',description:desc};
+    return {action:'estimate',description:desc,phase:aiPhaseKey(currentDay)};
   },()=>{g('meHint').textContent='Add at least one ingredient.';});
 }
 function calcPhoto(){
-  calcMeal(g('calcPhoto'),()=>photoData?{action:'estimate',description:g('mDesc').value.trim()||'(see photo)',image:photoData}:null,()=>{g('meHint').textContent='Add a photo first.';});
+  calcMeal(g('calcPhoto'),()=>photoData?{action:'estimate',description:g('mDesc').value.trim()||'(see photo)',image:photoData,phase:aiPhaseKey(currentDay)}:null,()=>{g('meHint').textContent='Add a photo first.';});
 }
 function commitMeal(){
   const name=g('mName').value.trim()||'Meal';
@@ -1530,6 +1566,7 @@ function esc(s){return(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':
 /* ---- food check ---- */
 function openFoodCheck(){
   g('fcInput').value='';g('fcResult').innerHTML='';
+  {const r=document.querySelector('#fcSheet .fc-rule');if(r)r.textContent=foodRuleLine(currentDay);}
   g('fcScrim').classList.add('show');g('fcSheet').classList.add('show');
   history.pushState({sheet:'fc'},'');
   setTimeout(()=>g('fcInput').focus(),300);
@@ -1554,13 +1591,14 @@ async function doFoodCheck(){
       <div class="fc-reason">${esc(d.reason||'')}</div>
       ${d.cap?`<div class="fc-portion">${esc(d.cap)}</div>`:''}</div></div>`;
   };
-  // cache
-  const ck='aevum_fc_'+food.toLowerCase();
+  // cache (per phase — the same food gets a different verdict by phase)
+  const phase=aiPhaseKey(currentDay);
+  const ck='aevum_fc_'+phase+'_'+food.toLowerCase();
   const cached=localStorage.getItem(ck);
   if(cached){showResult(JSON.parse(cached));btn.disabled=false;return;}
   g('fcResult').innerHTML='<div class="fc-reason"><span class="thinking"></span> Checking…</div>';
   const call=async()=>{
-    const res=await fetch(aiURL(),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'foodcheck',food})});
+    const res=await fetch(aiURL(),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'foodcheck',food,phase})});
     const d=await res.json();
     if(d.error)throw new Error(d.error);
     return d;
@@ -1789,7 +1827,7 @@ function renderRecipeList(){
     const q=rcFilter.q.toLowerCase();
     const matchQ=!q||r.name.toLowerCase().includes(q)||(r.protein||'').toLowerCase().includes(q);
     const matchC=rcFilter.cuisine==='all'||r.cuisine===rcFilter.cuisine;
-    return matchQ&&matchC;
+    return matchQ&&matchC&&recipePhaseMatch(r);
   });
   // favourites first
   items.sort((a,b)=>(f.includes(b.name)?1:0)-(f.includes(a.name)?1:0));

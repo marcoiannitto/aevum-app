@@ -266,6 +266,7 @@ textarea.notes::placeholder{color:var(--muted);}
 .plan-shop-row .ps-ic{font-size:18px;}
 .plan-shop-row .ps-arrow{margin-left:auto;color:var(--muted);font-size:20px;}
 .plan-day-btn small{display:block;font-size:10px;font-weight:400;opacity:.7;margin-top:1px;}
+.plan-day-btn .pdb-dot{display:inline-block;width:5px;height:5px;border-radius:50%;margin-right:4px;vertical-align:middle;}
 .plan-total{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:14px;}
 .ptt-row{margin-bottom:10px;}
 .ptt-lab{font-size:12px;color:var(--muted);}
@@ -605,6 +606,7 @@ textarea.notes::placeholder{color:var(--muted);}
 
     <!-- RECIPES -->
     <div class="sub-panel hidden" id="sub-recipes">
+      <div class="rc-filters" id="rcPhases"></div>
       <input class="rc-search" id="rcSearch" type="text" placeholder="Search by name or protein…">
       <div class="rc-filters" id="rcCuisines"></div>
       <div id="rcList"></div>
@@ -732,8 +734,13 @@ textarea.notes::placeholder{color:var(--muted);}
 </div>
 
 <script>
-/* ===== AEVUM tracker · v1.5.0 · 2026-09-19 =====
+/* ===== AEVUM tracker · v1.6.1 · 2026-09-19 =====
    CHANGELOG
+   v1.6.1 — Nutrition plan day chips now show the stage (phase name + colour dot) under each day.
+            (Activation length already reads profile.activation_days, count, default 8 — unchanged.)
+   v1.6.0 — Recipes tab: phase chip row (All / Loading / Activation / Stabilization).
+            Defaults to your current stage; switchable to browse any phase. Swap/Add-to-plan
+            defaults the filter to that plan day's phase. (Untagged recipes still show in all.)
    v1.5.0 — Carbs gate bands changed to green<40 / amber 40-50 / red>50.
             Calorie taper is now an S-curve over 6 days (15/35/55/75/90/100% of the
             gap from 600 to need*0.9), replacing the linear +200/day. Exercise kcal on top.
@@ -756,7 +763,7 @@ textarea.notes::placeholder{color:var(--muted);}
             Fasting/eating window tag now shown in Transition (was Activation only).
             Egg whites count at half weight in the protein bucket (6 eggs ≈ 1 meal-portion, not 2).
    v1.0.0 — Baseline. */
-const APP_VERSION='v1.5.0';
+const APP_VERSION='v1.6.1';
 
 /* ===== BACKEND CONFIG — paste your /exec URL between the quotes ===== */
 const BACKEND_URL = 'https://script.google.com/macros/s/AKfycby0jEwPEqESOu_SK8qYqiJxR-1MeT8Ax6fq0fHPHC6gfihMpPW4uJBt1lGwmK_inQ4-/exec';
@@ -805,12 +812,13 @@ function foodRuleLine(d){
   if(k==='stabilization')return 'Stabilization: protein + fat + low-carb veg. Berries only. No sugar, starch, grains or added-sugar foods.';
   return 'Grilled protein + vegetables. No rice, bread, noodles or potato. No oil, no sauce.';
 }
-/* recipe phase tag matches the current phase (untagged = shows in every phase) */
-function recipePhaseMatch(recipe){
+/* recipe phase tag matches a phase key (untagged = shows in every phase) */
+function recipePhaseMatch(recipe,key){
+  if(!key||key==='all')return true;
   const raw=String(recipe.phase||'').toLowerCase();
   if(!raw.trim())return true;
   const tags=raw.split(/[,|/]/).map(s=>s.trim()).filter(Boolean).map(s=>s==='transition'?'activation':s==='consolidation'?'stabilization':s);
-  return tags.includes(aiPhaseKey(currentDay));
+  return tags.includes(key);
 }
 /* ---- stabilization (consolidation) helpers ---- */
 function consolStartDay(){const L=phaseLens();return L.loading+L.activation+L.transition+1;}
@@ -1138,7 +1146,7 @@ function switchTab(name){
   g('daybar').style.display = hideDay?'none':'flex';
   g('phaseBar').style.display = hideDay?'none':'flex';
   if(name==='trends')renderTrends();
-  if(name==='nutrition'){loadRecipes();loadPlan();}
+  if(name==='nutrition'){rcFilter.phase=aiPhaseKey(currentDay);loadRecipes();if(rcLoaded){buildPhaseChips();renderRecipeList();}loadPlan();}
   scrollTo(0,0);
 }
 function switchSub(sub){
@@ -1665,8 +1673,9 @@ function renderPlan(){
   if(profile&&profile.start_date){const s=new Date(profile.start_date+'T00:00:00');if(!isNaN(s))todayDay=Math.floor((Date.now()-s.getTime())/86400000)+1;}
   days.forEach(d=>{
     const b=document.createElement('button');b.className='plan-day-btn'+(d===planDay?' on':'')+(d===todayDay?' today':'');
-    const dt=dayToDate(d);
-    b.innerHTML=dt?`Day ${d}<small>${fmtShort(dt)}</small>`:'Day '+d;
+    const dt=dayToDate(d), pf=phaseFor(d);
+    const sub=`<span class="pdb-dot" style="background:${pf.color}"></span>${pf.name}${dt?' · '+fmtShort(dt):''}`;
+    b.innerHTML=`Day ${d}<small>${sub}</small>`;
     b.onclick=()=>{planDay=d;renderPlan();};db.appendChild(b);
   });
   const items=planItemsFor(planDay);
@@ -1712,14 +1721,14 @@ function renderPlan(){
     ensureEditable(planDay);planEdit[planDay].splice(+b.dataset.i,1);savePlanEdit();renderPlan();
   });
   g('planList').querySelectorAll('.pm-swap').forEach(b=>b.onclick=()=>{
-    planAction={type:'swap',day:planDay,idx:+b.dataset.i};switchSub('recipes');
+    planAction={type:'swap',day:planDay,idx:+b.dataset.i};rcFilter.phase=aiPhaseKey(planDay);switchSub('recipes');buildPhaseChips();renderRecipeList();
   });
   g('planAddMeal').onclick=()=>{
     const box=g('planAddChoice');
     box.classList.toggle('show');
     if(box.classList.contains('show'))setTimeout(()=>box.scrollIntoView({behavior:'smooth',block:'center'}),50);
   };
-  const pc=g('planFromRecipe'); if(pc)pc.onclick=()=>{g('planAddChoice').classList.remove('show');planAction={type:'add',day:planDay};switchSub('recipes');};
+  const pc=g('planFromRecipe'); if(pc)pc.onclick=()=>{g('planAddChoice').classList.remove('show');planAction={type:'add',day:planDay};rcFilter.phase=aiPhaseKey(planDay);switchSub('recipes');buildPhaseChips();renderRecipeList();};
   const po=g('planOwn'); if(po)po.onclick=()=>{g('planAddChoice').classList.remove('show');openSheet('plan');};
   const rb=g('planReset');if(rb)rb.onclick=()=>{delete planEdit[planDay];savePlanEdit();renderPlan();};
 }
@@ -1789,7 +1798,19 @@ function renderShopList(groups){
   g('shopResult').querySelectorAll('.shop-item').forEach(it=>it.onclick=()=>it.classList.toggle('done'));
 }
 
-let RECIPES=[], rcFilter={q:'',cuisine:'all'}, rcLoaded=false;
+let RECIPES=[], rcFilter={q:'',cuisine:'all',phase:null}, rcLoaded=false;
+const PHASE_CHIPS=[['all','All'],['loading','Loading'],['activation','Activation'],['stabilization','Stabilization']];
+function buildPhaseChips(){
+  if(rcFilter.phase===null)rcFilter.phase=aiPhaseKey(currentDay); // default to current stage
+  const wrap=g('rcPhases');if(!wrap)return;wrap.innerHTML='';
+  PHASE_CHIPS.forEach(([k,lab])=>{
+    const b=document.createElement('button');
+    b.className='rc-chip'+(rcFilter.phase===k?' on':'');
+    b.textContent=lab;
+    b.onclick=()=>{rcFilter.phase=k;buildPhaseChips();renderRecipeList();};
+    wrap.appendChild(b);
+  });
+}
 function favs(){try{return JSON.parse(localStorage.getItem(K('favs'))||'[]');}catch(e){return[];}}
 function toggleFav(name){let f=favs();f.includes(name)?f=f.filter(x=>x!==name):f.push(name);localStorage.setItem(K('favs'),JSON.stringify(f));renderRecipeList();}
 async function loadRecipes(){
@@ -1800,12 +1821,12 @@ async function loadRecipes(){
   try{
     // try cache first
     const cached=localStorage.getItem('aevum_recipes_cache');
-    if(cached){RECIPES=JSON.parse(cached);rcLoaded=true;buildCuisineChips();renderRecipeList();}
+    if(cached){RECIPES=JSON.parse(cached);rcLoaded=true;buildPhaseChips();buildCuisineChips();renderRecipeList();}
     const res=await fetch(BACKEND_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'recipes'})});
     const data=await res.json();
     RECIPES=data.recipes||[];rcLoaded=true;
     localStorage.setItem('aevum_recipes_cache',JSON.stringify(RECIPES));
-    buildCuisineChips();renderRecipeList();
+    buildPhaseChips();buildCuisineChips();renderRecipeList();
   }catch(err){
     if(!RECIPES.length)list.innerHTML='<div class="rc-empty">Could not load recipes. Check connection.</div>';
   }
@@ -1827,7 +1848,7 @@ function renderRecipeList(){
     const q=rcFilter.q.toLowerCase();
     const matchQ=!q||r.name.toLowerCase().includes(q)||(r.protein||'').toLowerCase().includes(q);
     const matchC=rcFilter.cuisine==='all'||r.cuisine===rcFilter.cuisine;
-    return matchQ&&matchC&&recipePhaseMatch(r);
+    return matchQ&&matchC&&recipePhaseMatch(r,rcFilter.phase);
   });
   // favourites first
   items.sort((a,b)=>(f.includes(b.name)?1:0)-(f.includes(a.name)?1:0));

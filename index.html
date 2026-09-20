@@ -250,6 +250,22 @@ textarea.notes::placeholder{color:var(--muted);}
 .fc-reason{font-size:14px;color:var(--ink-soft);}
 .fc-portion{font-size:14px;color:var(--ink);margin-top:6px;font-weight:500;}
 
+/* food guide */
+.gd-sec{margin-bottom:16px;}
+.gd-h{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--gold-deep);font-weight:700;margin-bottom:8px;}
+.gd-chips{display:flex;flex-wrap:wrap;gap:6px;}
+.gd-chip{font-size:13px;padding:5px 10px;border-radius:9px;border:1px solid var(--line);line-height:1.2;}
+.gd-chip.ok{background:#eef4ec;border-color:#cfe0c9;color:#3f7a4a;}
+.gd-chip.lim{background:var(--warn-bg);border-color:#eBD9A8;color:var(--warn);}
+.gd-chip.no{background:var(--over-bg);border-color:#e9c9c1;color:var(--over);}
+
+/* meal time edit */
+.mt-name{font-size:15px;font-weight:500;margin-bottom:14px;color:var(--ink-soft);}
+.mt-label{display:block;font-size:13px;color:var(--muted);margin-bottom:7px;}
+.mt-input{width:100%;padding:13px 14px;border:1px solid var(--line);border-radius:13px;background:var(--card);}
+.mt-hint{font-size:12px;color:var(--muted);font-style:italic;margin-top:10px;line-height:1.4;}
+.meal-time.editable{cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px;}
+
 
 /* ===== NUTRITION sub-tabs + plan ===== */
 .sub-tabs{display:flex;gap:6px;background:var(--line-soft);border-radius:12px;padding:4px;margin-bottom:16px;}
@@ -267,6 +283,22 @@ textarea.notes::placeholder{color:var(--muted);}
 .plan-shop-row .ps-arrow{margin-left:auto;color:var(--muted);font-size:20px;}
 .plan-day-btn small{display:block;font-size:10px;font-weight:400;opacity:.7;margin-top:1px;}
 .plan-day-btn .pdb-dot{display:inline-block;width:5px;height:5px;border-radius:50%;margin-right:4px;vertical-align:middle;}
+/* calendar grid */
+.plan-cal{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:10px;padding-bottom:0;}
+.cal-cell{position:relative;aspect-ratio:1;border:1px solid var(--line);border-radius:10px;background:var(--card);display:flex;align-items:center;justify-content:center;padding:0;}
+.cal-cell::before{content:'';position:absolute;top:5px;left:5px;width:6px;height:6px;border-radius:50%;background:var(--pc,transparent);opacity:.9;}
+.cal-cell .cc-day{font-family:var(--serif);font-size:15px;font-weight:500;color:var(--ink);}
+.cal-cell .cc-dot{position:absolute;bottom:5px;width:5px;height:5px;border-radius:50%;background:var(--gold-deep);}
+.cal-cell.today{border-color:var(--gold);box-shadow:0 0 0 1.5px var(--gold) inset;}
+.cal-cell.on{background:var(--ink);border-color:var(--ink);}
+.cal-cell.on .cc-day{color:#fff;}
+.cal-cell.on::before{opacity:1;}
+.cal-legend{display:flex;flex-wrap:wrap;gap:12px;margin:0 2px 14px;font-size:11px;color:var(--muted);}
+.cal-legend span{display:inline-flex;align-items:center;gap:5px;}
+.cal-legend i{width:8px;height:8px;border-radius:50%;display:inline-block;}
+.plan-day-head{font-size:14px;color:var(--ink-soft);margin:2px 2px 12px;}
+.plan-day-head .pdh-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:middle;}
+.plan-day-head b{font-family:var(--serif);font-weight:500;color:var(--ink);}
 .plan-total{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:14px;}
 .ptt-row{margin-bottom:10px;}
 .ptt-lab{font-size:12px;color:var(--muted);}
@@ -469,7 +501,7 @@ textarea.notes::placeholder{color:var(--muted);}
 
 <!-- TOP BAR -->
 <div class="topbar hidden" id="top">
-  <div class="line1"><span class="who" id="whoName"></span><button class="fc-open" id="fcOpen" aria-label="Can I eat this?">Can I eat…?</button></div>
+  <div class="line1"><span class="who" id="whoName"></span><button class="fc-open" id="fcOpen" aria-label="Food guide and checker">Food</button></div>
   <div class="daybar" id="daybar">
     <button class="arrow" id="prevDay">‹</button>
     <div class="center"><div class="dnum" id="dNum">Day 1</div><div class="phase" id="dPhase"></div></div>
@@ -600,6 +632,8 @@ textarea.notes::placeholder{color:var(--muted);}
     <!-- PLAN -->
     <div class="sub-panel" id="sub-plan">
       <div class="plan-days" id="planDays"></div>
+      <div class="cal-legend" id="planLegend"></div>
+      <div class="plan-day-head" id="planDayHead"></div>
       <button class="plan-shop-row" id="planShop"><span class="ps-ic">🛒</span> Shopping list <span class="ps-arrow">›</span></button>
       <div id="planList"></div>
     </div>
@@ -719,23 +753,66 @@ textarea.notes::placeholder{color:var(--muted);}
   <div class="shop-result" id="shopResult"></div>
 </div>
 
-<!-- FOOD CHECK SHEET -->
-<div class="scrim" id="fcScrim"></div>
-<div class="sheet" id="fcSheet">
+<!-- FOOD HUB SHEET (Guide / Check / Calculate) -->
+<div class="scrim" id="fhScrim"></div>
+<div class="sheet" id="fhSheet">
   <div class="grab"></div>
-  <button class="sheet-close" id="fcClose" aria-label="Close">×</button>
-  <h2>Can I eat this?</h2>
-  <div class="fc-rule">Grilled protein + vegetables. No rice, bread, noodles or potato. No oil, no sauce.</div>
-  <div class="fc-searchrow">
-    <input class="fc-input" id="fcInput" type="text" placeholder="Type a food…" autocomplete="off">
-    <button class="fc-btn" id="fcCheck">Check</button>
+  <button class="sheet-close" id="fhClose" aria-label="Close">×</button>
+  <h2 id="fhTitle">Food</h2>
+  <div class="mode-tabs">
+    <button class="mode-tab on" data-fh="guide">Guide</button>
+    <button class="mode-tab" data-fh="check">Can I eat?</button>
+    <button class="mode-tab" data-fh="calc">Macros</button>
   </div>
-  <div class="fc-result" id="fcResult"></div>
+
+  <!-- GUIDE -->
+  <div class="mode-panel" id="fh-guide">
+    <div class="fc-rule" id="fhGuideRule"></div>
+    <div id="fhGuide"></div>
+  </div>
+
+  <!-- CHECK -->
+  <div class="mode-panel hidden" id="fh-check">
+    <div class="fc-rule" id="fcRule"></div>
+    <div class="fc-searchrow">
+      <input class="fc-input" id="fcInput" type="text" placeholder="Type a food…" autocomplete="off">
+      <button class="fc-btn" id="fcCheck">Check</button>
+    </div>
+    <div class="fc-result" id="fcResult"></div>
+  </div>
+
+  <!-- CALCULATE -->
+  <div class="mode-panel hidden" id="fh-calc">
+    <div class="fc-rule">Get the macros of any food or meal. Nothing is logged.</div>
+    <textarea class="desc" id="fhCalcInput" placeholder="e.g. 150g grilled chicken breast with broccoli"></textarea>
+    <button class="calc-btn" id="fhCalcBtn"><span>✦</span> Calculate macros</button>
+    <div class="fc-result" id="fhCalcResult"></div>
+  </div>
+</div>
+
+<!-- MEAL TIME EDIT SHEET -->
+<div class="scrim" id="mtScrim"></div>
+<div class="sheet" id="mtSheet">
+  <div class="grab"></div>
+  <button class="sheet-close" id="mtClose" aria-label="Close">×</button>
+  <h2>Edit meal time</h2>
+  <div class="mt-name" id="mtName"></div>
+  <label class="mt-label">When did you eat this?</label>
+  <input class="mt-input" id="mtInput" type="datetime-local">
+  <div class="mt-hint">Changing the time adjusts your eating/fasting window. Moving it to another date re-files it under that day.</div>
+  <button class="add" id="mtSave">Save time</button>
 </div>
 
 <script>
-/* ===== AEVUM tracker · v1.6.1 · 2026-09-19 =====
+/* ===== AEVUM tracker · v1.7.0 · 2026-09-20 =====
    CHANGELOG
+   v1.7.0 — Batch: (9) phase 4 displayed as "Stabilization" everywhere (internal key still consolidation).
+            (11) Trends weight chart seeds the starting weight at day 1 so the drop shows from the start.
+            (10) Tap a logged meal's time to edit its date+time; moving the date re-files it to that day;
+                 window recomputes. (8) Nutrition plan day selector is now a phase-coloured calendar grid
+                 (whole program, today ring, plan dot, tap to select) with a legend + selected-day header.
+            (12) "Food" hub replaces the Can I Eat button: three tabs — Guide (browsable allowed/limited/
+                 not-allowed per phase), Can I eat? (per-phase AI check), Macros (AI macros, nothing logged).
    v1.6.1 — Nutrition plan day chips now show the stage (phase name + colour dot) under each day.
             (Activation length already reads profile.activation_days, count, default 8 — unchanged.)
    v1.6.0 — Recipes tab: phase chip row (All / Loading / Activation / Stabilization).
@@ -757,13 +834,13 @@ textarea.notes::placeholder{color:var(--muted);}
             averaging whatever of the 4 exists. Weight chart shows a hold band (green ±350g,
             amber ±500g) and the day's weight is coloured by distance from it (red >500g).
             Hold target is used only during Stabilization; earlier phases still use onboarding TGT.
-   v1.2.0 — Stabilization (stabilization) calorie target now need*0.9 + exercise kcal
+   v1.2.0 — Consolidation (stabilization) calorie target now need*0.9 + exercise kcal
             (was need + exercise). Applied to Today bar, phase target, and Trends band.
-   v1.1.0 — Serum block hidden in Transition + Stabilization (shown only in Loading + Activation).
+   v1.1.0 — Serum block hidden in Transition + Consolidation (shown only in Loading + Activation).
             Fasting/eating window tag now shown in Transition (was Activation only).
             Egg whites count at half weight in the protein bucket (6 eggs ≈ 1 meal-portion, not 2).
    v1.0.0 — Baseline. */
-const APP_VERSION='v1.6.1';
+const APP_VERSION='v1.7.0';
 
 /* ===== BACKEND CONFIG — paste your /exec URL between the quotes ===== */
 const BACKEND_URL = 'https://script.google.com/macros/s/AKfycby0jEwPEqESOu_SK8qYqiJxR-1MeT8Ax6fq0fHPHC6gfihMpPW4uJBt1lGwmK_inQ4-/exec';
@@ -771,10 +848,10 @@ const AI_URL = 'https://sweet-fire-a436.marco-iannitto.workers.dev'; // Cloudfla
 function aiURL(){return AI_URL||BACKEND_URL;}
 
 let TOTAL_DAYS=35; const GLASS_ML=250;
-const PH_FIXED={loading:2,transition:3,stabilization:22}; // activation is per-person
+const PH_FIXED={loading:2,transition:3,consolidation:22}; // activation is per-person
 function actDays(){return (profile&&+profile.activation_days>0)?+profile.activation_days:8;}
-function phaseLens(){return {loading:PH_FIXED.loading,activation:actDays(),transition:PH_FIXED.transition,stabilization:PH_FIXED.stabilization};}
-function totalDays(){const L=phaseLens();return L.loading+L.activation+L.transition+L.stabilization;}
+function phaseLens(){return {loading:PH_FIXED.loading,activation:actDays(),transition:PH_FIXED.transition,consolidation:PH_FIXED.consolidation};}
+function totalDays(){const L=phaseLens();return L.loading+L.activation+L.transition+L.consolidation;}
 function applyPhaseConfig(){TOTAL_DAYS=totalDays();if(currentDay>TOTAL_DAYS)currentDay=TOTAL_DAYS;}
 const FAT_TARGET=20, FAT_RED=25;             // fat: ok<=20, yellow 20-25, red>25
 const CARB_TARGET=40, CARB_RED=50;           // carbs: green<=40, amber 40-50, red>50
@@ -796,15 +873,15 @@ function phaseFor(d){
   if(d<=l1) return {key:'loading',name:'Loading',color:'#8a8a8a'};
   if(d<=l2) return {key:'activation',name:'Activation',color:'#B08D2E'};
   if(d<=l3) return {key:'transition',name:'Transition',color:'#B08D2E'};
-  return {key:'stabilization',name:'Stabilization',color:'#4a463f'};
+  return {key:'consolidation',name:'Stabilization',color:'#4a463f'};
 }
 function gatesFor(k){
   if(k==='activation'||k==='transition')return{fat:true,carb:true};
-  if(k==='stabilization')return{fat:false,carb:true};
+  if(k==='consolidation')return{fat:false,carb:true};
   return{fat:false,carb:false};
 }
 /* AI ruleset key for the current day: loading | activation (covers transition) | stabilization */
-function aiPhaseKey(d){const k=phaseFor(d).key;if(k==='stabilization')return'stabilization';if(k==='transition')return'activation';return k;}
+function aiPhaseKey(d){const k=phaseFor(d).key;if(k==='consolidation')return'stabilization';if(k==='transition')return'activation';return k;}
 /* short helper line shown in the Can I Eat sheet, per phase */
 function foodRuleLine(d){
   const k=aiPhaseKey(d);
@@ -817,10 +894,10 @@ function recipePhaseMatch(recipe,key){
   if(!key||key==='all')return true;
   const raw=String(recipe.phase||'').toLowerCase();
   if(!raw.trim())return true;
-  const tags=raw.split(/[,|/]/).map(s=>s.trim()).filter(Boolean).map(s=>s==='transition'?'activation':s==='stabilization'?'stabilization':s);
+  const tags=raw.split(/[,|/]/).map(s=>s.trim()).filter(Boolean).map(s=>s==='transition'?'activation':s==='consolidation'?'stabilization':s);
   return tags.includes(key);
 }
-/* ---- stabilization (stabilization) helpers ---- */
+/* ---- stabilization (consolidation) helpers ---- */
 function consolStartDay(){const L=phaseLens();return L.loading+L.activation+L.transition+1;}
 /* calorie taper: S-curve over 6 days from 600 to need*0.9, then hold.
    Day1 +15% of gap, D2 +35%, D3 +55%, D4 +75%, D5 +90%, D6+ 100%. */
@@ -911,7 +988,7 @@ function render(){
 function renderPhaseBar(){
   const el=g('phaseBar');if(!el)return;
   const L=phaseLens(),total=totalDays();
-  const order=['loading','activation','transition','stabilization'];
+  const order=['loading','activation','transition','consolidation'];
   const curKey=phaseFor(currentDay).key;
   let start=0,html='';
   order.forEach(k=>{
@@ -986,7 +1063,7 @@ function renderCalories(ph,t){
   g('calNum').textContent=t.kcal.toLocaleString();
   const wrap=g('calBarWrap'),bar=g('calBar'),prot=g('protocol');
   wrap.classList.add('hidden');prot.classList.add('hidden');g('calUnit').textContent='kcal today';
-  if(ph.key==='stabilization'){
+  if(ph.key==='consolidation'){
     wrap.classList.remove('hidden');
     const target=stabTargetKcal(currentDay)+t.exKcal, pct=target>0?t.kcal/target*100:0;
     bar.className='calbar'+((pct>110||pct<70)?' over':(pct>98||pct<80)?' warn':'');
@@ -1066,7 +1143,7 @@ function renderGates(ph,t){
   // protein: range bands in Stabilization (1.2–1.5 g/kg green); plain grams in Loading
   const makeProtein=()=>{
     const el=document.createElement('div');
-    if(ph.key==='stabilization' && profile.weight){
+    if(ph.key==='consolidation' && profile.weight){
       const w=profile.weight, lo=Math.round(w*1.2), hi=Math.round(w*1.5), ratio=t.protein/w;
       // green 1.2–1.5 · amber 1.0–1.19 and >1.5–1.9 · red <1.0 and >1.9
       const cls=ratio<1.0?'over':ratio<1.2?'warn':ratio<=1.5?'ok':ratio<=1.9?'warn':'over';
@@ -1100,11 +1177,12 @@ function renderTimeline(){
     }else{
       inner=`<div class="meal-name">${esc(m.name||'Meal')}</div><div class="meal-macros"><b>${Math.round(m.kcal||0)}</b> kcal<span class="sep">·</span>${Math.round(m.protein||0)}P<span class="sep">·</span>${Math.round(m.fat||0)}F<span class="sep">·</span>${Math.round(m.carbs||0)}C</div>`;
     }
-    html+=`<div class="meal-row"><div class="meal-time">${m.time||''}</div><div class="meal-body" data-exp="${i}">${inner}</div><button class="meal-del" data-i="${i}">×</button></div>`;
+    html+=`<div class="meal-row"><div class="meal-time editable" data-mt="${i}">${m.time||'– –'}</div><div class="meal-body" data-exp="${i}">${inner}</div><button class="meal-del" data-i="${i}">×</button></div>`;
   });
   tl.innerHTML=html;
   tl.querySelectorAll('.meal-del').forEach(b=>b.onclick=e=>{e.stopPropagation();day.meals.splice(+b.dataset.i,1);saveDay(true);render();});
   tl.querySelectorAll('.meal-body').forEach(b=>b.onclick=()=>{b.classList.toggle('open');});
+  tl.querySelectorAll('.meal-time').forEach(b=>b.onclick=e=>{e.stopPropagation();openMealTime(+b.dataset.mt);});
 }
 function renderWater(){
   const glasses=day.water||0;
@@ -1267,10 +1345,13 @@ function wireChartTaps(){
 }
 function renderTrends(){
   const w=collectSeries('weight');
+  // seed the starting weight at day 1 so the total drop is visible from the start
+  {const sw=parseFloat(profile.start_weight)||parseFloat(profile.weight)||0;
+   if(sw>0 && !w.some(p=>p.day===1)){w.unshift({day:1,v:sw});}}
   const sr=g('statRow');sr.innerHTML='';
   const target=(profile&&profile.target_kg)||null;
   // stabilization: hold target replaces onboarding TGT as the reference, only during stabilization
-  const inStab=phaseFor(currentDay).key==='stabilization';
+  const inStab=phaseFor(currentDay).key==='consolidation';
   const holdT=inStab?stabTargetWeight():null;
 
   // Weight stat
@@ -1312,7 +1393,7 @@ function trendsPhaseStrip(d0,dN){
   const xs=d=>padL+(d-d0)/span*(W-padL-padR); // same mapping as the charts
   const pctOf=x=>x/W*100;
   const L=phaseLens();
-  const order=[['loading','Loading'],['activation','Activation'],['transition','Transition'],['stabilization','Stabilization']];
+  const order=[['loading','Loading'],['activation','Activation'],['transition','Transition'],['consolidation','Stabilization']];
   const cur=phaseFor(currentDay).key;
   let s=0,segs='',labels='';
   order.forEach(([k,name])=>{
@@ -1355,7 +1436,7 @@ function phaseTargetKcal(dayNum){
   const basal=bmr/1.55*1; // rough BMR without activity for loading ref
   if(ph==='loading')return Math.round((profile&&profile.need?profile.need:2000)*1.5);
   if(ph==='activation'||ph==='transition')return 600; // mid of 500-700 for the bar reference
-  return stabTargetKcal(dayNum); // stabilization (tapered)
+  return stabTargetKcal(dayNum); // consolidation (tapered)
 }
 function dayCalState(dayNum,k){
   const ph=phaseFor(dayNum).key;
@@ -1363,7 +1444,7 @@ function dayCalState(dayNum,k){
   const tgt=phaseTargetKcal(dayNum);if(!tgt)return'ok';
   const pct=k/tgt*100;
   if(ph==='loading')return k>=tgt*0.9?'ok':(k>=tgt*0.6?'warn':'over'); // want high
-  // stabilization: near TDEE. ok 80-98%, amber 70-80/98-110, red <70 or >110
+  // consolidation: near TDEE. ok 80-98%, amber 70-80/98-110, red <70 or >110
   if(pct>110||pct<70)return'over';if(pct>98||pct<80)return'warn';return'ok';
 }
 function macroBars(range){
@@ -1385,7 +1466,7 @@ function macroBars(range){
   const okKcal=dayNum=>{
     const k=phaseFor(dayNum).key;
     if(k==='loading'){const t=phaseTargetKcal(dayNum)||1;return [t*0.9,t];}
-    if(k==='stabilization'){const n=stabTargetKcal(dayNum);return [n*0.80,n*0.98];}
+    if(k==='consolidation'){const n=stabTargetKcal(dayNum);return [n*0.80,n*0.98];}
     return [400,650];                        // activation / transition
   };
   const fracFor=(dayNum,v)=>{const[lo,hi]=okKcal(dayNum);const s=(v-lo)/((hi-lo)||1);return Math.max(0.04,Math.min(0.97,BAND_LO+s*(BAND_HI-BAND_LO)));};
@@ -1571,18 +1652,109 @@ function exportCSV(){
 function g(id){return document.getElementById(id);}
 function esc(s){return(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 
-/* ---- food check ---- */
-function openFoodCheck(){
-  g('fcInput').value='';g('fcResult').innerHTML='';
-  {const r=document.querySelector('#fcSheet .fc-rule');if(r)r.textContent=foodRuleLine(currentDay);}
-  g('fcScrim').classList.add('show');g('fcSheet').classList.add('show');
-  history.pushState({sheet:'fc'},'');
-  setTimeout(()=>g('fcInput').focus(),300);
+/* ---- edit a logged meal's date + time ---- */
+let editMealIdx=-1;
+function openMealTime(i){
+  const m=day.meals[i];if(!m)return;
+  editMealIdx=i;
+  let ts=m.ts;
+  if(!ts){const d=day.date||new Date().toISOString().slice(0,10);ts=new Date(d+'T'+(m.time||'12:00')).getTime();}
+  const dt=new Date(ts),pad=n=>String(n).padStart(2,'0');
+  g('mtInput').value=`${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+  g('mtName').textContent=m.name||'Meal';
+  g('mtScrim').classList.add('show');g('mtSheet').classList.add('show');history.pushState({sheet:'mt'},'');
 }
-function closeFoodCheck(){
-  if(!g('fcSheet').classList.contains('show'))return;
+function closeMealTime(){
+  if(!g('mtSheet').classList.contains('show'))return;
   if(history.state&&history.state.sheet){history.back();}
-  else{g('fcScrim').classList.remove('show');g('fcSheet').classList.remove('show');}
+  else{g('mtScrim').classList.remove('show');g('mtSheet').classList.remove('show');}
+}
+function saveMealTime(){
+  const v=g('mtInput').value;if(!v){closeMealTime();return;}
+  const dt=new Date(v);if(isNaN(dt)){closeMealTime();return;}
+  const m=day.meals[editMealIdx];if(!m){closeMealTime();return;}
+  const pad=n=>String(n).padStart(2,'0');
+  m.ts=dt.getTime();m.time=pad(dt.getHours())+':'+pad(dt.getMinutes());
+  // if the date maps to a different program day, move the meal there
+  let targetDay=currentDay;
+  if(profile.start_date){const s=new Date(profile.start_date+'T00:00:00');
+    if(!isNaN(s)){const d0=new Date(dt);d0.setHours(0,0,0,0);targetDay=Math.floor((d0.getTime()-s.getTime())/86400000)+1;}}
+  if(targetDay>=1&&targetDay<=TOTAL_DAYS&&targetDay!==currentDay){
+    const key=K('day_'+targetDay);const raw=localStorage.getItem(key);
+    const tgt=raw?JSON.parse(raw):blankDay();tgt.meals=tgt.meals||[];
+    if(!tgt.date)tgt.date=dt.toISOString().slice(0,10);
+    tgt.meals.push(m);localStorage.setItem(key,JSON.stringify(tgt));
+    day.meals.splice(editMealIdx,1);
+  }
+  saveDay(true);closeMealTime();render();
+}
+
+/* ---- food hub (Guide / Check / Calculate) ---- */
+const FOOD_GUIDE={
+  loading:[
+    {t:'Everything',a:['Almost all whole foods','Protein, veg, fruit','Grains, rice, potato, dairy'],l:[],n:['Added-sugar sweets & desserts','Sugary drinks & fruit juice','Alcohol']}
+  ],
+  activation:[
+    {t:'Protein (judged on fat)',a:['Chicken/turkey breast','Veal, lean beef','White fish (cod, sole, tilapia, sea bass)','Shrimp, lobster, crab, scallops','Egg whites','Tofu'],l:['Tempeh (≤60g)','0% Greek yogurt'],n:['Whole egg, cottage cheese, milk','Oily fish (salmon, tuna, mackerel)','Bacon, sausage, ham, pork','Fatty or skin-on cuts']},
+    {t:'Vegetables',a:['Leafy greens, broccoli, cauliflower','Cabbage, brussels sprouts, asparagus','Celery, cucumber, tomato','Radish, fennel, mushroom, pepper'],l:['Onion, shallot','Carrot','Beetroot (≤30g)'],n:['Potato, corn, peas','Anything with added sugar/oil/starch','Dried']},
+    {t:'Fruit (by sugar)',a:['Apple, orange, grapefruit','Berries, lemon, lime','Peach, plum'],l:[],n:['Grape, banana, mango','Pineapple, cherry, lychee','Dried fruit']},
+    {t:'Rules',a:[],l:[],n:['No oil, butter or sauce','Grill, steam, boil or bake dry','100g cap per food, per meal · egg whites max 6']}
+  ],
+  stabilization:[
+    {t:'Protein (all welcome)',a:['Chicken, turkey (any cut, skin OK)','Beef, veal, lamb, pork, plain bacon','Whole eggs','All fish incl. salmon, tuna, mackerel','Shrimp, crab, lobster, scallops, squid','Tofu, tempeh'],l:[],n:['Sugar-cured or glazed meats','Breaded or battered']},
+    {t:'Vegetables (carbs from here)',a:['Leafy greens, broccoli, cauliflower','Cabbage, zucchini, asparagus','Celery, cucumber, eggplant, green beans','Tomato, mushroom, pepper, onion, garlic'],l:['Carrot, beetroot, pumpkin'],n:['Potato, sweet potato, corn, peas','Beans & legumes','Added sugar or dried']},
+    {t:'Fats (your fuel)',a:['Olive, avocado, coconut oil','Butter, ghee','Avocado, olives'],l:['Nuts, seeds','Unsweetened nut butters'],n:[]},
+    {t:'Dairy (full-fat only)',a:['Cheese: cheddar, mozzarella, feta, brie, goat','Heavy cream, sour cream','Plain full-fat Greek yogurt'],l:[],n:['Milk','Sweetened or low-fat/diet dairy']},
+    {t:'Fruit (berries only)',a:['Strawberry, raspberry, blackberry, blueberry','Lemon, lime'],l:[],n:['All other fruit','Dried fruit & juice']},
+    {t:'Rules',a:['Cook in allowed fats — fine now'],l:[],n:['No sugar, flour, breading or starchy sauce','Carbs under 50g/day, from veg']}
+  ]
+};
+function renderGuide(){
+  const key=aiPhaseKey(currentDay), secs=FOOD_GUIDE[key]||[];
+  g('fhGuideRule').textContent=foodRuleLine(currentDay);
+  const chip=(txt,cls)=>`<span class="gd-chip ${cls}">${esc(txt)}</span>`;
+  let html='';
+  secs.forEach(s=>{
+    html+=`<div class="gd-sec"><div class="gd-h">${esc(s.t)}</div><div class="gd-chips">`;
+    s.a.forEach(x=>html+=chip(x,'ok'));
+    s.l.forEach(x=>html+=chip(x,'lim'));
+    s.n.forEach(x=>html+=chip(x,'no'));
+    html+='</div></div>';
+  });
+  g('fhGuide').innerHTML=html||'<div class="fc-reason">No guide for this phase.</div>';
+}
+function switchFhTab(tab){
+  document.querySelectorAll('#fhSheet .mode-tab').forEach(t=>t.classList.toggle('on',t.dataset.fh===tab));
+  ['guide','check','calc'].forEach(t=>g('fh-'+t).classList.toggle('hidden',t!==tab));
+  if(tab==='guide')renderGuide();
+  if(tab==='check'){g('fcRule').textContent=foodRuleLine(currentDay);setTimeout(()=>g('fcInput').focus(),200);}
+}
+function openFoodHub(tab){
+  g('fcInput').value='';g('fcResult').innerHTML='';
+  g('fhCalcInput').value='';g('fhCalcResult').innerHTML='';
+  switchFhTab(tab||'guide');
+  g('fhScrim').classList.add('show');g('fhSheet').classList.add('show');
+  history.pushState({sheet:'fh'},'');
+}
+function closeFoodHub(){
+  if(!g('fhSheet').classList.contains('show'))return;
+  if(history.state&&history.state.sheet){history.back();}
+  else{g('fhScrim').classList.remove('show');g('fhSheet').classList.remove('show');}
+}
+async function calcMacrosOnly(){
+  const desc=g('fhCalcInput').value.trim();
+  if(!desc){g('fhCalcInput').focus();return;}
+  if(!aiURL()){g('fhCalcResult').innerHTML='<div class="fc-reason">Connect the backend to use this.</div>';return;}
+  const btn=g('fhCalcBtn'),orig=btn.innerHTML;btn.disabled=true;btn.innerHTML='<span class="thinking"></span> Calculating…';
+  const call=async()=>{const res=await fetch(aiURL(),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'estimate',description:desc,phase:aiPhaseKey(currentDay)})});const d=await res.json();if(d.error)throw new Error(d.error);return d;};
+  try{
+    let d;try{d=await call();}catch(e1){d=await call();}
+    g('fhCalcResult').innerHTML=`<div class="fc-card eat"><div class="fc-icon">✦</div><div>
+      <div class="fc-verdict">${esc(d.name||'Meal')}</div>
+      <div class="fc-reason"><b>${Math.round(d.kcal||0)}</b> kcal · ${Math.round(d.protein||0)}P · ${Math.round(d.fat||0)}F · ${Math.round(d.carbs||0)}C</div>
+      </div></div>`;
+  }catch(err){g('fhCalcResult').innerHTML='<div class="fc-reason">Could not calculate. Try again.</div>';}
+  finally{btn.disabled=false;btn.innerHTML=orig;}
 }
 async function doFoodCheck(){
   const food=g('fcInput').value.trim();
@@ -1660,24 +1832,30 @@ function dayToDate(dayNum){
 }
 function fmtShort(dt){return dt.toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'});}
 function renderPlan(){
-  const days=planDaysAvailable();
-  if(!days.length){g('planDays').innerHTML='';g('planList').innerHTML='<div class="plan-empty">No meal plan yet. Your coach will set one up.</div>';return;}
-  if(!days.includes(planDay)){
-    // default to today's program day if it's in the plan, else first day
-    let todayDay=null;
-    if(profile&&profile.start_date){const s=new Date(profile.start_date+'T00:00:00');if(!isNaN(s))todayDay=Math.floor((Date.now()-s.getTime())/86400000)+1;}
-    planDay=(todayDay&&days.includes(todayDay))?todayDay:days[0];
-  }
-  const db=g('planDays');db.innerHTML='';
+  const total=TOTAL_DAYS||totalDays();
   let todayDay=null;
   if(profile&&profile.start_date){const s=new Date(profile.start_date+'T00:00:00');if(!isNaN(s))todayDay=Math.floor((Date.now()-s.getTime())/86400000)+1;}
-  days.forEach(d=>{
-    const b=document.createElement('button');b.className='plan-day-btn'+(d===planDay?' on':'')+(d===todayDay?' today':'');
-    const dt=dayToDate(d), pf=phaseFor(d);
-    const sub=`<span class="pdb-dot" style="background:${pf.color}"></span>${pf.name}${dt?' · '+fmtShort(dt):''}`;
-    b.innerHTML=`Day ${d}<small>${sub}</small>`;
-    b.onclick=()=>{planDay=d;renderPlan();};db.appendChild(b);
-  });
+  if(planDay<1||planDay>total){planDay=(todayDay&&todayDay>=1&&todayDay<=total)?todayDay:1;}
+  // full-program calendar grid, coloured by phase
+  const db=g('planDays');db.className='plan-cal';db.innerHTML='';
+  const planned=new Set(planDaysAvailable());
+  for(let d=1;d<=total;d++){
+    const pf=phaseFor(d),has=planned.has(d)||planEdit[d];
+    const cell=document.createElement('button');
+    cell.className='cal-cell'+(d===planDay?' on':'')+(d===todayDay?' today':'');
+    cell.style.setProperty('--pc',pf.color);
+    cell.title='Day '+d+' · '+pf.name;
+    cell.innerHTML=`<span class="cc-day">${d}</span>${has?'<span class="cc-dot"></span>':''}`;
+    cell.onclick=()=>{planDay=d;renderPlan();};
+    db.appendChild(cell);
+  }
+  {const lg=g('planLegend');if(lg)lg.innerHTML=
+    `<span><i style="background:#8a8a8a"></i>Loading</span>`+
+    `<span><i style="background:#B08D2E"></i>Activation/Transition</span>`+
+    `<span><i style="background:#4a463f"></i>Stabilization</span>`+
+    `<span><i style="background:var(--gold-deep)"></i>has plan</span>`;}
+  {const pf=phaseFor(planDay),dt=dayToDate(planDay);const hd=g('planDayHead');
+   if(hd)hd.innerHTML=`<span class="pdh-dot" style="background:${pf.color}"></span><b>Day ${planDay}</b> · ${pf.name}${dt?' · '+fmtShort(dt):''}${planDay===todayDay?' · Today':''}`;}
   const items=planItemsFor(planDay);
   const edited=!!planEdit[planDay];
   let tot={kcal:0,protein:0,fat:0,carbs:0};
@@ -1928,10 +2106,15 @@ function wire(){
   document.querySelectorAll('.sub-tab').forEach(t=>t.onclick=()=>{planAction=null;switchSub(t.dataset.sub);});
   g('rcScrim').onclick=closeRecipe;
   g('rcClose').onclick=closeRecipe;
-  g('fcOpen').onclick=openFoodCheck;
-  g('fcClose').onclick=closeFoodCheck;
-  g('fcScrim').onclick=closeFoodCheck;
+  g('fcOpen').onclick=()=>openFoodHub('guide');
+  g('fhClose').onclick=closeFoodHub;
+  g('fhScrim').onclick=closeFoodHub;
   g('fcCheck').onclick=doFoodCheck;
+  document.querySelectorAll('#fhSheet .mode-tab').forEach(t=>t.onclick=()=>switchFhTab(t.dataset.fh));
+  g('fhCalcBtn').onclick=calcMacrosOnly;
+  g('mtClose')&&(g('mtClose').onclick=closeMealTime);
+  g('mtScrim')&&(g('mtScrim').onclick=closeMealTime);
+  g('mtSave')&&(g('mtSave').onclick=saveMealTime);
   g('shopGen')&&(g('shopGen').onclick=buildShopList);
   g('planShop')&&(g('planShop').onclick=openShop);
   g('shopClose')&&(g('shopClose').onclick=closeShop);
@@ -1977,11 +2160,11 @@ window.addEventListener('popstate',()=>{
   // back button closes any open sheet instead of leaving the page
   const mealOpen=g('sheet').classList.contains('show');
   const rcOpen=g('rcSheet').classList.contains('show');
-  const fcOpen=g('fcSheet').classList.contains('show');
   if(mealOpen){g('scrim').classList.remove('show');g('sheet').classList.remove('show');}
   if(rcOpen){g('rcScrim').classList.remove('show');g('rcSheet').classList.remove('show');}
-  if(fcOpen){g('fcScrim').classList.remove('show');g('fcSheet').classList.remove('show');}
   if(g('shopSheet')&&g('shopSheet').classList.contains('show')){g('shopScrim').classList.remove('show');g('shopSheet').classList.remove('show');}
+  if(g('mtSheet')&&g('mtSheet').classList.contains('show')){g('mtScrim').classList.remove('show');g('mtSheet').classList.remove('show');}
+  if(g('fhSheet')&&g('fhSheet').classList.contains('show')){g('fhScrim').classList.remove('show');g('fhSheet').classList.remove('show');}
 });
 loadProfile();
 if(profile){g('onboard').classList.add('hidden');boot();}else{initOnboard();}

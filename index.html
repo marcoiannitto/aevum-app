@@ -614,7 +614,7 @@ textarea.notes::placeholder{color:var(--muted);}
       <div id="weightChart"></div>
     </div>
     <div class="chartcard">
-      <div class="c-title"><span>Calories vs phase target</span></div>
+      <div class="c-title"><span id="macroTitle">Calories vs phase target</span></div>
       <div class="chart-readout" id="macroReadout"></div>
       <div id="macroChart"></div>
     </div>
@@ -804,8 +804,16 @@ textarea.notes::placeholder{color:var(--muted);}
 </div>
 
 <script>
-/* ===== AEVUM tracker · v1.7.0 · 2026-09-20 =====
+/* ===== AEVUM tracker · v1.8.0 · 2026-09-21 =====
    CHANGELOG
+   v1.8.0 — Program default now 31 days (Stabilization 18, was 22).
+            Stabilization hold target = avg of the 3 Transition weigh-ins (was incl. last Activation day);
+            reads a Sheet override `stab_target_weight` if set, else computes and auto-writes it once.
+            Stabilization calorie target = TDEE recomputed at the target weight × 0.85 × 0.90 (=0.765),
+            reached via the 6-day S-curve. Protein range now computed on the target weight.
+            Trends middle chart shows meal-portion adherence in Activation/Transition (calories in
+            Stabilization/Loading). "Today change" weight pill is neutral in Stabilization.
+            REQUIRES: Apps Script getProfile to return stab_target_weight + a `settarget` write action.
    v1.7.0 — Batch: (9) phase 4 displayed as "Stabilization" everywhere (internal key still consolidation).
             (11) Trends weight chart seeds the starting weight at day 1 so the drop shows from the start.
             (10) Tap a logged meal's time to edit its date+time; moving the date re-files it to that day;
@@ -840,15 +848,15 @@ textarea.notes::placeholder{color:var(--muted);}
             Fasting/eating window tag now shown in Transition (was Activation only).
             Egg whites count at half weight in the protein bucket (6 eggs ≈ 1 meal-portion, not 2).
    v1.0.0 — Baseline. */
-const APP_VERSION='v1.7.0';
+const APP_VERSION='v1.8.0';
 
 /* ===== BACKEND CONFIG — paste your /exec URL between the quotes ===== */
 const BACKEND_URL = 'https://script.google.com/macros/s/AKfycby0jEwPEqESOu_SK8qYqiJxR-1MeT8Ax6fq0fHPHC6gfihMpPW4uJBt1lGwmK_inQ4-/exec';
 const AI_URL = 'https://sweet-fire-a436.marco-iannitto.workers.dev'; // Cloudflare Worker for AI calls
 function aiURL(){return AI_URL||BACKEND_URL;}
 
-let TOTAL_DAYS=35; const GLASS_ML=250;
-const PH_FIXED={loading:2,transition:3,consolidation:22}; // activation is per-person
+let TOTAL_DAYS=31; const GLASS_ML=250;
+const PH_FIXED={loading:2,transition:3,consolidation:18}; // activation is per-person; total default 2+8+3+18=31
 function actDays(){return (profile&&+profile.activation_days>0)?+profile.activation_days:8;}
 function phaseLens(){return {loading:PH_FIXED.loading,activation:actDays(),transition:PH_FIXED.transition,consolidation:PH_FIXED.consolidation};}
 function totalDays(){const L=phaseLens();return L.loading+L.activation+L.transition+L.consolidation;}
@@ -860,8 +868,11 @@ const CAL_LOW_RED=300, CAL_LOW_AMBER=400, CAL_HIGH_AMBER=650, CAL_HIGH_RED=750; 
 const CAL_TARGET=500, CAL_RED=700; // legacy refs (target midpoint, red ceiling)
 const MEAL_KCAL=250, MEAL_FAT=10, MEAL_CARB=15; // per-meal red flags
 const BUCKET_CAP=200; // daily food allowance per type: 2 meals x 100g
-const PROTEIN_PER_KG=1.2;                     // protein target multiplier
-const CONSOL_FACTOR=0.9;                       // stabilization: target = need*0.9 + exercise kcal
+const PROTEIN_PER_KG=1.2;                     // protein target multiplier (low end of the range)
+const PROTEIN_KG_HI=1.5;                       // protein target range high end
+const BMR_DROP=0.85;                            // ~15% BMR drop after prolonged VLCD
+const MAINT_CUT=0.90;                           // eat slightly under maintenance
+// stabilization calorie target = TDEE(target weight) * BMR_DROP * MAINT_CUT ( = 0.765 )
 const WATER_GOAL_GLASSES=10; // 2.5 L at 250 ml/glass
 const params=new URLSearchParams(location.search);
 const PID=(params.get('id')||'me').toLowerCase().replace(/[^a-z0-9_-]/g,'');
@@ -902,31 +913,53 @@ function consolStartDay(){const L=phaseLens();return L.loading+L.activation+L.tr
 /* calorie taper: S-curve over 6 days from 600 to need*0.9, then hold.
    Day1 +15% of gap, D2 +35%, D3 +55%, D4 +75%, D5 +90%, D6+ 100%. */
 const TAPER_PCT=[0,0.15,0.35,0.55,0.75,0.90,1.0]; // index by day-into-stabilization (1-based)
+/* stabilization calorie target: TDEE recomputed at the hold target weight,
+   * BMR_DROP (0.85) * MAINT_CUT (0.90) = 0.765, reached via a 6-day S-curve from 600. */
+function stabTDEE(){
+  const tw=stabTargetWeight()||(profile&&profile.weight)||0;
+  if(tw>0&&profile&&profile.height&&profile.age&&profile.act)
+    return mifflin({sex:profile.sex,age:profile.age,height:profile.height,act:profile.act,weight:tw});
+  return (profile&&profile.need)?profile.need:2000;
+}
 function stabTargetKcal(dayNum){
-  const need=(profile&&profile.need)?profile.need:2000;
-  const start=600, target=Math.round(need*CONSOL_FACTOR), gap=target-start;
+  const start=600, target=Math.round(stabTDEE()*BMR_DROP*MAINT_CUT), gap=target-start;
   const dayIn=dayNum-consolStartDay()+1;      // 1-based day within stabilization
   const f=dayIn<=0?0:dayIn>=6?1:TAPER_PCT[dayIn];
   return Math.round(start+gap*f);
 }
-/* weight hold target: avg of last Activation day + the 3 Transition weigh-ins.
-   Averages whatever exists; null until at least one of the 4 is logged. */
-function stabTargetWeight(){
+/* weight hold target: Sheet override if set, else avg of the 3 Transition weigh-ins. */
+function stabTargetWeightComputed(){
   const L=phaseLens();
-  const actLast=L.loading+L.activation;        // last day of Activation
+  const trStart=L.loading+L.activation+1;       // first Transition day
   const vals=[];
-  for(let d=actLast; d<=actLast+3; d++){       // actLast + 3 Transition days
+  for(let d=trStart; d<trStart+L.transition; d++){   // the 3 Transition days
     const r=localStorage.getItem(K('day_'+d));if(!r)continue;
     const v=parseFloat(JSON.parse(r).weight);
     if(!isNaN(v)&&v>0)vals.push(v);
   }
   return vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:null;
 }
+function stabTargetWeight(){
+  if(profile&&+profile.stab_target_weight>0)return +profile.stab_target_weight;   // Sheet override
+  return stabTargetWeightComputed();
+}
+/* auto-write the computed target to the Sheet once, when in Stabilization and no value set yet */
+let stabTargetWritten=false;
+function maybeWriteStabTarget(){
+  if(stabTargetWritten||!BACKEND_URL||!profile)return;
+  if(phaseFor(currentDay).key!=='consolidation')return;
+  if(+profile.stab_target_weight>0)return;      // already set or user-edited
+  const c=stabTargetWeightComputed();if(c==null)return;
+  const v=Math.round(c*10)/10;
+  stabTargetWritten=true;profile.stab_target_weight=v;
+  localStorage.setItem(K('profile'),JSON.stringify(profile));
+  fetch(BACKEND_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'settarget',id:PID,stab_target_weight:v})}).catch(()=>{});
+}
 /* weight band class by distance from hold target (grams): green ≤350, amber ≤500, red >500 */
 function stabWeightClass(w){
   const t=stabTargetWeight();if(t==null||w==null||isNaN(w))return'';
-  const g=Math.abs(w-t)*1000;
-  return g<=350?'ok':g<=500?'warn':'over';
+  const gr=Math.abs(w-t)*1000;
+  return gr<=350?'ok':gr<=500?'warn':'over';
 }
 
 let profile=null,currentDay=1,day=null,photoData=null,mealItems=[];
@@ -969,6 +1002,7 @@ function totals(){
 /* ---- render ---- */
 function render(){
   const ph=phaseFor(currentDay);
+  maybeWriteStabTarget();
   g('whoName').textContent=profile.name;
   {const dt=dayToDate(currentDay);g('dNum').innerHTML='Day '+currentDay+(dt?`<span class="dday-date">${fmtShort(dt)}</span>`:'');}
   g('dPhase').innerHTML=`<span class="phase-dot" style="background:${ph.color}"></span>${ph.name}${fastingSuffix(ph)}`;
@@ -1143,9 +1177,10 @@ function renderGates(ph,t){
   // protein: range bands in Stabilization (1.2–1.5 g/kg green); plain grams in Loading
   const makeProtein=()=>{
     const el=document.createElement('div');
-    if(ph.key==='consolidation' && profile.weight){
-      const w=profile.weight, lo=Math.round(w*1.2), hi=Math.round(w*1.5), ratio=t.protein/w;
-      // green 1.2–1.5 · amber 1.0–1.19 and >1.5–1.9 · red <1.0 and >1.9
+    const wref=(ph.key==='consolidation')?(stabTargetWeight()||profile.weight):profile.weight;
+    if(ph.key==='consolidation' && wref){
+      const w=wref, lo=Math.round(w*PROTEIN_PER_KG), hi=Math.round(w*PROTEIN_KG_HI), ratio=t.protein/w;
+      // green 1.2–1.5 · amber 1.0–1.19 and >1.5–1.9 · red <1.0 and >1.9 (on target weight)
       const cls=ratio<1.0?'over':ratio<1.2?'warn':ratio<=1.5?'ok':ratio<=1.9?'warn':'over';
       const pct=Math.min(100,hi?t.protein/hi*100:0);
       el.className='gate '+(cls==='ok'?'prot-ok':cls);
@@ -1366,7 +1401,8 @@ function renderTrends(){
       // during stabilization: colour the day's weight by distance from the hold target
       const dg=Math.round((cur-holdT)*1000), band=stabWeightClass(cur);
       lines+=`<span class="s-chip hold-${band}">${dg>0?'+':''}${dg} g from hold</span>`;
-      if(daily!=null)lines+=`<span class="s-chip ${cls(daily)}">${arrow(daily)} ${Math.abs(daily).toFixed(1)} kg today</span>`;
+      // neutral today-change pill in stabilization: colour lives only on the "from hold" pill
+      if(daily!=null)lines+=`<span class="s-chip">${arrow(daily)} ${Math.abs(daily).toFixed(1)} kg today</span>`;
       togo=`<div class="s-togo${band==='ok'?' done':''}">Hold target ${holdT.toFixed(1)} kg · keep within ±0.5</div>`;
     }else{
       if(daily!=null)lines+=`<span class="s-chip ${cls(daily)}">${arrow(daily)} ${Math.abs(daily).toFixed(1)} kg today</span>`;
@@ -1384,9 +1420,18 @@ function renderTrends(){
   g('trPhase').innerHTML = range?trendsPhaseStrip(range[0],range[1]):'';
   const band=(holdT!=null)?{center:holdT,green:0.35,amber:0.5}:null;
   g('weightChart').innerHTML=lineChart(w,'kg',band?null:target,'wReadout',range,band);
-  g('macroChart').innerHTML=macroBars(range);
   wireChartTaps();
-  wireMacroBars();
+  // middle chart: portions adherence in Activation/Transition, calories otherwise
+  const pk=phaseFor(currentDay).key;
+  if(pk==='activation'||pk==='transition'){
+    g('macroTitle').textContent='Meal portions vs target';
+    g('macroChart').innerHTML=portionBars(range);
+    wirePortionBars();
+  }else{
+    g('macroTitle').textContent='Calories vs phase target';
+    g('macroChart').innerHTML=macroBars(range);
+    wireMacroBars();
+  }
 }
 function trendsPhaseStrip(d0,dN){
   const W=440,padL=16,padR=16,span=(dN-d0)||1;
@@ -1499,6 +1544,62 @@ function wireMacroBars(){
   const last=bars[bars.length-1];
   const show=b=>{if(ro)ro.innerHTML=`Day ${b.dataset.day} · <b>${b.dataset.k}</b> kcal · ${phaseTargetLabel(+b.dataset.day)}`;};
   show(last);
+  bars.forEach(b=>b.onclick=()=>{bars.forEach(x=>x.setAttribute('opacity','0.55'));b.setAttribute('opacity','1');show(b);});
+}
+/* ---- portion adherence (Activation/Transition Trends) ---- */
+const PORTION_TARGET=6; // 2 meal-portions each across Protein / Veg / Fruit
+function dayPortions(o){
+  const items=(o.meals||[]).flatMap(m=>m.items||[]);
+  let viol=false;const sums={protein:0,veg:0,fruit:0};
+  items.forEach(it=>{const v=it.verdict||'limited';if(v==='no'){viol=true;return;}
+    const t=it.type;if(sums[t]===undefined)return;
+    let gr=+it.grams||0;if(t==='protein'&&/egg\s*white/i.test(it.name||''))gr*=0.5;sums[t]+=gr;});
+  const filled=['protein','veg','fruit'].reduce((a,k)=>a+Math.min(2,sums[k]/100),0);
+  return {filled,viol,any:items.length>0};
+}
+function portionState(p){const f=p.filled/PORTION_TARGET;if(p.viol||f<0.34)return'over';if(f<0.84)return'warn';return'ok';}
+function collectPortionDays(){
+  const out=[];
+  for(let d=1;d<=TOTAL_DAYS;d++){
+    const k=phaseFor(d).key;if(k!=='activation'&&k!=='transition')continue;
+    const r=localStorage.getItem(K('day_'+d));if(!r)continue;
+    const p=dayPortions(JSON.parse(r));if(!p.any)continue;
+    out.push({day:d,...p});
+  }
+  return out;
+}
+function portionBars(range){
+  const data=collectPortionDays();
+  if(!data.length)return '<div class="chart-empty">Log meals to see portion adherence.</div>';
+  const w=collectSeries('weight');
+  const allDays=range?[range[0],range[1]]:[...new Set([...data.map(d=>d.day),...w.map(d=>d.day)])].sort((a,b)=>a-b);
+  const d0=range?range[0]:allDays[0], dN=range?range[1]:allDays[allDays.length-1], span=(dN-d0)||1;
+  const dayCount=(dN-d0+1);
+  const W=440,H=150,padL=16,padR=16,padT=16,padB=28;
+  const xs=d=>padL+(d-d0)/span*(W-padL-padR);
+  const bw=Math.max(6,Math.min(22,(W-padL-padR)/Math.max(1,dayCount)*0.55));
+  const COL={ok:'#4a7a52',warn:'#B7791F',over:'#A13024'};
+  const barH=H-padT-padB, yFull=padT;
+  let grid='';
+  for(let dd=d0;dd<=dN;dd++){const x=xs(dd).toFixed(1);grid+=`<line x1="${x}" y1="${padT}" x2="${x}" y2="${H-padB}" stroke="#EBE5D8" stroke-width="1" opacity="0.7"/>`;}
+  const tline=`<line x1="${padL}" y1="${yFull}" x2="${W-padR}" y2="${yFull}" stroke="#B08D2E" stroke-width="1" stroke-dasharray="3 3" opacity="0.5"/><text x="${W-padR}" y="${yFull-4}" font-size="9" fill="#8f6f1f" text-anchor="end" font-family="sans-serif">On target (${PORTION_TARGET})</text>`;
+  let bars='';
+  data.forEach(p=>{
+    const frac=Math.max(0.03,Math.min(1,p.filled/PORTION_TARGET)), h=frac*barH, y=(H-padB)-h, x=xs(p.day);
+    bars+=`<rect class="pbar" data-day="${p.day}" data-f="${p.filled.toFixed(1)}" data-v="${p.viol?1:0}" x="${(x-bw/2).toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(1,h).toFixed(1)}" rx="3" fill="${COL[portionState(p)]}"/>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet">
+    ${grid}${tline}${bars}
+    <text x="${padL}" y="${H-8}" font-size="10" fill="#938c7d" font-family="sans-serif">Day ${d0} · Start</text>
+    <text x="${W-padR}" y="${H-8}" font-size="10" fill="#938c7d" text-anchor="end" font-family="sans-serif">Day ${dN} · Today</text>
+  </svg>`;
+}
+function wirePortionBars(){
+  const ro=g('macroReadout');
+  const bars=document.querySelectorAll('#macroChart .pbar');
+  if(!bars.length){if(ro)ro.textContent='';return;}
+  const show=b=>{const viol=b.dataset.v==='1';if(ro)ro.innerHTML=`Day ${b.dataset.day} · <b>${b.dataset.f}</b> of ${PORTION_TARGET} portions${viol?' · has off-protocol item':''}`;};
+  show(bars[bars.length-1]);
   bars.forEach(b=>b.onclick=()=>{bars.forEach(x=>x.setAttribute('opacity','0.55'));b.setAttribute('opacity','1');show(b);});
 }
 
@@ -2149,7 +2250,7 @@ function fetchProfile(){
   fetch(BACKEND_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'profile',id:PID})})
     .then(r=>r.json()).then(d=>{
       if(d.profile){
-        profile=Object.assign({},profile,{target_kg:d.profile.target_kg,start_weight:d.profile.start_weight,start_date:d.profile.start_date,activation_days:d.profile.activation_days});
+        profile=Object.assign({},profile,{target_kg:d.profile.target_kg,start_weight:d.profile.start_weight,start_date:d.profile.start_date,activation_days:d.profile.activation_days,stab_target_weight:d.profile.stab_target_weight});
         localStorage.setItem(K('profile'),JSON.stringify(profile));
         applyPhaseConfig();render();
       }

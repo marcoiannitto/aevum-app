@@ -58,6 +58,41 @@ svg{display:block;}
 .daybar .dnum .dday-date{display:block;font-family:var(--sans);font-size:11px;font-weight:500;color:var(--muted);margin-top:3px;letter-spacing:.01em;}
 .daybar .phase{margin-top:5px;font-size:12px;}
 .today-jump{margin-top:6px;font-size:11px;font-weight:600;color:var(--gold-deep);border:1px solid var(--gold);border-radius:12px;padding:3px 12px;background:var(--card);}
+.daybar .phase.tappable{cursor:pointer;}
+.daybar .phase .ph-i{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border:1px solid var(--muted);border-radius:50%;font-size:10px;font-weight:700;color:var(--muted);margin-left:7px;vertical-align:middle;line-height:1;}
+/* phase sheet content */
+.ph-sub{font-size:13px;color:var(--gold-deep);font-weight:600;letter-spacing:.02em;margin:-6px 0 14px;}
+.ph-change{font-size:15px;line-height:1.5;color:var(--ink-soft);margin-bottom:16px;}
+.ph-sec{margin-bottom:14px;}
+.ph-h{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--gold-deep);font-weight:700;margin-bottom:7px;}
+.ph-eat,.ph-avoid{font-size:14px;line-height:1.45;color:var(--ink-soft);}
+.ph-eat b,.ph-avoid b{font-weight:600;color:var(--ink);}
+.ph-targets{list-style:none;display:flex;flex-direction:column;gap:8px;}
+.ph-targets li{display:flex;gap:9px;align-items:flex-start;font-size:14px;color:var(--ink-soft);}
+.ph-targets li::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--gold);margin-top:7px;flex-shrink:0;}
+.ph-expect{background:var(--warn-bg);border:1px solid #eBD9A8;border-radius:14px;padding:14px;font-size:14px;line-height:1.5;color:var(--ink-soft);margin-top:4px;}
+.ph-overview{margin-top:22px;border-top:1px solid var(--line);padding-top:16px;}
+.ph-ov-h{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:700;margin-bottom:10px;}
+.ph-ov-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line-soft);}
+.ph-ov-row:last-child{border-bottom:none;}
+.ph-ov-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+.ph-ov-name{font-size:14px;color:var(--ink);font-weight:500;}
+.ph-ov-days{margin-left:auto;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;}
+.ph-ov-row.cur .ph-ov-name{color:var(--gold-deep);font-weight:700;}
+.ph-ov-row.cur .ph-ov-days{color:var(--gold-deep);}
+/* auto phase intro (full screen) */
+.phase-intro{position:fixed;inset:0;background:var(--ink);color:#fff;z-index:80;display:flex;flex-direction:column;justify-content:center;padding:calc(env(safe-area-inset-top) + 40px) 28px calc(env(safe-area-inset-bottom) + 32px);overflow-y:auto;}
+.pi-badge{font-family:var(--serif);font-size:12px;letter-spacing:.24em;text-transform:uppercase;color:var(--gold);margin-bottom:8px;}
+.pi-title{font-family:var(--serif);font-size:32px;font-weight:500;margin-bottom:6px;}
+.pi-sub{font-size:14px;color:#c9c2b2;margin-bottom:22px;}
+.pi-change{font-size:17px;line-height:1.55;color:#e9e5dc;margin-bottom:22px;}
+.pi-sec{margin-bottom:16px;}
+.pi-h{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#b7b1a4;font-weight:700;margin-bottom:7px;}
+.pi-targets{list-style:none;display:flex;flex-direction:column;gap:7px;}
+.pi-targets li{font-size:15px;color:#e9e5dc;padding-left:16px;position:relative;}
+.pi-targets li::before{content:'';position:absolute;left:0;top:8px;width:6px;height:6px;border-radius:50%;background:var(--gold);}
+.pi-expect{font-size:15px;line-height:1.55;color:#e9e5dc;border-left:2px solid var(--gold);padding-left:14px;margin:4px 0 26px;}
+.pi-go{width:100%;padding:16px;background:var(--gold);color:var(--ink);border-radius:14px;font-size:16px;font-weight:600;}
 .phase-dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:6px;vertical-align:middle;}
 .fast-tag{font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;margin-left:6px;vertical-align:middle;letter-spacing:.01em;}
 .fast-tag.eating{background:#eef4ec;color:#3f7a4a;}
@@ -505,7 +540,7 @@ textarea.notes::placeholder{color:var(--muted);}
   <div class="line1"><span class="who" id="whoName"></span><button class="fc-open" id="fcOpen" aria-label="Food guide and checker">Food</button></div>
   <div class="daybar" id="daybar">
     <button class="arrow" id="prevDay">‹</button>
-    <div class="center"><div class="dnum" id="dNum">Day 1</div><div class="phase" id="dPhase"></div><button class="today-jump hidden" id="todayBtn">Back to today</button></div>
+    <div class="center"><div class="dnum" id="dNum">Day 1</div><div class="phase tappable" id="dPhase"></div><button class="today-jump hidden" id="todayBtn">Back to today</button></div>
     <button class="arrow" id="nextDay">›</button>
   </div>
   <div class="phasebar" id="phaseBar"></div>
@@ -791,6 +826,25 @@ textarea.notes::placeholder{color:var(--muted);}
   </div>
 </div>
 
+<!-- PHASE INFO SHEET -->
+<div class="scrim" id="phScrim"></div>
+<div class="sheet" id="phSheet">
+  <div class="grab"></div>
+  <button class="sheet-close" id="phClose" aria-label="Close">×</button>
+  <h2 id="phTitle">Phase</h2>
+  <div id="phBody"></div>
+  <div class="ph-overview" id="phOverview"></div>
+</div>
+
+<!-- AUTO PHASE INTRO (full screen at phase change) -->
+<div class="phase-intro hidden" id="phaseIntro">
+  <div class="pi-inner">
+    <div class="pi-badge" id="piBadge">New phase</div>
+    <div id="piBody"></div>
+    <button class="pi-go" id="piGo">Got it</button>
+  </div>
+</div>
+
 <!-- MEAL TIME EDIT SHEET -->
 <div class="scrim" id="mtScrim"></div>
 <div class="sheet" id="mtSheet">
@@ -849,7 +903,7 @@ textarea.notes::placeholder{color:var(--muted);}
             Fasting/eating window tag now shown in Transition (was Activation only).
             Egg whites count at half weight in the protein bucket (6 eggs ≈ 1 meal-portion, not 2).
    v1.0.0 — Baseline. */
-const APP_VERSION='v1.9.0';
+const APP_VERSION='v1.10.0';
 
 /* ===== BACKEND CONFIG — paste your /exec URL between the quotes ===== */
 const BACKEND_URL = 'https://script.google.com/macros/s/AKfycby0jEwPEqESOu_SK8qYqiJxR-1MeT8Ax6fq0fHPHC6gfihMpPW4uJBt1lGwmK_inQ4-/exec';
@@ -871,7 +925,7 @@ const MEAL_KCAL=250, MEAL_FAT=10, MEAL_CARB=15; // per-meal red flags
 const BUCKET_CAP=200; // daily food allowance per type: 2 meals x 100g
 const PROTEIN_PER_KG=1.2;                     // protein target multiplier (low end of the range)
 const PROTEIN_KG_HI=1.5;                       // protein target range high end
-const MAINT_CUT=0.85;                           // hold ~10% under TDEE (adaptive thermogenesis after VLCD)
+const MAINT_CUT=0.90;                           // hold ~10% under TDEE (adaptive thermogenesis after VLCD)
 // stabilization calorie hold target = TDEE(target weight) * MAINT_CUT ( = 0.90 )
 const WATER_GOAL_GLASSES=10; // 2.5 L at 250 ml/glass
 const params=new URLSearchParams(location.search);
@@ -907,6 +961,84 @@ function recipePhaseMatch(recipe,key){
   if(!raw.trim())return true;
   const tags=raw.split(/[,|/]/).map(s=>s.trim()).filter(Boolean).map(s=>s==='transition'?'activation':s==='consolidation'?'stabilization':s);
   return tags.includes(key);
+}
+/* ---- phase explainer (item 20): one content source, shown auto at phase change + on tap ---- */
+function vlcdBand(){return CAL_LOW_AMBER+'–'+CAL_HIGH_AMBER;}
+const PHASE_INFO={
+  loading:{sub:'The ramp-in',
+    change:'Eat freely to a high target. This sets your body up. It is not the diet yet.',
+    eat:'Almost all whole foods: protein, veg, fruit, grains, rice, potato, dairy.',
+    avoid:'Added-sugar sweets and desserts, sugary drinks and juice, alcohol.',
+    targets:['Eat to a high calorie target','No fasting window'],
+    expect:'Enjoy these two days. You are setting up, not restricting yet.'},
+  activation:{sub:'The core reset',
+    change:'Very low calorie and protein-sparing. Your body burns through its quick sugar (glucose) and switches to running on your stored body fat (ketosis). That switch is the whole point.',
+    eat:'Lean protein, low-carb veg, low-sugar fruit.',
+    avoid:'Oil, fat, grains, starch, dairy and sugary foods.',
+    targets:['{VLCD} kcal a day','16/8 fasting (8-hour eating window)','Water 2.5 L','Serum morning and evening'],
+    expect:'Days 2 to 4 can feel flat or foggy while your body changes fuel. It passes: energy steadies and hunger fades. That is the switch working.'},
+  transition:{sub:'Easing out',
+    change:'The serum stops here. These days settle your body at its new, lower weight before food widens. The rules stay the same as Activation.',
+    eat:'Same as Activation: lean protein and low-carb veg.',
+    avoid:'Same as Activation: no oil, fat, grains, starch, dairy or sugar.',
+    targets:['{VLCD} kcal a day','16/8 fasting','Water 2.5 L','No serum'],
+    expect:'You are easing out, letting your body get comfortable where it is now. Nearly through the strict block.'},
+  consolidation:{sub:'Locking the new set-point',
+    change:'More food, fats come back, calories climb back up. But this is not a finish line.',
+    eat:'All protein, low-carb veg, healthy fats, full-fat dairy, berries.',
+    avoid:'Sugar, grains, starch and most fruit.',
+    targets:['Calories ramp up over 4 days to about 90% of maintenance, then hold','Carbs under 40 g a day, from veg','Protein 1.2 to 1.5 g per kg','Weight held within 500 g'],
+    expect:'You can eat more, but you are not out of the woods. Keep sugar and carbs out or the weight rebounds fast. Hold the line and the new set-point locks in. Energy returns and weight settles.'}
+};
+function phaseTargets(key){return (PHASE_INFO[key].targets||[]).map(t=>t.replace('{VLCD}',vlcdBand()));}
+/* inner content for both the tap sheet and the auto intro (prefix picks the class set) */
+function phaseCardHTML(key,p){
+  const info=PHASE_INFO[key];if(!info)return'';
+  const tg=phaseTargets(key).map(t=>`<li>${esc(t)}</li>`).join('');
+  return `<div class="${p}change">${esc(info.change)}</div>`+
+    `<div class="${p}sec"><div class="${p}h">Eat</div><div class="${p}eat">${esc(info.eat)}</div></div>`+
+    `<div class="${p}sec"><div class="${p}h">Avoid</div><div class="${p}avoid">${esc(info.avoid)}</div></div>`+
+    `<div class="${p}sec"><div class="${p}h">Targets</div><ul class="${p}targets">${tg}</ul></div>`+
+    `<div class="${p}expect">${esc(info.expect)}</div>`;
+}
+/* day ranges per phase, for the program overview */
+function phaseRanges(){
+  const L=phaseLens();
+  const a=L.loading, b=a+L.activation, c=b+L.transition, d=c+L.consolidation;
+  return [
+    {key:'loading',name:'Loading',color:'#8a8a8a',lo:1,hi:a},
+    {key:'activation',name:'Activation',color:'#B08D2E',lo:a+1,hi:b},
+    {key:'transition',name:'Transition',color:'#B08D2E',lo:b+1,hi:c},
+    {key:'consolidation',name:'Stabilization',color:'#4a463f',lo:c+1,hi:d}
+  ];
+}
+function phaseOverviewHTML(curKey){
+  const rows=phaseRanges().map(r=>`<div class="ph-ov-row${r.key===curKey?' cur':''}"><span class="ph-ov-dot" style="background:${r.color}"></span><span class="ph-ov-name">${r.name}</span><span class="ph-ov-days">Day ${r.lo}–${r.hi}</span></div>`).join('');
+  return `<div class="ph-ov-h">The full journey</div>${rows}`;
+}
+function openPhaseSheet(){
+  const ph=phaseFor(currentDay), key=ph.key, info=PHASE_INFO[key];if(!info)return;
+  g('phTitle').textContent=ph.name;
+  g('phBody').innerHTML=`<div class="ph-sub">${esc(info.sub)}</div>`+phaseCardHTML(key,'ph-');
+  g('phOverview').innerHTML=phaseOverviewHTML(key);
+  g('phScrim').classList.add('show');g('phSheet').classList.add('show');
+}
+function closePhaseSheet(){g('phScrim').classList.remove('show');g('phSheet').classList.remove('show');}
+/* auto full-screen intro when today crosses into a phase not seen yet */
+function showPhaseIntro(key){
+  const ph=phaseFor(currentDay),info=PHASE_INFO[key];if(!info)return;
+  g('piBadge').textContent=(key==='loading')?'Welcome':'New phase';
+  g('piBody').innerHTML=`<div class="pi-title">${esc(ph.name)}</div><div class="pi-sub">${esc(info.sub)}</div>`+phaseCardHTML(key,'pi-');
+  g('phaseIntro').classList.remove('hidden');
+}
+function maybePhaseIntro(){
+  if(!profile)return;
+  if(!g('onboard').classList.contains('hidden'))return;   // not during onboarding
+  const td=todayDayNum();if(!td||currentDay!==td)return;   // only on today
+  const key=phaseFor(td).key;
+  if(localStorage.getItem(K('seenPhase'))===key)return;    // already shown for this phase
+  localStorage.setItem(K('seenPhase'),key);
+  showPhaseIntro(key);
 }
 /* ---- stabilization (consolidation) helpers ---- */
 function consolStartDay(){const L=phaseLens();return L.loading+L.activation+L.transition+1;}
@@ -1005,7 +1137,7 @@ function render(){
   maybeWriteStabTarget();
   g('whoName').textContent=profile.name;
   {const dt=dayToDate(currentDay);g('dNum').innerHTML='Day '+currentDay+(dt?`<span class="dday-date">${fmtShort(dt)}</span>`:'');}
-  g('dPhase').innerHTML=`<span class="phase-dot" style="background:${ph.color}"></span>${ph.name}${fastingSuffix(ph)}`;
+  g('dPhase').innerHTML=`<span class="phase-dot" style="background:${ph.color}"></span>${ph.name}${fastingSuffix(ph)}<span class="ph-i">i</span>`;
   g('prevDay').disabled=currentDay<=1;g('nextDay').disabled=currentDay>=TOTAL_DAYS;
   {const td=todayDayNum();g('todayBtn').classList.toggle('hidden',!td||currentDay===td);}
   const t=totals();
@@ -1459,7 +1591,7 @@ function trendsPhaseStrip(d0,dN){
 function phaseTargetLabel(dayNum){
   const ph=phaseFor(dayNum);
   if(ph.key==='loading')return 'Loading, eat high';
-  if(ph.key==='activation'||ph.key==='transition')return ph.name+', target 400-650';
+  if(ph.key==='activation'||ph.key==='transition')return ph.name+', target '+CAL_LOW_AMBER+'-'+CAL_HIGH_AMBER;
   return 'Stabilization, target ~'+stabTargetKcal(dayNum)+' kcal';
 }
 function collectMacroDays(){
@@ -1518,7 +1650,7 @@ function macroBars(range){
     const k=phaseFor(dayNum).key;
     if(k==='loading'){const t=phaseTargetKcal(dayNum)||1;return [t*0.9,t];}
     if(k==='consolidation'){return [stabTargetKcal(dayNum), stabTDEE()];}
-    return [400,650];                        // activation / transition
+    return [CAL_LOW_AMBER,CAL_HIGH_AMBER];    // activation / transition
   };
   const fracFor=(dayNum,v)=>{const[lo,hi]=okKcal(dayNum);const s=(v-lo)/((hi-lo)||1);return Math.max(0.04,Math.min(0.97,BAND_LO+s*(BAND_HI-BAND_LO)));};
   const yBot=(H-padB)-BAND_LO*barH, yTop=(H-padB)-BAND_HI*barH;
@@ -2239,6 +2371,9 @@ function wire(){
   g('shopScrim')&&(g('shopScrim').onclick=closeShop);
   g('fcInput').oninput=()=>{g('fcResult').innerHTML='';};
   g('fcInput').onkeydown=e=>{if(e.key==='Enter')doFoodCheck();};
+  g('dPhase').onclick=openPhaseSheet;
+  g('phClose').onclick=closePhaseSheet;g('phScrim').onclick=closePhaseSheet;
+  g('piGo').onclick=()=>g('phaseIntro').classList.add('hidden');
 }
 function boot(){
   g('top').classList.remove('hidden');g('scrollArea').classList.remove('hidden');g('nav').classList.remove('hidden');
@@ -2247,8 +2382,9 @@ function boot(){
   const td=todayDayNum();bootUsedToday=!!td;
   currentDay=td||+(localStorage.getItem(K('lastDay'))||1);
   loadDay();
+  maybePhaseIntro();
   fetchProfile();hydrateFromBackend();
-  setInterval(()=>{const ph=phaseFor(currentDay);if(ph.key==='activation'||ph.key==='transition')g('dPhase').innerHTML=`<span class="phase-dot" style="background:${ph.color}"></span>${ph.name}${fastingSuffix(ph)}`;},60000);
+  setInterval(()=>{const ph=phaseFor(currentDay);if(ph.key==='activation'||ph.key==='transition')g('dPhase').innerHTML=`<span class="phase-dot" style="background:${ph.color}"></span>${ph.name}${fastingSuffix(ph)}<span class="ph-i">i</span>`;},60000);
 }
 function hydrateFromBackend(){
   // fill any days missing on THIS device from the Sheet (gap-fill only, never clobbers local)
@@ -2277,6 +2413,7 @@ function fetchProfile(){
         // first-ever open defaulted before start_date was known: jump to today now
         const td=todayDayNum();
         if(!bootUsedToday&&td){bootUsedToday=true;currentDay=td;loadDay();}else{render();}
+        maybePhaseIntro();
       }
     }).catch(()=>{});
 }
@@ -2290,6 +2427,7 @@ window.addEventListener('popstate',()=>{
   if(g('shopSheet')&&g('shopSheet').classList.contains('show')){g('shopScrim').classList.remove('show');g('shopSheet').classList.remove('show');}
   if(g('mtSheet')&&g('mtSheet').classList.contains('show')){g('mtScrim').classList.remove('show');g('mtSheet').classList.remove('show');}
   if(g('fhSheet')&&g('fhSheet').classList.contains('show')){g('fhScrim').classList.remove('show');g('fhSheet').classList.remove('show');}
+  if(g('phSheet')&&g('phSheet').classList.contains('show')){g('phScrim').classList.remove('show');g('phSheet').classList.remove('show');}
 });
 loadProfile();
 if(profile){g('onboard').classList.add('hidden');boot();}else{initOnboard();}

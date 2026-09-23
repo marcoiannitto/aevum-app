@@ -57,6 +57,7 @@ svg{display:block;}
 .daybar .dnum{font-family:var(--serif);font-size:24px;font-weight:500;line-height:1;}
 .daybar .dnum .dday-date{display:block;font-family:var(--sans);font-size:11px;font-weight:500;color:var(--muted);margin-top:3px;letter-spacing:.01em;}
 .daybar .phase{margin-top:5px;font-size:12px;}
+.today-jump{margin-top:6px;font-size:11px;font-weight:600;color:var(--gold-deep);border:1px solid var(--gold);border-radius:12px;padding:3px 12px;background:var(--card);}
 .phase-dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:6px;vertical-align:middle;}
 .fast-tag{font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;margin-left:6px;vertical-align:middle;letter-spacing:.01em;}
 .fast-tag.eating{background:#eef4ec;color:#3f7a4a;}
@@ -504,7 +505,7 @@ textarea.notes::placeholder{color:var(--muted);}
   <div class="line1"><span class="who" id="whoName"></span><button class="fc-open" id="fcOpen" aria-label="Food guide and checker">Food</button></div>
   <div class="daybar" id="daybar">
     <button class="arrow" id="prevDay">‹</button>
-    <div class="center"><div class="dnum" id="dNum">Day 1</div><div class="phase" id="dPhase"></div></div>
+    <div class="center"><div class="dnum" id="dNum">Day 1</div><div class="phase" id="dPhase"></div><button class="today-jump hidden" id="todayBtn">Back to today</button></div>
     <button class="arrow" id="nextDay">›</button>
   </div>
   <div class="phasebar" id="phaseBar"></div>
@@ -848,7 +849,7 @@ textarea.notes::placeholder{color:var(--muted);}
             Fasting/eating window tag now shown in Transition (was Activation only).
             Egg whites count at half weight in the protein bucket (6 eggs ≈ 1 meal-portion, not 2).
    v1.0.0 — Baseline. */
-const APP_VERSION='v1.8.0';
+const APP_VERSION='v1.9.0';
 
 /* ===== BACKEND CONFIG — paste your /exec URL between the quotes ===== */
 const BACKEND_URL = 'https://script.google.com/macros/s/AKfycby0jEwPEqESOu_SK8qYqiJxR-1MeT8Ax6fq0fHPHC6gfihMpPW4uJBt1lGwmK_inQ4-/exec';
@@ -870,9 +871,8 @@ const MEAL_KCAL=250, MEAL_FAT=10, MEAL_CARB=15; // per-meal red flags
 const BUCKET_CAP=200; // daily food allowance per type: 2 meals x 100g
 const PROTEIN_PER_KG=1.2;                     // protein target multiplier (low end of the range)
 const PROTEIN_KG_HI=1.5;                       // protein target range high end
-const BMR_DROP=0.85;                            // ~15% BMR drop after prolonged VLCD
-const MAINT_CUT=0.90;                           // eat slightly under maintenance
-// stabilization calorie target = TDEE(target weight) * BMR_DROP * MAINT_CUT ( = 0.765 )
+const MAINT_CUT=0.90;                           // hold ~10% under TDEE (adaptive thermogenesis after VLCD)
+// stabilization calorie hold target = TDEE(target weight) * MAINT_CUT ( = 0.90 )
 const WATER_GOAL_GLASSES=10; // 2.5 L at 250 ml/glass
 const params=new URLSearchParams(location.search);
 const PID=(params.get('id')||'me').toLowerCase().replace(/[^a-z0-9_-]/g,'');
@@ -910,11 +910,11 @@ function recipePhaseMatch(recipe,key){
 }
 /* ---- stabilization (consolidation) helpers ---- */
 function consolStartDay(){const L=phaseLens();return L.loading+L.activation+L.transition+1;}
-/* calorie taper: S-curve over 6 days from 600 to need*0.9, then hold.
-   Day1 +15% of gap, D2 +35%, D3 +55%, D4 +75%, D5 +90%, D6+ 100%. */
-const TAPER_PCT=[0,0.15,0.35,0.55,0.75,0.90,1.0]; // index by day-into-stabilization (1-based)
-/* stabilization calorie target: TDEE recomputed at the hold target weight,
-   * BMR_DROP (0.85) * MAINT_CUT (0.90) = 0.765, reached via a 6-day S-curve from 600. */
+/* calorie ramp: front-loaded over 4 days from 600 to TDEE*0.9, then hold.
+   Day1 +35% of gap, D2 +60%, D3 +80%, D4+ 100% (front-loaded, fats make day 1 easy). */
+const TAPER_PCT=[0,0.35,0.60,0.80,1.0]; // index by day-into-stabilization (1-based)
+/* stabilization calorie hold target: TDEE recomputed at the hold target weight,
+   * MAINT_CUT (0.90) = 0.90 of TDEE, reached via a 4-day front-loaded ramp from 600. */
 function stabTDEE(){
   const tw=stabTargetWeight()||(profile&&profile.weight)||0;
   if(tw>0&&profile&&profile.height&&profile.age&&profile.act)
@@ -922,9 +922,9 @@ function stabTDEE(){
   return (profile&&profile.need)?profile.need:2000;
 }
 function stabTargetKcal(dayNum){
-  const start=600, target=Math.round(stabTDEE()*BMR_DROP*MAINT_CUT), gap=target-start;
+  const start=600, target=Math.round(stabTDEE()*MAINT_CUT), gap=target-start;
   const dayIn=dayNum-consolStartDay()+1;      // 1-based day within stabilization
-  const f=dayIn<=0?0:dayIn>=6?1:TAPER_PCT[dayIn];
+  const f=dayIn<=0?0:dayIn>=4?1:TAPER_PCT[dayIn];
   return Math.round(start+gap*f);
 }
 /* weight hold target: Sheet override if set, else avg of the 3 Transition weigh-ins. */
@@ -962,7 +962,7 @@ function stabWeightClass(w){
   return gr<=350?'ok':gr<=500?'warn':'over';
 }
 
-let profile=null,currentDay=1,day=null,photoData=null,mealItems=[];
+let profile=null,currentDay=1,day=null,photoData=null,mealItems=[],bootUsedToday=false;
 
 /* ---- profile ---- */
 function loadProfile(){const r=localStorage.getItem(K('profile'));profile=r?JSON.parse(r):null;}
@@ -1007,6 +1007,7 @@ function render(){
   {const dt=dayToDate(currentDay);g('dNum').innerHTML='Day '+currentDay+(dt?`<span class="dday-date">${fmtShort(dt)}</span>`:'');}
   g('dPhase').innerHTML=`<span class="phase-dot" style="background:${ph.color}"></span>${ph.name}${fastingSuffix(ph)}`;
   g('prevDay').disabled=currentDay<=1;g('nextDay').disabled=currentDay>=TOTAL_DAYS;
+  {const td=todayDayNum();g('todayBtn').classList.toggle('hidden',!td||currentDay===td);}
   const t=totals();
   renderCalories(ph,t);renderGates(ph,t);renderBuckets(ph);renderTimeline();renderPhaseBar();
   // serum block: only in Loading + Activation
@@ -1099,8 +1100,10 @@ function renderCalories(ph,t){
   wrap.classList.add('hidden');prot.classList.add('hidden');g('calUnit').textContent='kcal today';
   if(ph.key==='consolidation'){
     wrap.classList.remove('hidden');
-    const target=stabTargetKcal(currentDay)+t.exKcal, pct=target>0?t.kcal/target*100:0;
-    bar.className='calbar'+((pct>110||pct<70)?' over':(pct>98||pct<80)?' warn':'');
+    const target=stabTargetKcal(currentDay)+t.exKcal, ceil=stabTDEE()+t.exKcal, pct=target>0?t.kcal/target*100:0;
+    // green from ramp target up to TDEE; amber just outside; red beyond
+    const cls=(t.kcal>=target&&t.kcal<=ceil)?'':((t.kcal>=target*0.9&&t.kcal<=ceil*1.05)?' warn':' over');
+    bar.className='calbar'+cls;
     bar.firstElementChild.style.width=Math.min(100,pct)+'%';
     g('calBarLeft').textContent=`${t.kcal.toLocaleString()} / ${target.toLocaleString()} kcal`;
     g('calBarRight').textContent=t.exKcal>0?`+${t.exKcal} movement`:'';
@@ -1180,8 +1183,8 @@ function renderGates(ph,t){
     const wref=(ph.key==='consolidation')?(stabTargetWeight()||profile.weight):profile.weight;
     if(ph.key==='consolidation' && wref){
       const w=wref, lo=Math.round(w*PROTEIN_PER_KG), hi=Math.round(w*PROTEIN_KG_HI), ratio=t.protein/w;
-      // green 1.2–1.5 · amber 1.0–1.19 and >1.5–1.9 · red <1.0 and >1.9 (on target weight)
-      const cls=ratio<1.0?'over':ratio<1.2?'warn':ratio<=1.5?'ok':ratio<=1.9?'warn':'over';
+      // under: red <1.0, amber 1.0–1.19. At/over target: green 1.2 up to 1.5×hi (2.25), amber beyond, never red (protein is protective).
+      const cls=ratio<1.0?'over':ratio<1.2?'warn':ratio<=PROTEIN_KG_HI*1.5?'ok':'warn';
       const pct=Math.min(100,hi?t.protein/hi*100:0);
       el.className='gate '+(cls==='ok'?'prot-ok':cls);
       el.innerHTML=`<div class="g-top"><span class="g-name">Protein</span><span class="g-val num">${t.protein}<em> /${lo}–${hi}g</em></span></div><div class="g-bar"><span style="width:${pct}%"></span></div>`;
@@ -1489,8 +1492,11 @@ function dayCalState(dayNum,k){
   const tgt=phaseTargetKcal(dayNum);if(!tgt)return'ok';
   const pct=k/tgt*100;
   if(ph==='loading')return k>=tgt*0.9?'ok':(k>=tgt*0.6?'warn':'over'); // want high
-  // consolidation: near TDEE. ok 80-98%, amber 70-80/98-110, red <70 or >110
-  if(pct>110||pct<70)return'over';if(pct>98||pct<80)return'warn';return'ok';
+  // consolidation: green from that day's ramp target up to TDEE; amber just outside; red beyond.
+  const TD=stabTDEE();
+  if(k>=tgt&&k<=TD)return'ok';
+  if(k>=tgt*0.9&&k<=TD*1.05)return'warn';
+  return'over';
 }
 function macroBars(range){
   const data=collectMacroDays();
@@ -1511,7 +1517,7 @@ function macroBars(range){
   const okKcal=dayNum=>{
     const k=phaseFor(dayNum).key;
     if(k==='loading'){const t=phaseTargetKcal(dayNum)||1;return [t*0.9,t];}
-    if(k==='consolidation'){const n=stabTargetKcal(dayNum);return [n*0.80,n*0.98];}
+    if(k==='consolidation'){return [stabTargetKcal(dayNum), stabTDEE()];}
     return [400,650];                        // activation / transition
   };
   const fracFor=(dayNum,v)=>{const[lo,hi]=okKcal(dayNum);const s=(v-lo)/((hi-lo)||1);return Math.max(0.04,Math.min(0.97,BAND_LO+s*(BAND_HI-BAND_LO)));};
@@ -1925,9 +1931,19 @@ function planDaysAvailable(){
   Object.keys(planEdit).forEach(d=>days.add(+d));
   return [...days].filter(d=>d>0).sort((a,b)=>a-b);
 }
+/* start date: backend start_date if synced, else the local onboarding date (start). */
+function startDateStr(){return (profile&&(profile.start_date||profile.start))||'';}
+/* today's program day from start date, clamped to 1..TOTAL_DAYS; null if no start date. */
+function todayDayNum(){
+  const sd=startDateStr();if(!sd)return null;
+  const s=new Date(sd+'T00:00:00');if(isNaN(s))return null;
+  const d=Math.floor((Date.now()-s.getTime())/86400000)+1;
+  const total=TOTAL_DAYS||totalDays();
+  return Math.max(1,Math.min(total,d));
+}
 function dayToDate(dayNum){
-  if(!profile||!profile.start_date)return null;
-  const s=new Date(profile.start_date+'T00:00:00'); if(isNaN(s))return null;
+  const sd=startDateStr();if(!sd)return null;
+  const s=new Date(sd+'T00:00:00'); if(isNaN(s))return null;
   const dt=new Date(s.getTime()+(dayNum-1)*86400000);
   return dt;
 }
@@ -1935,7 +1951,7 @@ function fmtShort(dt){return dt.toLocaleDateString(undefined,{weekday:'short',da
 function renderPlan(){
   const total=TOTAL_DAYS||totalDays();
   let todayDay=null;
-  if(profile&&profile.start_date){const s=new Date(profile.start_date+'T00:00:00');if(!isNaN(s))todayDay=Math.floor((Date.now()-s.getTime())/86400000)+1;}
+  {const sd=startDateStr();if(sd){const s=new Date(sd+'T00:00:00');if(!isNaN(s))todayDay=Math.floor((Date.now()-s.getTime())/86400000)+1;}}
   if(planDay<1||planDay>total){planDay=(todayDay&&todayDay>=1&&todayDay<=total)?todayDay:1;}
   // full-program calendar grid, coloured by phase
   const db=g('planDays');db.className='plan-cal';db.innerHTML='';
@@ -2183,6 +2199,7 @@ function closeRecipe(){
 function wire(){
   g('prevDay').onclick=()=>{saveDay(true);currentDay=Math.max(1,currentDay-1);loadDay();scrollTo(0,0);};
   g('nextDay').onclick=()=>{saveDay(true);currentDay=Math.min(TOTAL_DAYS,currentDay+1);loadDay();scrollTo(0,0);};
+  g('todayBtn').onclick=()=>{const td=todayDayNum();if(!td)return;saveDay(true);currentDay=td;loadDay();scrollTo(0,0);};
   g('fWeight').oninput=e=>day.weight=e.target.value;g('fWeight').onblur=()=>saveDay(true);
   g('fNotes').oninput=e=>day.notes=e.target.value;g('fNotes').onblur=()=>saveDay(true);
   g('serumAM').onclick=()=>{day.serumAM=!day.serumAM;saveDay(true);render();};
@@ -2225,7 +2242,11 @@ function wire(){
 }
 function boot(){
   g('top').classList.remove('hidden');g('scrollArea').classList.remove('hidden');g('nav').classList.remove('hidden');
-  wire();applyPhaseConfig();currentDay=+(localStorage.getItem(K('lastDay'))||1);loadDay();
+  wire();applyPhaseConfig();
+  // open on today: cached start_date → todayDay, else last viewed, else day 1
+  const td=todayDayNum();bootUsedToday=!!td;
+  currentDay=td||+(localStorage.getItem(K('lastDay'))||1);
+  loadDay();
   fetchProfile();hydrateFromBackend();
   setInterval(()=>{const ph=phaseFor(currentDay);if(ph.key==='activation'||ph.key==='transition')g('dPhase').innerHTML=`<span class="phase-dot" style="background:${ph.color}"></span>${ph.name}${fastingSuffix(ph)}`;},60000);
 }
@@ -2252,7 +2273,10 @@ function fetchProfile(){
       if(d.profile){
         profile=Object.assign({},profile,{target_kg:d.profile.target_kg,start_weight:d.profile.start_weight,start_date:d.profile.start_date,activation_days:d.profile.activation_days,stab_target_weight:d.profile.stab_target_weight});
         localStorage.setItem(K('profile'),JSON.stringify(profile));
-        applyPhaseConfig();render();
+        applyPhaseConfig();
+        // first-ever open defaulted before start_date was known: jump to today now
+        const td=todayDayNum();
+        if(!bootUsedToday&&td){bootUsedToday=true;currentDay=td;loadDay();}else{render();}
       }
     }).catch(()=>{});
 }

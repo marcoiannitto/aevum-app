@@ -903,7 +903,7 @@ textarea.notes::placeholder{color:var(--muted);}
             Fasting/eating window tag now shown in Transition (was Activation only).
             Egg whites count at half weight in the protein bucket (6 eggs ≈ 1 meal-portion, not 2).
    v1.0.0 — Baseline. */
-const APP_VERSION='v1.12.0';
+const APP_VERSION='v1.13.0';
 
 /* ===== BACKEND CONFIG — paste your /exec URL between the quotes ===== */
 const BACKEND_URL = 'https://script.google.com/macros/s/AKfycby0jEwPEqESOu_SK8qYqiJxR-1MeT8Ax6fq0fHPHC6gfihMpPW4uJBt1lGwmK_inQ4-/exec';
@@ -1646,19 +1646,26 @@ function macroBars(range){
   // works across every phase. The ok band (in kcal) is pinned to a fixed slice of the
   // chart height; a bar landing inside the band = on target for that day's phase.
   const barH=H-padT-padB;
-  // Bars are PROPORTIONAL: height = calories / that day's target, so half the target = half height.
-  // The target line (ratio 1.0) sits at TGT_Y of the bar area; the ok band runs from it up to hi/lo.
-  const TGT_Y=0.60;                          // height of the "on target" line (fraction of barH)
+  // PHASE-CONSISTENT normalization. Each day has its own acceptable band [lo,hi] (kcal), which differs
+  // by phase. We map EVERY day's band onto ONE fixed strip [Y_LO,Y_HI], so the drawn band is identical
+  // across phases. A bar's height is then its position relative to ITS OWN band:
+  //   below band  -> proportional to value/lo (how far under target that day)
+  //   inside band -> interpolated lo..hi across the strip
+  //   above band  -> above the strip, scaled by how far over hi
+  const Y_LO=0.50, Y_HI=0.64;                 // the acceptable band, fixed for every day
   const okKcal=dayNum=>{
     const k=phaseFor(dayNum).key;
     if(k==='loading'){const t=phaseTargetKcal(dayNum)||1;return [t*0.9,t];}
     if(k==='consolidation'){return [stabTargetKcal(dayNum), stabTDEE()];}
     return [CAL_LOW_AMBER,CAL_HIGH_AMBER];    // activation / transition
   };
-  const fracFor=(dayNum,v)=>{const lo=okKcal(dayNum)[0]||1;return Math.max(0.02,Math.min(0.97,(v/lo)*TGT_Y));};
-  // flat band drawn from the range end's target (lo) up to its hi
-  const [rlo,rhi]=okKcal(dN);
-  const yBot=(H-padB)-TGT_Y*barH, yTop=(H-padB)-Math.min(0.97,(rhi/(rlo||1))*TGT_Y)*barH;
+  const fracFor=(dayNum,v)=>{
+    const [lo,hi]=okKcal(dayNum); const L=lo||1, Hh=(hi&&hi>L)?hi:L*1.001;
+    if(v<=L) return Math.max(0.02,(v/L)*Y_LO);                          // below band: ratio to target
+    if(v<=Hh) return Y_LO+(v-L)/(Hh-L)*(Y_HI-Y_LO);                     // inside band
+    return Math.min(0.97, Y_HI+(v-Hh)/Hh*(Y_HI-Y_LO)*2);               // above band
+  };
+  const yBot=(H-padB)-Y_LO*barH, yTop=(H-padB)-Y_HI*barH;   // one flat band, same for every day/phase
   let grid='';
   for(let dd=d0;dd<=dN;dd++){const x=xs(dd).toFixed(1);grid+=`<line x1="${x}" y1="${padT}" x2="${x}" y2="${H-padB}" stroke="#EBE5D8" stroke-width="1" opacity="0.7"/>`;}
   const band=`<rect x="${padL}" y="${yTop.toFixed(1)}" width="${(W-padL-padR).toFixed(1)}" height="${(yBot-yTop).toFixed(1)}" fill="#B08D2E" opacity="0.10"/>`+

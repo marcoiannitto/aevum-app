@@ -903,7 +903,7 @@ textarea.notes::placeholder{color:var(--muted);}
             Fasting/eating window tag now shown in Transition (was Activation only).
             Egg whites count at half weight in the protein bucket (6 eggs ≈ 1 meal-portion, not 2).
    v1.0.0 — Baseline. */
-const APP_VERSION='v1.10.0';
+const APP_VERSION='v1.12.0';
 
 /* ===== BACKEND CONFIG — paste your /exec URL between the quotes ===== */
 const BACKEND_URL = 'https://script.google.com/macros/s/AKfycby0jEwPEqESOu_SK8qYqiJxR-1MeT8Ax6fq0fHPHC6gfihMpPW4uJBt1lGwmK_inQ4-/exec';
@@ -1232,13 +1232,14 @@ function renderCalories(ph,t){
   wrap.classList.add('hidden');prot.classList.add('hidden');g('calUnit').textContent='kcal today';
   if(ph.key==='consolidation'){
     wrap.classList.remove('hidden');
-    const target=stabTargetKcal(currentDay)+t.exKcal, ceil=stabTDEE()+t.exKcal, pct=target>0?t.kcal/target*100:0;
+    // Exercise is a tracker only, it does NOT move the target (activity multiplier already averages it in).
+    const target=stabTargetKcal(currentDay), ceil=stabTDEE(), pct=target>0?t.kcal/target*100:0;
     // green from ramp target up to TDEE; amber just outside; red beyond
     const cls=(t.kcal>=target&&t.kcal<=ceil)?'':((t.kcal>=target*0.9&&t.kcal<=ceil*1.05)?' warn':' over');
     bar.className='calbar'+cls;
     bar.firstElementChild.style.width=Math.min(100,pct)+'%';
     g('calBarLeft').textContent=`${t.kcal.toLocaleString()} / ${target.toLocaleString()} kcal`;
-    g('calBarRight').textContent=t.exKcal>0?`+${t.exKcal} movement`:'';
+    g('calBarRight').textContent=t.exKcal>0?`${t.exKcal} kcal exercise`:'';
   }
   // Activation/Transition: buckets replace the protocol line (see renderBuckets)
 }
@@ -1645,15 +1646,19 @@ function macroBars(range){
   // works across every phase. The ok band (in kcal) is pinned to a fixed slice of the
   // chart height; a bar landing inside the band = on target for that day's phase.
   const barH=H-padT-padB;
-  const BAND_LO=0.34, BAND_HI=0.60;         // fraction of barH the target band occupies
+  // Bars are PROPORTIONAL: height = calories / that day's target, so half the target = half height.
+  // The target line (ratio 1.0) sits at TGT_Y of the bar area; the ok band runs from it up to hi/lo.
+  const TGT_Y=0.60;                          // height of the "on target" line (fraction of barH)
   const okKcal=dayNum=>{
     const k=phaseFor(dayNum).key;
     if(k==='loading'){const t=phaseTargetKcal(dayNum)||1;return [t*0.9,t];}
     if(k==='consolidation'){return [stabTargetKcal(dayNum), stabTDEE()];}
     return [CAL_LOW_AMBER,CAL_HIGH_AMBER];    // activation / transition
   };
-  const fracFor=(dayNum,v)=>{const[lo,hi]=okKcal(dayNum);const s=(v-lo)/((hi-lo)||1);return Math.max(0.04,Math.min(0.97,BAND_LO+s*(BAND_HI-BAND_LO)));};
-  const yBot=(H-padB)-BAND_LO*barH, yTop=(H-padB)-BAND_HI*barH;
+  const fracFor=(dayNum,v)=>{const lo=okKcal(dayNum)[0]||1;return Math.max(0.02,Math.min(0.97,(v/lo)*TGT_Y));};
+  // flat band drawn from the range end's target (lo) up to its hi
+  const [rlo,rhi]=okKcal(dN);
+  const yBot=(H-padB)-TGT_Y*barH, yTop=(H-padB)-Math.min(0.97,(rhi/(rlo||1))*TGT_Y)*barH;
   let grid='';
   for(let dd=d0;dd<=dN;dd++){const x=xs(dd).toFixed(1);grid+=`<line x1="${x}" y1="${padT}" x2="${x}" y2="${H-padB}" stroke="#EBE5D8" stroke-width="1" opacity="0.7"/>`;}
   const band=`<rect x="${padL}" y="${yTop.toFixed(1)}" width="${(W-padL-padR).toFixed(1)}" height="${(yBot-yTop).toFixed(1)}" fill="#B08D2E" opacity="0.10"/>`+

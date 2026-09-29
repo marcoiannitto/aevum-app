@@ -845,6 +845,15 @@ textarea.notes::placeholder{color:var(--muted);}
   </div>
 </div>
 
+<!-- DAILY BRIEFING (item 30) -->
+<div class="phase-intro hidden" id="briefOverlay">
+  <div class="pi-inner">
+    <div class="pi-badge" id="brBadge">Today</div>
+    <div id="brBody"></div>
+    <button class="pi-go" id="brGo">Got it</button>
+  </div>
+</div>
+
 <!-- MEAL TIME EDIT SHEET -->
 <div class="scrim" id="mtScrim"></div>
 <div class="sheet" id="mtSheet">
@@ -903,7 +912,7 @@ textarea.notes::placeholder{color:var(--muted);}
             Fasting/eating window tag now shown in Transition (was Activation only).
             Egg whites count at half weight in the protein bucket (6 eggs ≈ 1 meal-portion, not 2).
    v1.0.0 — Baseline. */
-const APP_VERSION='v1.14.0';
+const APP_VERSION='v1.15.0';
 
 /* ===== BACKEND CONFIG — paste your /exec URL between the quotes ===== */
 const BACKEND_URL = 'https://script.google.com/macros/s/AKfycby0jEwPEqESOu_SK8qYqiJxR-1MeT8Ax6fq0fHPHC6gfihMpPW4uJBt1lGwmK_inQ4-/exec';
@@ -1054,6 +1063,84 @@ function maybePhaseIntro(){
   localStorage.setItem(K('seenPhase'),key);
   showPhaseIntro(key);
 }
+
+/* ---- daily briefing (item 30): Sheet-driven messages, shown once each new day ---- */
+let MESSAGES=[], lastKnownToday=null;
+function loadMessages(){
+  const c=localStorage.getItem('aevum_messages_cache'); if(c){try{MESSAGES=JSON.parse(c);}catch(e){}}
+  if(!BACKEND_URL)return;
+  postJSON(BACKEND_URL,{action:'messages'},'text/plain;charset=utf-8')
+    .then(d=>{if(d&&Array.isArray(d.messages)){MESSAGES=d.messages;localStorage.setItem('aevum_messages_cache',JSON.stringify(MESSAGES));maybeDailyBrief();}})
+    .catch(()=>{});
+}
+function dayData(n){const r=localStorage.getItem(K('day_'+n));if(!r)return null;try{return JSON.parse(r);}catch(e){return null;}}
+function dayTotalsOf(o){
+  if(!o)return null;
+  const s=k=>(o.meals||[]).reduce((a,m)=>a+(+m[k]||0),0);
+  const items=(o.meals||[]).flatMap(m=>m.items||[]);
+  return {kcal:Math.round(s('kcal')),protein:Math.round(s('protein')),alcohol:items.some(it=>it&&it.type==='alcohol'),weight:parseFloat(o.weight)||null};
+}
+function phaseMatchList(field,phKey){
+  const aiKey=(phKey==='consolidation')?'stabilization':(phKey==='transition')?'activation':phKey;
+  const tags=String(field).toLowerCase().split(/[,/|]/).map(s=>s.trim()).filter(Boolean);
+  return tags.includes(phKey)||tags.includes(aiKey)||tags.includes('all');
+}
+/* build the set of triggers that fired based on YESTERDAY's data */
+function briefSignals(td){
+  const y=dayTotalsOf(dayData(td-1)), yb=dayTotalsOf(dayData(td-2));
+  const sig={always:true};
+  if(!y)return sig;
+  if(y.alcohol)sig.alcohol_yesterday=true;
+  if(y.weight!=null&&yb&&yb.weight!=null){const d=y.weight-yb.weight; if(d<=-0.1&&d>=-0.4)sig.weight_down_small=true;}
+  const ph=phaseFor(td-1).key;
+  if(ph==='consolidation'){const t=stabTargetWeight(); if(t!=null&&y.weight!=null&&Math.abs(y.weight-t)<=0.5)sig.holding_steady=true;}
+  if(!y.alcohol){
+    let ok=false;
+    if(ph==='consolidation'){const tgt=stabTargetKcal(td-1),TD=stabTDEE(); ok=(y.kcal>=tgt*0.9&&y.kcal<=TD*1.05);}
+    else if(ph==='activation'||ph==='transition'){ok=(y.kcal>=CAL_LOW_AMBER&&y.kcal<=CAL_HIGH_AMBER);}
+    if(ok)sig.great_day_yesterday=true;
+  }
+  return sig;
+}
+function fillMsg(s,y){
+  return String(s||'')
+    .replace(/\{kcal\}/g, y&&y.kcal!=null?y.kcal:'')
+    .replace(/\{name\}/g, (profile&&profile.name)||'');
+}
+function maybeDailyBrief(){
+  if(!profile)return;
+  if(!g('onboard').classList.contains('hidden'))return;
+  if(!g('phaseIntro').classList.contains('hidden'))return;   // don't stack on the phase intro; show next open
+  const td=todayDayNum(); if(!td||currentDay!==td)return;      // only when viewing today
+  const seenKey='seenBrief_'+effTodayISO();
+  if(localStorage.getItem(K(seenKey)))return;
+  if(!MESSAGES.length)return;
+  const sig=briefSignals(td), ph=phaseFor(td).key;
+  const cands=MESSAGES.filter(m=>{
+    const on=String(m.enabled==null?'yes':m.enabled).toLowerCase(); if(on==='no'||on==='false'||on==='0')return false;
+    if(!m.trigger||!sig[m.trigger])return false;
+    if(m.phase&&String(m.phase).trim()!==''&&!phaseMatchList(m.phase,ph))return false;
+    return true;
+  });
+  if(!cands.length)return;
+  cands.sort((a,b)=>(+b.priority||0)-(+a.priority||0));
+  const m=cands[0], y=dayTotalsOf(dayData(td-1));
+  localStorage.setItem(K(seenKey),'1');
+  g('brBadge').textContent=m.badge||'Today';
+  g('brBody').innerHTML=`<div class="pi-title">${esc(fillMsg(m.title,y))}</div><div class="pi-change">${esc(fillMsg(m.body,y))}</div>`;
+  g('briefOverlay').classList.remove('hidden');
+}
+/* roll the app to the new program day at 5am even if left open; then run the day's pop-ups */
+function checkRollover(){
+  const td=todayDayNum(); if(!td)return;
+  if(lastKnownToday==null){lastKnownToday=td;return;}
+  if(td!==lastKnownToday){
+    const wasOnToday=(currentDay===lastKnownToday);
+    lastKnownToday=td;
+    if(wasOnToday){saveDay(true);currentDay=td;loadDay();}else{render();}
+    maybePhaseIntro();maybeDailyBrief();
+  }
+}
 /* ---- stabilization (consolidation) helpers ---- */
 function consolStartDay(){const L=phaseLens();return L.loading+L.activation+L.transition+1;}
 /* calorie ramp: front-loaded over 4 days from 600 to TDEE*0.9, then hold.
@@ -1132,7 +1219,7 @@ function initOnboard(){
 function blankDay(){return{meals:[],water:0,weight:'',waist:'',serumAM:false,serumPM:false,exercise:[],energy:0,hunger:0,sleep:0,notes:'',date:''};}
 function loadDay(){const r=localStorage.getItem(K('day_'+currentDay));day=r?JSON.parse(r):blankDay();render();}
 function saveDay(silent){
-  day.date=day.date||new Date().toISOString().slice(0,10);
+  day.date=day.date||effTodayISO();
   const t=totals();const rec={...day,...t};
   localStorage.setItem(K('day_'+currentDay),JSON.stringify(day));
   localStorage.setItem(K('lastDay'),currentDay);
@@ -1140,8 +1227,8 @@ function saveDay(silent){
   syncDay(rec);
 }
 function totals(){
-  const s=k=>day.meals.reduce((a,m)=>a+(+m[k]||0),0);
-  const exKcal=day.exercise.reduce((a,e)=>a+(+e.kcal||0),0);
+  const s=k=>(day.meals||[]).reduce((a,m)=>a+(+m[k]||0),0);
+  const exKcal=(day.exercise||[]).reduce((a,e)=>a+(+e.kcal||0),0);
   return{kcal:Math.round(s('kcal')),protein:Math.round(s('protein')),fat:Math.round(s('fat')),carbs:Math.round(s('carbs')),exKcal};
 }
 
@@ -2086,11 +2173,17 @@ function planDaysAvailable(){
 }
 /* start date: backend start_date if synced, else the local onboarding date (start). */
 function startDateStr(){return (profile&&(profile.start_date||profile.start))||'';}
+/* The program day rolls over at 5am, not midnight: a meal eaten at 1am belongs to the
+   night before, so 00:00-04:59 still counts as the previous day. */
+const DAY_START_HOUR=5;
+function effNow(){return Date.now()-DAY_START_HOUR*3600000;}         // "effective" now, shifted back 5h
+// LOCAL date string of the effective now (not UTC), so the 5am boundary tracks the user's clock
+function effTodayISO(){const d=new Date(effNow());return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 /* today's program day from start date, clamped to 1..TOTAL_DAYS; null if no start date. */
 function todayDayNum(){
   const sd=startDateStr();if(!sd)return null;
   const s=new Date(sd+'T00:00:00');if(isNaN(s))return null;
-  const d=Math.floor((Date.now()-s.getTime())/86400000)+1;
+  const d=Math.floor((effNow()-s.getTime())/86400000)+1;
   const total=TOTAL_DAYS||totalDays();
   return Math.max(1,Math.min(total,d));
 }
@@ -2104,7 +2197,7 @@ function fmtShort(dt){return dt.toLocaleDateString(undefined,{weekday:'short',da
 function renderPlan(){
   const total=TOTAL_DAYS||totalDays();
   let todayDay=null;
-  {const sd=startDateStr();if(sd){const s=new Date(sd+'T00:00:00');if(!isNaN(s))todayDay=Math.floor((Date.now()-s.getTime())/86400000)+1;}}
+  {const sd=startDateStr();if(sd){const s=new Date(sd+'T00:00:00');if(!isNaN(s))todayDay=Math.floor((effNow()-s.getTime())/86400000)+1;}}
   if(planDay<1||planDay>total){planDay=(todayDay&&todayDay>=1&&todayDay<=total)?todayDay:1;}
   // full-program calendar grid, coloured by phase
   const db=g('planDays');db.className='plan-cal';db.innerHTML='';
@@ -2394,15 +2487,20 @@ function wire(){
   g('dPhase').onclick=openPhaseSheet;
   g('phClose').onclick=closePhaseSheet;g('phScrim').onclick=closePhaseSheet;
   g('piGo').onclick=()=>g('phaseIntro').classList.add('hidden');
+  g('brGo').onclick=()=>g('briefOverlay').classList.add('hidden');
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkRollover();});
+  window.addEventListener('focus',checkRollover);
+  setInterval(checkRollover,60000);
 }
 function boot(){
   g('top').classList.remove('hidden');g('scrollArea').classList.remove('hidden');g('nav').classList.remove('hidden');
   wire();applyPhaseConfig();
   // open on today: cached start_date → todayDay, else last viewed, else day 1
-  const td=todayDayNum();bootUsedToday=!!td;
+  const td=todayDayNum();bootUsedToday=!!td;lastKnownToday=td;
   currentDay=td||+(localStorage.getItem(K('lastDay'))||1);
   loadDay();
-  maybePhaseIntro();
+  loadMessages();
+  maybePhaseIntro();maybeDailyBrief();
   fetchProfile();hydrateFromBackend();
   setInterval(()=>{const ph=phaseFor(currentDay);if(ph.key==='activation'||ph.key==='transition')g('dPhase').innerHTML=`<span class="phase-dot" style="background:${ph.color}"></span>${ph.name}${fastingSuffix(ph)}<span class="ph-i">i</span>`;},60000);
 }

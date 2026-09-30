@@ -93,20 +93,56 @@ svg{display:block;}
 .pi-targets li::before{content:'';position:absolute;left:0;top:8px;width:6px;height:6px;border-radius:50%;background:var(--gold);}
 .pi-expect{font-size:15px;line-height:1.55;color:#e9e5dc;border-left:2px solid var(--gold);padding-left:14px;margin:4px 0 26px;}
 .pi-go{width:100%;padding:16px;background:var(--gold);color:var(--ink);border-radius:14px;font-size:16px;font-weight:600;}
-/* ===== FITNESS (Move) ===== */
-.fit-intro{font-size:13px;color:var(--muted);margin:2px 2px 14px;line-height:1.5;}
-.fit-card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;gap:12px;cursor:pointer;}
-.fit-card .fc-body{flex:1;min-width:0;}
-.fit-card .fc-name{font-size:15px;font-weight:500;margin-bottom:3px;}
-.fit-card .fc-meta{font-size:13px;color:var(--muted);}
-.fit-card .fc-arrow{color:var(--muted);font-size:20px;flex-shrink:0;}
+/* ===== FITNESS (Move) V2 ===== */
+.fit-intro{font-size:14px;color:var(--ink-soft);margin:2px 2px 16px;line-height:1.5;max-width:34ch;}
 .fit-empty{text-align:center;color:var(--muted);font-size:14px;padding:26px 10px;border:1px dashed var(--line);border-radius:16px;}
-.rt-meta{font-size:13px;color:var(--muted);margin:-6px 0 16px;}
-.rt-step{display:flex;align-items:center;gap:12px;padding:12px 2px;border-bottom:1px solid var(--line-soft);cursor:pointer;}
+.fit-pill{display:inline-flex;align-items:center;gap:5px;background:rgba(255,255,255,.18);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,.28);color:#fff;font-size:12px;font-weight:600;padding:5px 10px;border-radius:999px;}
+/* featured hero */
+.fit-feat{border-radius:20px;overflow:hidden;position:relative;background:#000;height:200px;cursor:pointer;box-shadow:0 8px 22px rgba(60,50,20,.15);margin-bottom:6px;}
+.fit-feat video{width:100%;height:100%;object-fit:cover;display:block;opacity:.92;}
+.fit-feat .ff-grad{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.05) 0%,rgba(0,0,0,.1) 45%,rgba(20,15,5,.78) 100%);}
+.fit-feat .ff-content{position:absolute;left:0;right:0;bottom:0;padding:16px;color:#fff;}
+.fit-feat .ff-tag{font-size:11px;letter-spacing:.12em;text-transform:uppercase;font-weight:700;opacity:.9;}
+.fit-feat .ff-title{font-family:var(--serif);font-size:23px;font-weight:500;margin:3px 0 8px;}
+.fit-feat .ff-meta{display:flex;gap:8px;}
+/* sections */
+.fit-sec{margin-top:22px;}
+.fit-sec-h{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px;}
+.fit-sec-t{font-family:var(--serif);font-size:18px;font-weight:500;}
+.fit-sec-sub{font-size:12px;color:var(--muted);}
+/* daily rows */
+.fit-row{display:flex;gap:13px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:10px;margin-bottom:11px;cursor:pointer;}
+.fit-thumb{width:74px;height:74px;border-radius:12px;overflow:hidden;background:#eee7d8;flex-shrink:0;position:relative;}
+.fit-thumb video{width:100%;height:100%;object-fit:cover;display:block;}
+.fit-thumb .ic{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--gold-deep);}
+.fit-rbody{flex:1;min-width:0;}
+.fit-rname{font-size:16px;font-weight:600;margin-bottom:5px;}
+.fit-rmeta{display:flex;gap:6px;flex-wrap:wrap;}
+.fit-tag{font-size:11.5px;font-weight:600;color:var(--ink-soft);background:var(--line-soft);border-radius:999px;padding:3px 9px;}
+.fit-chev{color:var(--muted);flex-shrink:0;padding-right:4px;font-size:20px;}
+/* workout tiles */
+.fit-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.fit-tile{border-radius:16px;overflow:hidden;position:relative;background:#000;height:150px;cursor:pointer;}
+.fit-tile video{width:100%;height:100%;object-fit:cover;display:block;opacity:.9;}
+.fit-tile .ft-grad{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0) 40%,rgba(20,15,5,.82) 100%);}
+.fit-tile .ft-content{position:absolute;left:0;right:0;bottom:0;padding:12px;color:#fff;}
+.fit-tile .ft-title{font-size:15px;font-weight:700;margin-bottom:4px;line-height:1.2;}
+.fit-tile .ft-meta{font-size:11.5px;opacity:.92;}
+.fit-tile.locked{background:#d9d2c2;}
+.fit-tile.locked .ft-grad{background:linear-gradient(180deg,rgba(0,0,0,0) 40%,rgba(20,15,5,.4) 100%);}
+.fit-tile.locked .ft-title,.fit-tile.locked .ft-meta{color:var(--ink);}
+.fit-tile .ft-badge{position:absolute;top:9px;left:9px;font-size:9.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;background:rgba(255,255,255,.9);color:var(--ink);padding:3px 8px;border-radius:999px;}
+/* routine sheet */
+.rt-meta{display:flex;gap:8px;flex-wrap:wrap;margin:-2px 0 16px;}
+.rt-start{width:100%;border:none;background:var(--gold-deep);color:#fff;font-size:15px;font-weight:700;padding:15px;border-radius:14px;margin-bottom:18px;cursor:pointer;font-family:var(--sans);}
+.rt-step{display:flex;align-items:center;gap:13px;padding:9px 0;border-bottom:1px solid var(--line-soft);cursor:pointer;}
 .rt-step:last-child{border-bottom:none;}
-.rt-step .rs-num{width:26px;height:26px;border-radius:50%;background:var(--ink);color:#fff;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:var(--sans);}
+.rt-step .rs-num{width:24px;height:24px;border-radius:50%;background:var(--ink);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:var(--sans);}
+.rt-step .rs-thumb{width:54px;height:54px;border-radius:11px;overflow:hidden;background:#eee7d8;flex-shrink:0;position:relative;}
+.rt-step .rs-thumb video{width:100%;height:100%;object-fit:cover;display:block;}
+.rt-step .rs-thumb .ic{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--gold-deep);}
 .rt-step .rs-body{flex:1;min-width:0;}
-.rt-step .rs-name{font-size:15px;font-weight:500;margin-bottom:2px;}
+.rt-step .rs-name{font-size:15px;font-weight:600;margin-bottom:2px;}
 .rt-step .rs-dose{font-size:13px;color:var(--ink-soft);}
 .rt-step .rs-play{color:var(--gold-deep);flex-shrink:0;}
 .mv-video{width:100%;border-radius:14px;background:#000;aspect-ratio:16/9;margin-bottom:14px;display:block;}
@@ -682,7 +718,7 @@ textarea.notes::placeholder{color:var(--muted);}
   <!-- ============ NUTRITION (Plan + Recipes) ============ -->
   <div class="tabpage" id="tab-nutrition">
     <div class="sub-tabs">
-      <button class="sub-tab on" data-sub="plan">Plan</button>
+      <button class="sub-tab on" data-sub="plan">Meals</button>
       <button class="sub-tab" data-sub="recipes">Recipes</button>
       <button class="sub-tab" data-sub="fitness">Move</button>
     </div>
@@ -740,7 +776,7 @@ textarea.notes::placeholder{color:var(--muted);}
   </button>
   <button data-tab="daily">
     <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M8 3v4M16 3v4M4 10h16M9 15l2 2 4-4"/></svg></span>
-    Daily
+    Check-in
   </button>
   <button data-tab="trends">
     <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5M4 19h16"/><path d="M7 15l4-5 3 3 4-6"/></svg></span>
@@ -748,7 +784,7 @@ textarea.notes::placeholder{color:var(--muted);}
   </button>
   <button data-tab="nutrition">
     <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/></svg></span>
-    Nutrition
+    Plan
   </button>
 </div>
 
@@ -959,7 +995,7 @@ textarea.notes::placeholder{color:var(--muted);}
             Fasting/eating window tag now shown in Transition (was Activation only).
             Egg whites count at half weight in the protein bucket (6 eggs ≈ 1 meal-portion, not 2).
    v1.0.0 — Baseline. */
-const APP_VERSION='v1.17.0';
+const APP_VERSION='v1.18.0';
 
 /* ===== BACKEND CONFIG — paste your /exec URL between the quotes ===== */
 const BACKEND_URL = 'https://script.google.com/macros/s/AKfycby0jEwPEqESOu_SK8qYqiJxR-1MeT8Ax6fq0fHPHC6gfihMpPW4uJBt1lGwmK_inQ4-/exec';
@@ -1651,26 +1687,49 @@ function fitRoutines(){
   const list=Object.values(byId); list.forEach(r=>r.steps.sort((a,b)=>a.order-b.order));
   return list;
 }
+const FIT_INTRO={loading:'Ease into movement. Gentle and short.',activation:'A little movement today. Pick something and follow along, no rush.',stabilization:'Pick a routine and follow along at your own pace.'};
+function fitThumb(m,cls){cls=cls||'fit-thumb';
+  if(m&&m.video_url)return `<div class="${cls}"><video src="${encUrl(m.video_url)}#t=0.4" muted playsinline preload="metadata"></video></div>`;
+  return `<div class="${cls}"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 12h2l2-5 4 10 2-5h2"/></svg></div></div>`;
+}
+function isDailyRoutine(r){return r.steps.length>0 && r.steps.every(s=>s.reps===0);}
+function firstMovie(r){for(const s of r.steps){const m=movementById(s.movement_id);if(m&&m.video_url)return m;}return r.steps[0]?movementById(r.steps[0].movement_id):null;}
 function renderFitness(){
   const box=g('fitList'); if(!box)return;
   const ph=aiPhaseKey(currentDay), pk=phaseFor(currentDay).key;
-  g('fitIntro').textContent='Move when you feel like it. Pick a routine and follow along.';
+  g('fitIntro').textContent=FIT_INTRO[ph]||FIT_INTRO.activation;
   const routines=fitRoutines().filter(r=>{const t=String(r.phase).toLowerCase().split(/[,/|]/).map(s=>s.trim());return t.includes('all')||t.includes(ph)||t.includes(pk);});
   if(!routines.length){box.innerHTML='<div class="fit-empty">Routines are being prepared. Check back soon.</div>';return;}
-  box.innerHTML=routines.map(r=>`<div class="fit-card" data-rt="${esc(r.id)}"><div class="fc-body"><div class="fc-name">${esc(r.name)}</div><div class="fc-meta">${r.duration?r.duration+' min · ':''}${r.steps.length} exercise${r.steps.length!==1?'s':''}</div></div><span class="fc-arrow">›</span></div>`).join('');
-  box.querySelectorAll('.fit-card').forEach(c=>c.onclick=()=>openRoutine(c.dataset.rt));
+  const daily=routines.filter(isDailyRoutine), workouts=routines.filter(r=>!isDailyRoutine(r));
+  const feat=daily[0]||workouts[0];
+  let html='';
+  if(feat){const fm=firstMovie(feat);
+    html+=`<div class="fit-feat" data-rt="${esc(feat.id)}">${fm&&fm.video_url?`<video src="${encUrl(fm.video_url)}#t=0.4" muted playsinline preload="metadata"></video>`:''}<div class="ff-grad"></div><div class="ff-content"><div class="ff-tag">Suggested for today</div><div class="ff-title">${esc(feat.name)}</div><div class="ff-meta">${feat.duration?`<span class="fit-pill">▷ ${feat.duration} min</span>`:''}<span class="fit-pill">${feat.steps.length} movements</span></div></div></div>`;
+  }
+  if(daily.length){
+    html+=`<div class="fit-sec"><div class="fit-sec-h"><div class="fit-sec-t">Daily</div><div class="fit-sec-sub">Anytime</div></div>`+
+      daily.map(r=>{const m=firstMovie(r);return `<div class="fit-row" data-rt="${esc(r.id)}">${fitThumb(m)}<div class="fit-rbody"><div class="fit-rname">${esc(r.name)}</div><div class="fit-rmeta">${r.duration?`<span class="fit-tag">${r.duration} min</span>`:''}<span class="fit-tag">${r.steps.length} moves</span></div></div><span class="fit-chev">›</span></div>`;}).join('')+`</div>`;
+  }
+  if(workouts.length){
+    html+=`<div class="fit-sec"><div class="fit-sec-h"><div class="fit-sec-t">Workouts</div><div class="fit-sec-sub">2 to 3 a week</div></div><div class="fit-grid">`+
+      workouts.map(r=>{const m=firstMovie(r);return `<div class="fit-tile" data-rt="${esc(r.id)}">${m&&m.video_url?`<video src="${encUrl(m.video_url)}#t=0.4" muted playsinline preload="metadata"></video>`:''}<div class="ft-grad"></div><div class="ft-content"><div class="ft-title">${esc(r.name)}</div><div class="ft-meta">${r.duration?r.duration+' min · ':''}${r.steps.length} moves</div></div></div>`;}).join('')+`</div></div>`;
+  }
+  box.innerHTML=html;
+  box.querySelectorAll('[data-rt]').forEach(el=>el.onclick=()=>openRoutine(el.dataset.rt));
 }
 function openRoutine(id){
   const r=fitRoutines().find(x=>x.id===id); if(!r)return;
   g('rtTitle').textContent=r.name;
-  g('rtMeta').textContent=(r.duration?r.duration+' min · ':'')+r.steps.length+' exercises';
-  g('rtSteps').innerHTML=r.steps.map((s,i)=>{
+  g('rtMeta').innerHTML=[r.duration?r.duration+' min':null,r.steps.length+' movements'].filter(Boolean).map(t=>`<span class="fit-tag">${t}</span>`).join('');
+  const stepsHtml=r.steps.map((s,i)=>{
     const m=movementById(s.movement_id), nm=m?m.name:s.movement_id;
-    const dose=s.reps>0?(s.sets>1?s.sets+' × '+s.reps:s.reps+' reps'):(/hold|stretch|pose/i.test(nm)?'hold':'');
+    const dose=s.reps>0?(s.sets>1?s.sets+' × '+s.reps:s.reps+' reps'):(/hold|stretch|pose|dog|twist|bend|circle|walkout/i.test(nm)?'hold':'');
     const rest=s.rest>0?' · rest '+s.rest+'s':'';
-    return `<div class="rt-step" data-mv="${esc(s.movement_id)}"><span class="rs-num">${i+1}</span><div class="rs-body"><div class="rs-name">${esc(nm)}</div><div class="rs-dose">${esc((dose+rest).trim())}</div></div><span class="rs-play"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M10 8l6 4-6 4z" fill="currentColor"/></svg></span></div>`;
+    return `<div class="rt-step" data-mv="${esc(s.movement_id)}"><span class="rs-num">${i+1}</span>${fitThumb(m,'rs-thumb')}<div class="rs-body"><div class="rs-name">${esc(nm)}</div><div class="rs-dose">${esc((dose+rest).trim())}</div></div><span class="rs-play"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M10 8l6 4-6 4z" fill="currentColor"/></svg></span></div>`;
   }).join('');
+  g('rtSteps').innerHTML=`<button class="rt-start" id="rtStart">▷ Start routine</button>`+stepsHtml;
   g('rtSteps').querySelectorAll('.rt-step').forEach(el=>el.onclick=()=>openMovement(el.dataset.mv));
+  const st=g('rtStart'); if(st)st.onclick=()=>{if(r.steps[0])openMovement(r.steps[0].movement_id);};
   g('rtScrim').classList.add('show');g('rtSheet').classList.add('show');
 }
 function closeRoutine(){g('rtScrim').classList.remove('show');g('rtSheet').classList.remove('show');}

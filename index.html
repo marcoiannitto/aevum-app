@@ -995,7 +995,7 @@ textarea.notes::placeholder{color:var(--muted);}
             Fasting/eating window tag now shown in Transition (was Activation only).
             Egg whites count at half weight in the protein bucket (6 eggs ≈ 1 meal-portion, not 2).
    v1.0.0 — Baseline. */
-const APP_VERSION='v1.18.0';
+const APP_VERSION='v1.19.0';
 
 /* ===== BACKEND CONFIG — paste your /exec URL between the quotes ===== */
 const BACKEND_URL = 'https://script.google.com/macros/s/AKfycby0jEwPEqESOu_SK8qYqiJxR-1MeT8Ax6fq0fHPHC6gfihMpPW4uJBt1lGwmK_inQ4-/exec';
@@ -1736,7 +1736,7 @@ function closeRoutine(){g('rtScrim').classList.remove('show');g('rtSheet').class
 function openMovement(id){
   const m=movementById(id); if(!m)return;
   g('mvTitle').textContent=m.name||'Movement';
-  const cues=[m.cue1,m.cue2].filter(Boolean);
+  const cues=String(m.cues||'').split('||').map(s=>s.trim()).filter(Boolean);
   let html='';
   if(m.video_url)html+=`<video class="mv-video" src="${encUrl(m.video_url)}" controls playsinline loop preload="metadata"></video>`;
   if(cues.length)html+=`<div class="mv-sec"><div class="mv-h">How to</div>${cues.map(c=>`<div class="mv-cue">• ${esc(c)}</div>`).join('')}</div>`;

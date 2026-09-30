@@ -93,6 +93,27 @@ svg{display:block;}
 .pi-targets li::before{content:'';position:absolute;left:0;top:8px;width:6px;height:6px;border-radius:50%;background:var(--gold);}
 .pi-expect{font-size:15px;line-height:1.55;color:#e9e5dc;border-left:2px solid var(--gold);padding-left:14px;margin:4px 0 26px;}
 .pi-go{width:100%;padding:16px;background:var(--gold);color:var(--ink);border-radius:14px;font-size:16px;font-weight:600;}
+/* ===== FITNESS (Move) ===== */
+.fit-intro{font-size:13px;color:var(--muted);margin:2px 2px 14px;line-height:1.5;}
+.fit-card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;gap:12px;cursor:pointer;}
+.fit-card .fc-body{flex:1;min-width:0;}
+.fit-card .fc-name{font-size:15px;font-weight:500;margin-bottom:3px;}
+.fit-card .fc-meta{font-size:13px;color:var(--muted);}
+.fit-card .fc-arrow{color:var(--muted);font-size:20px;flex-shrink:0;}
+.fit-empty{text-align:center;color:var(--muted);font-size:14px;padding:26px 10px;border:1px dashed var(--line);border-radius:16px;}
+.rt-meta{font-size:13px;color:var(--muted);margin:-6px 0 16px;}
+.rt-step{display:flex;align-items:center;gap:12px;padding:12px 2px;border-bottom:1px solid var(--line-soft);cursor:pointer;}
+.rt-step:last-child{border-bottom:none;}
+.rt-step .rs-num{width:26px;height:26px;border-radius:50%;background:var(--ink);color:#fff;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:var(--sans);}
+.rt-step .rs-body{flex:1;min-width:0;}
+.rt-step .rs-name{font-size:15px;font-weight:500;margin-bottom:2px;}
+.rt-step .rs-dose{font-size:13px;color:var(--ink-soft);}
+.rt-step .rs-play{color:var(--gold-deep);flex-shrink:0;}
+.mv-video{width:100%;border-radius:14px;background:#000;aspect-ratio:16/9;margin-bottom:14px;display:block;}
+.mv-sec{margin-bottom:12px;}
+.mv-h{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--gold-deep);font-weight:700;margin-bottom:6px;}
+.mv-cue{font-size:14px;color:var(--ink-soft);line-height:1.5;padding:3px 0;}
+.mv-mistake{background:var(--warn-bg);border:1px solid #eBD9A8;border-radius:12px;padding:12px;font-size:14px;color:var(--ink-soft);line-height:1.45;}
 .phase-dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:6px;vertical-align:middle;}
 .fast-tag{font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;margin-left:6px;vertical-align:middle;letter-spacing:.01em;}
 .fast-tag.eating{background:#eef4ec;color:#3f7a4a;}
@@ -663,6 +684,7 @@ textarea.notes::placeholder{color:var(--muted);}
     <div class="sub-tabs">
       <button class="sub-tab on" data-sub="plan">Plan</button>
       <button class="sub-tab" data-sub="recipes">Recipes</button>
+      <button class="sub-tab" data-sub="fitness">Move</button>
     </div>
 
     <!-- PLAN -->
@@ -681,7 +703,32 @@ textarea.notes::placeholder{color:var(--muted);}
       <div class="rc-filters" id="rcCuisines"></div>
       <div id="rcList"></div>
     </div>
+
+    <!-- FITNESS (Move) -->
+    <div class="sub-panel hidden" id="sub-fitness">
+      <div class="fit-intro" id="fitIntro"></div>
+      <div id="fitList"></div>
+    </div>
   </div>
+
+<!-- ROUTINE SHEET -->
+<div class="scrim" id="rtScrim"></div>
+<div class="sheet" id="rtSheet">
+  <div class="grab"></div>
+  <button class="sheet-close" id="rtClose" aria-label="Close">×</button>
+  <h2 id="rtTitle">Routine</h2>
+  <div class="rt-meta" id="rtMeta"></div>
+  <div id="rtSteps"></div>
+</div>
+
+<!-- MOVEMENT VIDEO SHEET -->
+<div class="scrim" id="mvScrim"></div>
+<div class="sheet" id="mvSheet">
+  <div class="grab"></div>
+  <button class="sheet-close" id="mvClose" aria-label="Close">×</button>
+  <h2 id="mvTitle">Movement</h2>
+  <div id="mvBody"></div>
+</div>
 
 </div>
 
@@ -912,7 +959,7 @@ textarea.notes::placeholder{color:var(--muted);}
             Fasting/eating window tag now shown in Transition (was Activation only).
             Egg whites count at half weight in the protein bucket (6 eggs ≈ 1 meal-portion, not 2).
    v1.0.0 — Baseline. */
-const APP_VERSION='v1.16.0';
+const APP_VERSION='v1.17.0';
 
 /* ===== BACKEND CONFIG — paste your /exec URL between the quotes ===== */
 const BACKEND_URL = 'https://script.google.com/macros/s/AKfycby0jEwPEqESOu_SK8qYqiJxR-1MeT8Ax6fq0fHPHC6gfihMpPW4uJBt1lGwmK_inQ4-/exec';
@@ -1579,7 +1626,66 @@ function switchSub(sub){
   document.querySelectorAll('.sub-tab').forEach(t=>t.classList.toggle('on',t.dataset.sub===sub));
   document.querySelectorAll('.sub-panel').forEach(p=>p.classList.add('hidden'));
   g('sub-'+sub).classList.remove('hidden');
+  if(sub==='fitness')loadFitness();
 }
+
+/* ---- fitness / Move (item 31): Sheet-backed Movements + Workouts, phase-aware, no intensity cues ---- */
+let FITNESS={movements:[],workouts:[]};
+function encUrl(u){return String(u||'').trim().split(' ').join('%20');}
+function movementById(id){return (FITNESS.movements||[]).find(m=>String(m.id)===String(id));}
+function loadFitness(){
+  const c=localStorage.getItem('aevum_fitness_cache'); if(c){try{FITNESS=JSON.parse(c);}catch(e){}}
+  renderFitness();
+  if(!BACKEND_URL)return;
+  postJSON(BACKEND_URL,{action:'fitness'},'text/plain;charset=utf-8')
+    .then(d=>{if(d&&(Array.isArray(d.movements)||Array.isArray(d.workouts))){FITNESS={movements:d.movements||[],workouts:d.workouts||[]};localStorage.setItem('aevum_fitness_cache',JSON.stringify(FITNESS));renderFitness();}})
+    .catch(()=>{});
+}
+function fitRoutines(){
+  const byId={};
+  (FITNESS.workouts||[]).forEach(w=>{
+    const id=String(w.workout_id||'').trim(); if(!id)return;
+    if(!byId[id])byId[id]={id, name:w.workout_name||id, phase:String(w.phase||'all'), duration:+w.duration_min||0, steps:[]};
+    byId[id].steps.push({order:+w.order||0, movement_id:String(w.movement_id||'').trim(), sets:+w.sets||0, reps:+w.reps||0, rest:+w.rest_sec||0});
+  });
+  const list=Object.values(byId); list.forEach(r=>r.steps.sort((a,b)=>a.order-b.order));
+  return list;
+}
+function renderFitness(){
+  const box=g('fitList'); if(!box)return;
+  const ph=aiPhaseKey(currentDay), pk=phaseFor(currentDay).key;
+  g('fitIntro').textContent='Move when you feel like it. Pick a routine and follow along.';
+  const routines=fitRoutines().filter(r=>{const t=String(r.phase).toLowerCase().split(/[,/|]/).map(s=>s.trim());return t.includes('all')||t.includes(ph)||t.includes(pk);});
+  if(!routines.length){box.innerHTML='<div class="fit-empty">Routines are being prepared. Check back soon.</div>';return;}
+  box.innerHTML=routines.map(r=>`<div class="fit-card" data-rt="${esc(r.id)}"><div class="fc-body"><div class="fc-name">${esc(r.name)}</div><div class="fc-meta">${r.duration?r.duration+' min · ':''}${r.steps.length} exercise${r.steps.length!==1?'s':''}</div></div><span class="fc-arrow">›</span></div>`).join('');
+  box.querySelectorAll('.fit-card').forEach(c=>c.onclick=()=>openRoutine(c.dataset.rt));
+}
+function openRoutine(id){
+  const r=fitRoutines().find(x=>x.id===id); if(!r)return;
+  g('rtTitle').textContent=r.name;
+  g('rtMeta').textContent=(r.duration?r.duration+' min · ':'')+r.steps.length+' exercises';
+  g('rtSteps').innerHTML=r.steps.map((s,i)=>{
+    const m=movementById(s.movement_id), nm=m?m.name:s.movement_id;
+    const dose=s.reps>0?(s.sets>1?s.sets+' × '+s.reps:s.reps+' reps'):(/hold|stretch|pose/i.test(nm)?'hold':'');
+    const rest=s.rest>0?' · rest '+s.rest+'s':'';
+    return `<div class="rt-step" data-mv="${esc(s.movement_id)}"><span class="rs-num">${i+1}</span><div class="rs-body"><div class="rs-name">${esc(nm)}</div><div class="rs-dose">${esc((dose+rest).trim())}</div></div><span class="rs-play"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M10 8l6 4-6 4z" fill="currentColor"/></svg></span></div>`;
+  }).join('');
+  g('rtSteps').querySelectorAll('.rt-step').forEach(el=>el.onclick=()=>openMovement(el.dataset.mv));
+  g('rtScrim').classList.add('show');g('rtSheet').classList.add('show');
+}
+function closeRoutine(){g('rtScrim').classList.remove('show');g('rtSheet').classList.remove('show');}
+function openMovement(id){
+  const m=movementById(id); if(!m)return;
+  g('mvTitle').textContent=m.name||'Movement';
+  const cues=[m.cue1,m.cue2].filter(Boolean);
+  let html='';
+  if(m.video_url)html+=`<video class="mv-video" src="${encUrl(m.video_url)}" controls playsinline loop preload="metadata"></video>`;
+  if(cues.length)html+=`<div class="mv-sec"><div class="mv-h">How to</div>${cues.map(c=>`<div class="mv-cue">• ${esc(c)}</div>`).join('')}</div>`;
+  if(m.mistake)html+=`<div class="mv-sec"><div class="mv-h">Common mistake</div><div class="mv-mistake">${esc(m.mistake)}</div></div>`;
+  g('mvBody').innerHTML=html||'<div class="fc-reason">No detail yet.</div>';
+  g('mvScrim').classList.add('show');g('mvSheet').classList.add('show');
+}
+function closeMovement(){const v=g('mvBody').querySelector('video');if(v){try{v.pause();}catch(e){}}g('mvScrim').classList.remove('show');g('mvSheet').classList.remove('show');}
 
 /* ---- trends ---- */
 function collectSeries(field){
@@ -2560,6 +2666,8 @@ function wire(){
   g('shopScrim')&&(g('shopScrim').onclick=closeShop);
   g('fcInput').oninput=()=>{g('fcResult').innerHTML='';};
   g('fcInput').onkeydown=e=>{if(e.key==='Enter')doFoodCheck();};
+  g('rtClose')&&(g('rtClose').onclick=closeRoutine);g('rtScrim')&&(g('rtScrim').onclick=closeRoutine);
+  g('mvClose')&&(g('mvClose').onclick=closeMovement);g('mvScrim')&&(g('mvScrim').onclick=closeMovement);
   g('dPhase').onclick=openPhaseSheet;
   g('phClose').onclick=closePhaseSheet;g('phScrim').onclick=closePhaseSheet;
   g('piGo').onclick=()=>g('phaseIntro').classList.add('hidden');

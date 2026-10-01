@@ -995,7 +995,7 @@ textarea.notes::placeholder{color:var(--muted);}
             Fasting/eating window tag now shown in Transition (was Activation only).
             Egg whites count at half weight in the protein bucket (6 eggs ≈ 1 meal-portion, not 2).
    v1.0.0 — Baseline. */
-const APP_VERSION='v1.19.2';
+const APP_VERSION='v1.20.0';
 
 /* ===== BACKEND CONFIG — paste your /exec URL between the quotes ===== */
 const BACKEND_URL = 'https://script.google.com/macros/s/AKfycby0jEwPEqESOu_SK8qYqiJxR-1MeT8Ax6fq0fHPHC6gfihMpPW4uJBt1lGwmK_inQ4-/exec';
@@ -1016,32 +1016,55 @@ async function postJSON(url,body,ct,ms){
 }
 function aiPost(payload,ms){return postJSON(aiURL(),payload,'application/json',ms);}
 
-let TOTAL_DAYS=31; const GLASS_ML=250;
-const PH_FIXED={loading:2,transition:3,consolidation:18}; // activation is per-person; total default 2+8+3+18=31
-function actDays(){return (profile&&+profile.activation_days>0)?+profile.activation_days:8;}
-function phaseLens(){return {loading:PH_FIXED.loading,activation:actDays(),transition:PH_FIXED.transition,consolidation:PH_FIXED.consolidation};}
-function totalDays(){const L=phaseLens();return L.loading+L.activation+L.transition+L.consolidation;}
-function applyPhaseConfig(){TOTAL_DAYS=totalDays();if(currentDay>TOTAL_DAYS)currentDay=TOTAL_DAYS;}
-const FAT_TARGET=20, FAT_RED=25;             // fat: ok<=20, yellow 20-25, red>25
-const CARB_TARGET=40, CARB_RED=50;           // carbs: green<=40, amber 40-50, red>50
-const FAT_LIMIT=FAT_TARGET, CARB_LIMIT=CARB_TARGET; // bar fills against target
-const CAL_LOW_RED=300, CAL_HIGH_RED=750;       // Activation/Transition hard red edges
-let CAL_LOW_AMBER=400, CAL_HIGH_AMBER=650;     // Activation/Transition ok band (tunable via Config: vlcd_low/vlcd_high)
-const CAL_TARGET=500, CAL_RED=700; // legacy refs (target midpoint, red ceiling)
-const MEAL_KCAL=250, MEAL_FAT=10, MEAL_CARB=15; // per-meal red flags
-const BUCKET_CAP=200; // daily food allowance per type: 2 meals x 100g
-const PROTEIN_PER_KG=1.2;                     // protein target multiplier (low end of the range)
-const PROTEIN_KG_HI=1.5;                       // protein target range high end
-let MAINT_CUT=0.90;                            // hold as % of TDEE (tunable via Config: maint_cut)
-let STAB_AMBER_LOW=0.75;                       // Stabilization amber band low edge = target * this (Config: stab_amber_low)
-let STAB_AMBER_HIGH=1.05;                      // Stabilization amber band high edge = TDEE * this (Config: stab_amber_high)
-/* ---- Config: all tunable numbers live in a Sheet "Config" tab (key,value); code holds defaults ---- */
+/* ============================================================================
+   SETTINGS  —  every tunable number lives here, in one place.
+   (A) PROGRAM CONSTANTS: fixed in code. Change the value here, that's the only copy.
+   (B) CONFIG-BACKED: the default lives once in DEFAULTS and can be overridden LIVE
+       from the Sheet "Config" tab (key,value), no redeploy. To change a default
+       permanently edit DEFAULTS; to change it live add the key to the Config tab.
+       Never hardcode these numbers anywhere else, read them via the vars below.
+   ============================================================================ */
+
+/* ---- (A) Program constants (edit here) ---- */
+let TOTAL_DAYS=31;                                 // recomputed from phase lengths at boot
+const PH_FIXED={loading:2,transition:3,consolidation:18}; // activation is per-person; default total 2+8+3+18=31
+const DAY_START_HOUR=5;                             // a new "day" rolls over at 5am local
+const GLASS_ML=250, WATER_GOAL_GLASSES=10;         // water: 10 x 250ml = 2.5L
+const PROTEIN_PER_KG=1.2, PROTEIN_KG_HI=1.5;       // protein target range (g per kg of target weight)
+const FAT_TARGET=20, FAT_RED=25;                   // fat (g): green<=20, amber 20-25, red>25
+const CARB_TARGET=40, CARB_RED=50;                 // carbs (g): green<=40, amber 40-50, red>50
+const FAT_LIMIT=FAT_TARGET, CARB_LIMIT=CARB_TARGET;// bars fill against target
+const CAL_LOW_RED=300, CAL_HIGH_RED=750;           // Activation/Transition hard red calorie edges
+const CAL_TARGET=500, CAL_RED=700;                 // legacy refs (target midpoint, red ceiling)
+const MEAL_KCAL=250, MEAL_FAT=10, MEAL_CARB=15;    // per-meal red flags
+const BUCKET_CAP=200;                              // daily food allowance per type (2 meals x 100g)
+const PORTION_TARGET=6;                            // 2 portions each across Protein/Veg/Fruit
+const TAPER_PCT=[0,0.35,0.60,0.80,1.0];            // Stabilization 4-day ramp: % of gap (600 -> hold target)
+const WEIGHT_OK_G=350, WEIGHT_WARN_G=500;          // Stabilization weight band (grams from hold target): green/amber
+
+/* ---- (B) Config-backed defaults (single source of truth) ----
+   Each number appears ONCE here. The vars below start at the default, then
+   applyConfig() overwrites them from the Config tab when it loads. */
+const DEFAULTS={
+  vlcd_low:400, vlcd_high:650,                 // Activation/Transition ok calorie band
+  maint_cut:0.90,                              // Stabilization hold = TDEE x this
+  stab_amber_low:0.85, stab_amber_high:1.05,   // Stabilization amber band (x target low / x TDEE high)
+  review_interval_days:7,                      // how often the adaptive target re-checks
+  review_step_kcal:150,                        // kcal step per weekly review
+  target_floor_kcal:1200,                      // never set the target below this
+  hold_band_kg:0.7,                            // weight-trend tolerance before adjusting
+  smooth_days:7, min_weighins:4                // weight smoothing window / min data to act
+};
+let CAL_LOW_AMBER=DEFAULTS.vlcd_low, CAL_HIGH_AMBER=DEFAULTS.vlcd_high;
+let MAINT_CUT=DEFAULTS.maint_cut;
+let STAB_AMBER_LOW=DEFAULTS.stab_amber_low, STAB_AMBER_HIGH=DEFAULTS.stab_amber_high;
 let CONFIG={};
 function cfg(key,def){const v=CONFIG[key];if(v===undefined||v===null||v==='')return def;const n=parseFloat(v);return isNaN(n)?def:n;}
+function cfgd(key){return cfg(key,DEFAULTS[key]);}  // Config value, else the single-source DEFAULTS default
 function applyConfig(){
-  CAL_LOW_AMBER=cfg('vlcd_low',400); CAL_HIGH_AMBER=cfg('vlcd_high',650);
-  MAINT_CUT=cfg('maint_cut',0.90);
-  STAB_AMBER_LOW=cfg('stab_amber_low',0.90); STAB_AMBER_HIGH=cfg('stab_amber_high',1.05);
+  CAL_LOW_AMBER=cfgd('vlcd_low'); CAL_HIGH_AMBER=cfgd('vlcd_high');
+  MAINT_CUT=cfgd('maint_cut');
+  STAB_AMBER_LOW=cfgd('stab_amber_low'); STAB_AMBER_HIGH=cfgd('stab_amber_high');
 }
 function loadConfig(){
   const c=localStorage.getItem('aevum_config_cache'); if(c){try{CONFIG=JSON.parse(c);}catch(e){}}
@@ -1051,8 +1074,13 @@ function loadConfig(){
     .then(d=>{if(d&&Array.isArray(d.config)){CONFIG={};d.config.forEach(r=>{if(r&&r.key!=null)CONFIG[String(r.key).trim()]=r.value;});localStorage.setItem('aevum_config_cache',JSON.stringify(CONFIG));applyConfig();if(profile){reviewTarget();render();}}})
     .catch(()=>{});
 }
-// stabilization calorie hold target = TDEE(target weight) * MAINT_CUT ( = 0.90 )
-const WATER_GOAL_GLASSES=10; // 2.5 L at 250 ml/glass
+
+/* ---- phase length helpers ---- */
+function actDays(){return (profile&&+profile.activation_days>0)?+profile.activation_days:8;}
+function phaseLens(){return {loading:PH_FIXED.loading,activation:actDays(),transition:PH_FIXED.transition,consolidation:PH_FIXED.consolidation};}
+function totalDays(){const L=phaseLens();return L.loading+L.activation+L.transition+L.consolidation;}
+function applyPhaseConfig(){TOTAL_DAYS=totalDays();if(currentDay>TOTAL_DAYS)currentDay=TOTAL_DAYS;}
+
 const params=new URLSearchParams(location.search);
 const PID=(params.get('id')||'me').toLowerCase().replace(/[^a-z0-9_-]/g,'');
 const K=s=>`aevum_${PID}_${s}`;
@@ -1254,8 +1282,8 @@ function checkRollover(){
 /* ---- stabilization (consolidation) helpers ---- */
 function consolStartDay(){const L=phaseLens();return L.loading+L.activation+L.transition+1;}
 /* calorie ramp: front-loaded over 4 days from 600 to TDEE*0.9, then hold.
-   Day1 +35% of gap, D2 +60%, D3 +80%, D4+ 100% (front-loaded, fats make day 1 easy). */
-const TAPER_PCT=[0,0.35,0.60,0.80,1.0]; // index by day-into-stabilization (1-based)
+   Day1 +35% of gap, D2 +60%, D3 +80%, D4+ 100% (front-loaded, fats make day 1 easy).
+   TAPER_PCT is declared once in the SETTINGS block at the top. */
 /* stabilization calorie hold target: TDEE recomputed at the hold target weight,
    * MAINT_CUT (0.90) = 0.90 of TDEE, reached via a 4-day front-loaded ramp from 600. */
 function stabTDEE(){
@@ -1298,9 +1326,9 @@ function reviewTarget(){
   }
   // weekly cadence
   const lastR=profile.last_review_date?new Date(profile.last_review_date+'T00:00:00'):null;
-  if(lastR && (effNow()-lastR.getTime())/86400000 < cfg('review_interval_days',7))return;
+  if(lastR && (effNow()-lastR.getTime())/86400000 < cfgd('review_interval_days'))return;
   // gather the weight window (newest first)
-  const win=cfg('smooth_days',7), minW=cfg('min_weighins',4), ws=[], intakes=[];
+  const win=cfgd('smooth_days'), minW=cfgd('min_weighins'), ws=[], intakes=[];
   for(let d=td-1; d>=Math.max(1,td-win); d--){
     const o=dayData(d); if(!o)continue;
     const w=parseFloat(o.weight); if(w>0)ws.push(w);
@@ -1310,8 +1338,8 @@ function reviewTarget(){
   const avg=a=>a.reduce((x,y)=>x+y,0)/a.length;
   const smoothed=avg(ws), half=Math.max(1,Math.floor(ws.length/2));
   const slope=avg(ws.slice(0,half))-avg(ws.slice(-half));   // >0 rising, <0 falling
-  const tw=stabTargetWeight(), band=cfg('hold_band_kg',0.7);
-  const step=cfg('review_step_kcal',150), floor=cfg('target_floor_kcal',1200), ceil=stabTDEE();
+  const tw=stabTargetWeight(), band=cfgd('hold_band_kg');
+  const step=cfgd('review_step_kcal'), floor=cfgd('target_floor_kcal'), ceil=stabTDEE();
   let cur=+profile.current_target_kcal, next=cur, reason='';
   if(tw!=null){
     if(smoothed>tw+band && slope>0.05){ next=Math.max(floor,cur-step); reason='down'; }   // too high + rising → eat less
@@ -1354,7 +1382,7 @@ function maybeWriteStabTarget(){
 function stabWeightClass(w){
   const t=stabTargetWeight();if(t==null||w==null||isNaN(w))return'';
   const gr=Math.abs(w-t)*1000;
-  return gr<=350?'ok':gr<=500?'warn':'over';
+  return gr<=WEIGHT_OK_G?'ok':gr<=WEIGHT_WARN_G?'warn':'over';
 }
 
 let profile=null,currentDay=1,day=null,photoData=null,mealItems=[],bootUsedToday=false;
@@ -2041,8 +2069,7 @@ function wireMacroBars(){
   show(last);
   bars.forEach(b=>b.onclick=()=>{bars.forEach(x=>x.setAttribute('opacity','0.55'));b.setAttribute('opacity','1');show(b);});
 }
-/* ---- portion adherence (Activation/Transition Trends) ---- */
-const PORTION_TARGET=6; // 2 meal-portions each across Protein / Veg / Fruit
+/* ---- portion adherence (Activation/Transition Trends) ---- (PORTION_TARGET in SETTINGS) */
 function dayPortions(o){
   const items=(o.meals||[]).flatMap(m=>m.items||[]);
   let viol=false;const sums={protein:0,veg:0,fruit:0};
@@ -2418,8 +2445,7 @@ function planDaysAvailable(){
 /* start date: backend start_date if synced, else the local onboarding date (start). */
 function startDateStr(){return (profile&&(profile.start_date||profile.start))||'';}
 /* The program day rolls over at 5am, not midnight: a meal eaten at 1am belongs to the
-   night before, so 00:00-04:59 still counts as the previous day. */
-const DAY_START_HOUR=5;
+   night before, so 00:00-04:59 still counts as the previous day. (DAY_START_HOUR in SETTINGS) */
 function effNow(){return Date.now()-DAY_START_HOUR*3600000;}         // "effective" now, shifted back 5h
 // LOCAL date string of the effective now (not UTC), so the 5am boundary tracks the user's clock
 function effTodayISO(){const d=new Date(effNow());return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}

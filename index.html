@@ -995,7 +995,7 @@ textarea.notes::placeholder{color:var(--muted);}
             Fasting/eating window tag now shown in Transition (was Activation only).
             Egg whites count at half weight in the protein bucket (6 eggs ≈ 1 meal-portion, not 2).
    v1.0.0 — Baseline. */
-const APP_VERSION='v1.19.1';
+const APP_VERSION='v1.19.2';
 
 /* ===== BACKEND CONFIG — paste your /exec URL between the quotes ===== */
 const BACKEND_URL = 'https://script.google.com/macros/s/AKfycby0jEwPEqESOu_SK8qYqiJxR-1MeT8Ax6fq0fHPHC6gfihMpPW4uJBt1lGwmK_inQ4-/exec';
@@ -1033,12 +1033,15 @@ const BUCKET_CAP=200; // daily food allowance per type: 2 meals x 100g
 const PROTEIN_PER_KG=1.2;                     // protein target multiplier (low end of the range)
 const PROTEIN_KG_HI=1.5;                       // protein target range high end
 let MAINT_CUT=0.90;                            // hold as % of TDEE (tunable via Config: maint_cut)
+let STAB_AMBER_LOW=0.75;                       // Stabilization amber band low edge = target * this (Config: stab_amber_low)
+let STAB_AMBER_HIGH=1.05;                      // Stabilization amber band high edge = TDEE * this (Config: stab_amber_high)
 /* ---- Config: all tunable numbers live in a Sheet "Config" tab (key,value); code holds defaults ---- */
 let CONFIG={};
 function cfg(key,def){const v=CONFIG[key];if(v===undefined||v===null||v==='')return def;const n=parseFloat(v);return isNaN(n)?def:n;}
 function applyConfig(){
   CAL_LOW_AMBER=cfg('vlcd_low',400); CAL_HIGH_AMBER=cfg('vlcd_high',650);
   MAINT_CUT=cfg('maint_cut',0.90);
+  STAB_AMBER_LOW=cfg('stab_amber_low',0.90); STAB_AMBER_HIGH=cfg('stab_amber_high',1.05);
 }
 function loadConfig(){
   const c=localStorage.getItem('aevum_config_cache'); if(c){try{CONFIG=JSON.parse(c);}catch(e){}}
@@ -1495,7 +1498,7 @@ function renderCalories(ph,t){
     // Exercise is a tracker only, it does NOT move the target (activity multiplier already averages it in).
     const target=effectiveStabTarget(currentDay), ceil=stabTDEE(), pct=target>0?t.kcal/target*100:0;
     // green from ramp target up to TDEE; amber just outside; red beyond
-    const cls=(t.kcal>=target&&t.kcal<=ceil)?'':((t.kcal>=target*0.78&&t.kcal<=ceil*1.05)?' warn':' over');
+    const cls=(t.kcal>=target&&t.kcal<=ceil)?'':((t.kcal>=target*STAB_AMBER_LOW&&t.kcal<=ceil*STAB_AMBER_HIGH)?' warn':' over');
     bar.className='calbar'+cls;
     bar.firstElementChild.style.width=Math.min(100,pct)+'%';
     g('calBarLeft').textContent=`${t.kcal.toLocaleString()} / ${target.toLocaleString()} kcal`;
@@ -1970,7 +1973,7 @@ function dayCalState(dayNum,k){
   // consolidation: green from that day's ramp target up to TDEE; amber just outside; red beyond.
   const TD=stabTDEE();
   if(k>=tgt&&k<=TD)return'ok';
-  if(k>=tgt*0.9&&k<=TD*1.05)return'warn';
+  if(k>=tgt*STAB_AMBER_LOW&&k<=TD*STAB_AMBER_HIGH)return'warn';
   return'over';
 }
 function macroBars(range){

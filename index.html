@@ -1495,7 +1495,7 @@ function renderCalories(ph,t){
     // Exercise is a tracker only, it does NOT move the target (activity multiplier already averages it in).
     const target=effectiveStabTarget(currentDay), ceil=stabTDEE(), pct=target>0?t.kcal/target*100:0;
     // green from ramp target up to TDEE; amber just outside; red beyond
-    const cls=(t.kcal>=target&&t.kcal<=ceil)?'':((t.kcal>=target*0.9&&t.kcal<=ceil*1.05)?' warn':' over');
+    const cls=(t.kcal>=target&&t.kcal<=ceil)?'':((t.kcal>=target*0.78&&t.kcal<=ceil*1.05)?' warn':' over');
     bar.className='calbar'+cls;
     bar.firstElementChild.style.width=Math.min(100,pct)+'%';
     g('calBarLeft').textContent=`${t.kcal.toLocaleString()} / ${target.toLocaleString()} kcal`;

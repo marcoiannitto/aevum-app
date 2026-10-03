@@ -1,4 +1,9 @@
 <!DOCTYPE html>
+<!-- ===================================================================== -->
+<!-- AEVUM Meal Builder  ·  mealbuilder.html  ·  v1.1.1  (2026-10-03)        -->
+<!-- Backends: Apps Script v1.17.0_FULL · Cloudflare Worker v1.10.0          -->
+<!-- Rule-based food gate (Policy tab); budget from Rules; additive save.    -->
+<!-- ===================================================================== -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -228,6 +233,7 @@ body{font-family:var(--sans);background:var(--paper);color:var(--ink);min-height
 <script>
 (function(){
   'use strict';
+  const MB_VERSION = 'v1.1.1';
 
   /* ═══════════════════════════════════════════════
      CONFIG
@@ -242,7 +248,7 @@ body{font-family:var(--sans);background:var(--paper);color:var(--ink);min-height
 
   async function post(url, body, timeout) {
     const ctl = new AbortController();
-    const t = setTimeout(() => ctl.abort(), timeout || 15000);
+    const t = setTimeout(() => ctl.abort(), timeout || 25000);
     const isGAS = url.includes('script.google.com');
     try {
       const res = await fetch(url, {
@@ -390,7 +396,7 @@ body{font-family:var(--sans);background:var(--paper);color:var(--ink);min-height
 
     try {
       // Profile first
-      const pRes = await post(BACKEND_URL, {action:'profile', id:PID});
+      const pRes = await post(BACKEND_URL, {action:'profile', id:PID}, 25000);
       profile = pRes.profile || {};
       userStartDate = profile.start_date || null;
 
@@ -402,18 +408,21 @@ body{font-family:var(--sans);background:var(--paper);color:var(--ink);min-height
       updatePersonDisplay();
       updateDayDisplay();
 
-      // Rules + Foods + Policy + plan in parallel (all from the backend)
-      const [rulesRes, foodsRes, policyRes, planRes] = await Promise.all([
-        post(BACKEND_URL, {action:'rules', id:PID}),
-        post(BACKEND_URL, {action:'foods'}),
-        post(BACKEND_URL, {action:'policy'}),
-        post(BACKEND_URL, {action:'mealplan', id:PID})
-      ]);
+      // Rules + Foods + Policy + plan — SEQUENTIAL. Apps Script serializes concurrent
+      // requests from the same user, so firing them in parallel makes one hang and abort.
+      const rulesRes  = await post(BACKEND_URL, {action:'rules', id:PID}, 25000);
+      const foodsRes  = await post(BACKEND_URL, {action:'foods'}, 25000);
+      const policyRes = await post(BACKEND_URL, {action:'policy'}, 25000);
+      const planRes   = await post(BACKEND_URL, {action:'mealplan', id:PID}, 25000);
       rules = (rulesRes && rulesRes.rules) || [];
       clientModel = (rulesRes && rulesRes.model) || 'buckets';
       foods = (foodsRes && foodsRes.foods) || [];
       policy = (policyRes && policyRes.policy) || [];
       allPlan = (planRes.plan || []);
+      if (!rules.length) {
+        $('errorBox').style.display = 'block';
+        $('errorBox').textContent = 'No Rules loaded — check that the Rules tab exists and Apps Script v1.17.0 is deployed. Budget will show 0 until then.';
+      } else { $('errorBox').style.display = 'none'; }
 
       loadDayMeals();
       renderBudget();

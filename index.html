@@ -995,7 +995,7 @@ textarea.notes::placeholder{color:var(--muted);}
             Fasting/eating window tag now shown in Transition (was Activation only).
             Egg whites count at half weight in the protein bucket (6 eggs ≈ 1 meal-portion, not 2).
    v1.0.0 — Baseline. */
-const APP_VERSION='v1.20.0';
+const APP_VERSION='v1.20.1';
 
 /* ===== BACKEND CONFIG — paste your /exec URL between the quotes ===== */
 const BACKEND_URL = 'https://script.google.com/macros/s/AKfycby0jEwPEqESOu_SK8qYqiJxR-1MeT8Ax6fq0fHPHC6gfihMpPW4uJBt1lGwmK_inQ4-/exec';
@@ -1048,7 +1048,7 @@ const WEIGHT_OK_G=350, WEIGHT_WARN_G=500;          // Stabilization weight band 
 const DEFAULTS={
   vlcd_low:400, vlcd_high:650,                 // Activation/Transition ok calorie band
   maint_cut:0.90,                              // Stabilization hold = TDEE x this
-  stab_amber_low:0.85, stab_amber_high:1.05,   // Stabilization amber band (x target low / x TDEE high)
+  stab_amber_low:0.90, stab_amber_high:1.05,   // Stabilization amber band (x target low / x TDEE high)
   review_interval_days:7,                      // how often the adaptive target re-checks
   review_step_kcal:150,                        // kcal step per weekly review
   target_floor_kcal:1200,                      // never set the target below this
@@ -2494,17 +2494,27 @@ function renderPlan(){
   let tot={kcal:0,protein:0,fat:0,carbs:0};
   items.forEach(i=>{tot.kcal+=+i.kcal||0;tot.protein+=+i.protein||0;tot.fat+=+i.fat||0;tot.carbs+=+i.carbs||0;});
   const gs=(v,t,r)=>v>r?'over':v>t?'warn':'ok';
-  const kcalS=calState(tot.kcal);
-  const fatS=gs(tot.fat,FAT_TARGET,FAT_RED);
-  const carbS=gs(tot.carbs,CARB_TARGET,CARB_RED);
-  const ptgt=(profile&&profile.weight)?Math.round(profile.weight*PROTEIN_PER_KG):null;
+  // phase-aware targets for the planned-day card (mirror the Today page rules)
+  const pk=phaseFor(planDay).key, gates=gatesFor(pk);
+  let kcalS='', kcalSmall='';
+  if(pk==='consolidation'){
+    const tgt=effectiveStabTarget(planDay), ceil=stabTDEE();
+    kcalSmall='/'+Math.round(tgt);
+    kcalS=(tot.kcal>=tgt&&tot.kcal<=ceil)?'ok':((tot.kcal>=tgt*STAB_AMBER_LOW&&tot.kcal<=ceil*STAB_AMBER_HIGH)?'warn':'over');
+  }else if(pk==='loading'){ kcalSmall=''; kcalS=''; }         // Loading: no calorie cap
+  else { kcalSmall='/500-700'; kcalS=calState(tot.kcal); }    // Activation/Transition
+  let protSmall='';
+  if(pk==='consolidation'){ const w=stabTargetWeight()||(profile&&profile.weight); if(w)protSmall='/'+Math.round(w*PROTEIN_PER_KG)+'–'+Math.round(w*PROTEIN_KG_HI); }
+  else { const ptgt=(profile&&profile.weight)?Math.round(profile.weight*PROTEIN_PER_KG):null; if(ptgt)protSmall='/'+ptgt; }
+  const fatS=gates.fat?gs(tot.fat,FAT_TARGET,FAT_RED):'',  fatSmall=gates.fat?('/'+FAT_TARGET):'';
+  const carbS=gates.carb?gs(tot.carbs,CARB_TARGET,CARB_RED):'', carbSmall=gates.carb?('/'+CARB_TARGET):'';
   let html=`<div class="plan-total">
     <div class="ptt-row"><span class="ptt-lab">Day ${planDay}${edited?' · edited':''}</span></div>
     <div class="ptt-grid">
-      <div class="ptt-cell ${kcalS}"><div class="ptt-v">${Math.round(tot.kcal)}<small>/500-700</small></div><div class="ptt-k">kcal</div></div>
-      <div class="ptt-cell"><div class="ptt-v">${Math.round(tot.protein)}${ptgt?`<small>/${ptgt}</small>`:''}</div><div class="ptt-k">protein</div></div>
-      <div class="ptt-cell ${fatS}"><div class="ptt-v">${Math.round(tot.fat)}<small>/${FAT_TARGET}</small></div><div class="ptt-k">fat</div></div>
-      <div class="ptt-cell ${carbS}"><div class="ptt-v">${Math.round(tot.carbs)}<small>/${CARB_TARGET}</small></div><div class="ptt-k">carbs</div></div>
+      <div class="ptt-cell ${kcalS}"><div class="ptt-v">${Math.round(tot.kcal)}<small>${kcalSmall}</small></div><div class="ptt-k">kcal</div></div>
+      <div class="ptt-cell"><div class="ptt-v">${Math.round(tot.protein)}<small>${protSmall}</small></div><div class="ptt-k">protein</div></div>
+      <div class="ptt-cell ${fatS}"><div class="ptt-v">${Math.round(tot.fat)}<small>${fatSmall}</small></div><div class="ptt-k">fat</div></div>
+      <div class="ptt-cell ${carbS}"><div class="ptt-v">${Math.round(tot.carbs)}<small>${carbSmall}</small></div><div class="ptt-k">carbs</div></div>
     </div></div>`;
   if(!items.length)html+='<div class="plan-empty">No meals for this day.</div>';
   items.forEach((i,idx)=>{

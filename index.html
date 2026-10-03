@@ -995,7 +995,7 @@ textarea.notes::placeholder{color:var(--muted);}
             Fasting/eating window tag now shown in Transition (was Activation only).
             Egg whites count at half weight in the protein bucket (6 eggs ≈ 1 meal-portion, not 2).
    v1.0.0 — Baseline. */
-const APP_VERSION='v1.20.1';
+const APP_VERSION='v1.21.0';
 
 /* ===== BACKEND CONFIG — paste your /exec URL between the quotes ===== */
 const BACKEND_URL = 'https://script.google.com/macros/s/AKfycby0jEwPEqESOu_SK8qYqiJxR-1MeT8Ax6fq0fHPHC6gfihMpPW4uJBt1lGwmK_inQ4-/exec';
@@ -1423,6 +1423,30 @@ function totals(){
 }
 
 /* ---- render ---- */
+/* ---- Rules (centralized targets/thresholds, item: Rules tab) ----
+   loaded from the `rules` route; drives the per-client Activation model (buckets|macros)
+   and the band colours. If the backend is unreachable, RULES stays default (buckets) and
+   the app behaves exactly as before. */
+let RULES={model:'buckets',rules:[]};
+function ruleMapPhase(k){return k==='consolidation'?'stabilization':(k==='transition'?'activation':k);}
+function ruleFor(phaseKey,metric){const p=ruleMapPhase(phaseKey);return (RULES.rules||[]).find(r=>r.phase===p&&r.metric===metric)||null;}
+function actMacros(){return RULES.model==='macros';}
+/* generic band → colour: red below amber_lo or above amber_hi; green within green_lo..green_hi; else amber */
+function bandClass(v,row){
+  if(!row||row.gated===false)return'';
+  const lo=row.green_lo,hi=row.green_hi,alo=row.amber_lo,ahi=row.amber_hi;
+  if(alo!=null&&v<alo)return'over';
+  if(ahi!=null&&v>ahi)return'over';
+  const okLo=(lo==null)||v>=lo, okHi=(hi==null)||v<=hi;
+  return (okLo&&okHi)?'':'warn';
+}
+function loadRules(){
+  const c=localStorage.getItem('aevum_rules_cache'); if(c){try{RULES=JSON.parse(c);}catch(e){}}
+  if(!BACKEND_URL)return;
+  postJSON(BACKEND_URL,{action:'rules',id:PID},'text/plain;charset=utf-8')
+    .then(d=>{if(d&&Array.isArray(d.rules)){RULES={model:(d.model==='macros'?'macros':'buckets'),rules:d.rules};localStorage.setItem('aevum_rules_cache',JSON.stringify(RULES));if(profile)render();}})
+    .catch(()=>{});
+}
 function render(){
   const ph=phaseFor(currentDay);
   maybeWriteStabTarget();
@@ -1432,7 +1456,8 @@ function render(){
   g('prevDay').disabled=currentDay<=1;g('nextDay').disabled=currentDay>=TOTAL_DAYS;
   {const td=todayDayNum();g('todayBtn').classList.toggle('hidden',!td||currentDay===td);}
   const t=totals();
-  renderCalories(ph,t);renderGates(ph,t);renderBuckets(ph);renderTimeline();renderPhaseBar();
+  const macroAct=(ph.key==='activation'||ph.key==='transition')&&actMacros();
+  renderCalories(ph,t,macroAct);renderGates(ph,t,macroAct);renderBuckets(ph,macroAct);renderTimeline();renderPhaseBar();
   // serum block: only in Loading + Activation
   g('serumBlock').classList.toggle('hidden',!(ph.key==='loading'||ph.key==='activation'));
   // strip
@@ -1517,7 +1542,7 @@ function mealStatus(m){
   if(items.some(it=>itemFlag(it).cls==='warn'))return'warn';
   return'ok';
 }
-function renderCalories(ph,t){
+function renderCalories(ph,t,macroAct){
   g('calNum').textContent=t.kcal.toLocaleString();
   const wrap=g('calBarWrap'),bar=g('calBar'),prot=g('protocol');
   wrap.classList.add('hidden');prot.classList.add('hidden');g('calUnit').textContent='kcal today';
@@ -1531,14 +1556,24 @@ function renderCalories(ph,t){
     bar.firstElementChild.style.width=Math.min(100,pct)+'%';
     g('calBarLeft').textContent=`${t.kcal.toLocaleString()} / ${target.toLocaleString()} kcal`;
     g('calBarRight').textContent=t.exKcal>0?`${t.exKcal} kcal exercise`:'';
+  } else if(macroAct){
+    // new Activation model: kcal bar vs the Rules target/band (two-sided window)
+    wrap.classList.remove('hidden');
+    const kr=ruleFor('activation','kcal'), target=(kr&&kr.target)?kr.target:650;
+    const cls=bandClass(t.kcal,kr);
+    bar.className='calbar'+(cls?' '+cls:'');
+    bar.firstElementChild.style.width=Math.min(100,target>0?t.kcal/target*100:0)+'%';
+    g('calBarLeft').textContent=`${t.kcal.toLocaleString()} / ${target.toLocaleString()} kcal`;
+    g('calBarRight').textContent=t.exKcal>0?`${t.exKcal} kcal exercise`:'';
   }
-  // Activation/Transition: buckets replace the protocol line (see renderBuckets)
+  // Activation/Transition (buckets model): buckets replace the protocol line (see renderBuckets)
 }
 /* daily food buckets: how much of each food type the day's allowance is used.
    yes/limited items fill their type's bucket; no items sit outside as violations.
    egg whites count at half weight (6 eggs ≈ 200g ≈ 1 meal-portion). */
-function renderBuckets(ph){
+function renderBuckets(ph,macroAct){
   const box=g('buckets');
+  if(macroAct){box.classList.add('hidden');box.innerHTML='';box.onclick=null;return;} // new Activation model uses macro gates, not buckets
   const flag=(ph.key==='activation'||ph.key==='transition');
   if(!flag){box.classList.add('hidden');box.innerHTML='';box.onclick=null;return;}
   box.classList.remove('hidden');
@@ -1590,24 +1625,43 @@ function renderBuckets(ph){
   box.onclick=()=>{box.classList.toggle('open');renderBuckets(ph);};
 }
 function gateState(v,target,red){if(v>red)return'over';if(v>target)return'warn';return'ok';}
-function renderGates(ph,t){
+function renderGates(ph,t,macroAct){
   const wrap=g('gates');wrap.innerHTML='';
-  if(ph.key==='activation'||ph.key==='transition')return; // macros hidden in these phases
+  const isAct=(ph.key==='activation'||ph.key==='transition');
+  if(isAct && !macroAct)return; // buckets model: macros hidden (buckets screen instead)
+  const plainGate=(name,val)=>{const el=document.createElement('div');el.className='gate protein-target';el.innerHTML=`<div class="g-top"><span class="g-name">${name}</span><span class="g-val num">${val}<em>g</em></span></div>`;return el;};
+  // Rules-driven target gate (bar fills vs target; colour from the Rules band)
+  const ruleGate=(name,val,row)=>{
+    if(!row)return plainGate(name,val);
+    const tgt=(row.target!=null)?row.target:(row.green_hi!=null?row.green_hi:null);
+    const cls=bandClass(val,row);
+    const el=document.createElement('div');el.className='gate '+(cls===''?'prot-ok':cls);
+    const bar=tgt?`<div class="g-bar"><span style="width:${Math.min(100,val/tgt*100)}%"></span></div>`:'';
+    el.innerHTML=`<div class="g-top"><span class="g-name">${name}</span><span class="g-val num">${val}${tgt?`<em> /${tgt}g</em>`:'<em>g</em>'}</span></div>${bar}`;
+    return el;
+  };
+
+  if(macroAct){
+    // NEW Activation model: protein target + carb cap from Rules; fat ungated (plain)
+    wrap.appendChild(ruleGate('Protein',t.protein,ruleFor('activation','protein')));
+    wrap.appendChild(plainGate('Fat',t.fat));
+    wrap.appendChild(ruleGate('Carbs',t.carbs,ruleFor('activation','carbs')));
+    return;
+  }
+
+  // Loading + Stabilization (unchanged behaviour)
   const cfg=gatesFor(ph.key);
-  // ceiling gate (fat/carbs)
   const makeGate=(name,val,target,red,gated)=>{
     const st=gated?gateState(val,target,red):'', pct=gated?Math.min(100,val/target*100):0;
     const el=document.createElement('div');el.className='gate '+st;
     el.innerHTML=`<div class="g-top"><span class="g-name">${name}</span><span class="g-val num">${val}${gated?`<em> /${target}g</em>`:'<em>g</em>'}</span></div>${gated?`<div class="g-bar"><span style="width:${pct}%"></span></div>`:''}`;
     return el;
   };
-  // protein: range bands in Stabilization (1.2–1.5 g/kg green); plain grams in Loading
   const makeProtein=()=>{
     const el=document.createElement('div');
     const wref=(ph.key==='consolidation')?(stabTargetWeight()||profile.weight):profile.weight;
     if(ph.key==='consolidation' && wref){
       const w=wref, lo=Math.round(w*PROTEIN_PER_KG), hi=Math.round(w*PROTEIN_KG_HI), ratio=t.protein/w;
-      // under: red <1.0, amber 1.0–1.19. At/over target: green 1.2 up to 1.5×hi (2.25), amber beyond, never red (protein is protective).
       const cls=ratio<1.0?'over':ratio<1.2?'warn':ratio<=PROTEIN_KG_HI*1.5?'ok':'warn';
       const pct=Math.min(100,hi?t.protein/hi*100:0);
       el.className='gate '+(cls==='ok'?'prot-ok':cls);
@@ -2781,7 +2835,7 @@ function boot(){
   const td=todayDayNum();bootUsedToday=!!td;lastKnownToday=td;
   currentDay=td||+(localStorage.getItem(K('lastDay'))||1);
   loadDay();
-  loadConfig();loadMessages();
+  loadConfig();loadMessages();loadRules();
   reviewTarget();
   maybePhaseIntro();maybeDailyBrief();
   fetchProfile();hydrateFromBackend();

@@ -1,8 +1,11 @@
 <!DOCTYPE html>
 <!-- ===================================================================== -->
-<!-- AEVUM Meal Builder  ·  mealbuilder.html  ·  v1.1.1  (2026-10-03)        -->
-<!-- Backends: Apps Script v1.17.0_FULL · Cloudflare Worker v1.10.0          -->
+<!-- AEVUM Meal Builder  ·  mealbuilder.html  ·  v1.2.0  (2026-10-03)        -->
+<!-- Backends: Apps Script v1.17.0_FULL · Cloudflare Worker v1.11.0          -->
 <!-- Rule-based food gate (Policy tab); budget from Rules; additive save.    -->
+<!-- v1.2.0: consumes per-ingredient `components`; macro totals summed by     -->
+<!--         the Worker (Sonnet + Atwater guard), not hallucinated whole-meal.-->
+<!-- ===================================================================== -->
 <!-- ===================================================================== -->
 <html lang="en">
 <head>
@@ -233,7 +236,7 @@ body{font-family:var(--sans);background:var(--paper);color:var(--ink);min-height
 <script>
 (function(){
   'use strict';
-  const MB_VERSION = 'v1.1.1';
+  const MB_VERSION = 'v1.2.0';
 
   /* ═══════════════════════════════════════════════
      CONFIG
@@ -707,9 +710,12 @@ body{font-family:var(--sans);background:var(--paper);color:var(--ink);min-height
     const carbs = Math.round(r.carbs || 0);
 
     let ingHTML = '';
-    if (r.protein_item) ingHTML += `<div class="mbr-ing">&#8226; ${esc(r.protein_item)}, ${r.protein_g||'?'}g</div>`;
-    if (r.veg_items && r.veg_items.length) {
-      r.veg_items.forEach(v => { ingHTML += `<div class="mbr-ing">&#8226; ${esc(v.name)}, ${v.g||'?'}g</div>`; });
+    // v1.2.0: per-ingredient breakdown (macros computed + summed server-side).
+    if (r.components && r.components.length) {
+      r.components.forEach(c => {
+        ingHTML += `<div class="mbr-ing">&#8226; ${esc(c.name)}, ${c.g||'?'}g `
+          + `<span style="color:var(--muted);font-size:12px;">(${Math.round(c.kcal||0)} kcal . ${Math.round(c.protein||0)}P ${Math.round(c.fat||0)}F ${Math.round(c.carbs||0)}C)</span></div>`;
+      });
     }
     if (r.cooking_method) ingHTML += `<div class="mbr-ing" style="color:var(--muted);font-style:italic;">Method: ${esc(r.cooking_method)}</div>`;
     if (r.seasoning) ingHTML += `<div class="mbr-ing" style="color:var(--muted);font-style:italic;">Seasoning: ${esc(r.seasoning)}</div>`;

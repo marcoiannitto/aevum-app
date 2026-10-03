@@ -7,6 +7,9 @@
 <!--         Atwater guard), not hallucinated whole-meal.                     -->
 <!-- v1.3.0: desktop layout (centred 920px, budget as 4 tiles); shows the     -->
 <!--         AI raw text / http detail on an error instead of bare "parse".   -->
+<!-- v1.3.1: post() now surfaces HTTP errors (was swallowed as "couldn't      -->
+<!--         build"); Sonnet is slower so timeouts raised (main 55s,          -->
+<!--         snack/fruit 35s); catch shows the real reason (timeout/HTTP).    -->
 <!-- ===================================================================== -->
 <!-- ===================================================================== -->
 <html lang="en">
@@ -255,7 +258,7 @@ body{font-family:var(--sans);background:var(--paper);color:var(--ink);min-height
 <script>
 (function(){
   'use strict';
-  const MB_VERSION = 'v1.3.0';
+  const MB_VERSION = 'v1.3.1';
 
   /* ═══════════════════════════════════════════════
      CONFIG
@@ -279,6 +282,11 @@ body{font-family:var(--sans);background:var(--paper);color:var(--ink);min-height
         body: JSON.stringify(body),
         signal: ctl.signal
       });
+      if (!res.ok) {
+        let txt = ''; try { txt = await res.text(); } catch {}
+        const err = new Error('HTTP ' + res.status + (txt ? ': ' + txt.slice(0, 200) : ''));
+        err.http = res.status; throw err;
+      }
       return await res.json();
     } finally { clearTimeout(t); }
   }
@@ -689,24 +697,25 @@ body{font-family:var(--sans);background:var(--paper);color:var(--ink);min-height
           protein: MB.protein, method: MB.method, target_g: perMealProtein,
           targets: tgt, remaining: remain, allowed: allowed,
           preferences: MB.prefs, exclude: ''
-        }, 30000);
+        }, 55000);
       } else if (MB.type === 'snack') {
         result = await post(workerUrl, {
           action: 'mealbuilder', sub: 'snack', phase: ph, policy: pol,
           item: MB.protein, targets: tgt, remaining: remain, allowed: allowed
-        }, 20000);
+        }, 35000);
       } else {
         result = await post(workerUrl, {
           action: 'mealbuilder', sub: 'fruit', phase: ph, policy: pol,
           fruit: MB.protein, cap_g: MB.cap || 100,
           targets: tgt, remaining: remain, allowed: allowed
-        }, 20000);
+        }, 35000);
       }
       MB.result = result;
       renderResult();
       goStep(5);
     } catch(e) {
-      $('mbResultCard').innerHTML = `<div class="plan-empty">AI couldn't build this meal. Try again.</div>`;
+      const why = (e && e.name === 'AbortError') ? 'Timed out (the AI took too long). Try again.' : (e && e.message ? e.message : 'Unknown error');
+      $('mbResultCard').innerHTML = `<div class="plan-empty">AI couldn't build this meal.<div style="font-size:11px;color:var(--muted);margin-top:8px;white-space:pre-wrap;">${esc(String(why))}</div></div>`;
       goStep(5);
     } finally {
       btn.disabled = false;

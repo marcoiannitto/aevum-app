@@ -189,8 +189,8 @@ body{font-family:var(--sans);background:var(--paper);color:var(--ink);min-height
   /* ═══════════════════════════════════════════════
      CONFIG — update these two URLs for your deploy
      ═══════════════════════════════════════════════ */
-  const BACKEND_URL = 'https://script.google.com/macros/s/AKfycby0jEwPEqESOu_SK8qYqiJxR-1MeT8Ax6fq0fHPHC6gfihMpPW4uJBt1lGwmK_inQ4-/exec'; // your GAS web app URL
-  const WORKER_URL  = 'https://sweet-fire-a436.marco-iannitto.workers.dev'; // your Cloudflare Worker URL
+  const BACKEND_URL = 'https://script.google.com/macros/s/AKfycby0jEwPEqESOu_SK8qYqiJxR-1MeT8Ax6fq0fHPHC6gfihMpPW4uJBt1lGwmK_inQ4-/exec';
+  const WORKER_URL  = 'https://sweet-fire-a436.marco-iannitto.workers.dev';
 
   /* ---- Helpers ---- */
   const $ = id => document.getElementById(id);
@@ -209,10 +209,12 @@ body{font-family:var(--sans);background:var(--paper);color:var(--ink);min-height
   async function post(url, body, timeout) {
     const ctl = new AbortController();
     const t = setTimeout(() => ctl.abort(), timeout || 15000);
+    // GAS needs text/plain to skip CORS preflight; Worker handles application/json
+    const isGAS = url.includes('script.google.com');
     try {
       const res = await fetch(url, {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': isGAS ? 'text/plain;charset=utf-8' : 'application/json'},
         body: JSON.stringify(body),
         signal: ctl.signal
       });
@@ -224,7 +226,8 @@ body{font-family:var(--sans);background:var(--paper);color:var(--ink);min-height
   let profile = null;
   let macros = null;    // from mealengine calc
   let config = null;    // from mealengine config
-  let todayMeals = [];  // [{slot, name, kcal, protein, fat, carbs}]
+  let todayMeals = [];  // [{slot, name, kcal, protein, fat, carbs, saved}]
+  let currentDay = 1;   // auto-calculated from start_date
 
   const MB = {
     step: 1, totalSteps: 5,
@@ -234,6 +237,17 @@ body{font-family:var(--sans);background:var(--paper);color:var(--ink);min-height
   /* ═══════════════════════════════════════════════
      INIT: load profile + config + macros
      ═══════════════════════════════════════════════ */
+  /* ---- Calculate current program day from start_date ---- */
+  function calcProgramDay(startDateStr) {
+    if (!startDateStr) return 1;
+    const start = new Date(startDateStr + 'T00:00:00');
+    if (isNaN(start)) return 1;
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const diff = Math.floor((today - start) / 86400000) + 1; // day 1 = start_date
+    return Math.max(1, diff);
+  }
+
   async function init() {
     if (!BACKEND_URL) {
       $('errorBox').style.display = 'block';
@@ -245,21 +259,41 @@ body{font-family:var(--sans);background:var(--paper);color:var(--ink);min-height
       // Load profile
       const pRes = await post(BACKEND_URL, {action:'profile', id:PID});
       profile = pRes.profile || {};
+
+      // Auto-detect current program day
+      currentDay = calcProgramDay(profile.start_date);
       $('personName').textContent = profile.name || PID;
-      $('personMeta').textContent = 'Height: ' + (profile.height || '?') + ' cm';
+      $('personMeta').textContent = 'Day ' + currentDay + ' · Height: ' + (profile.height || '?') + ' cm';
 
-      // Load meal engine config
-      const cfgRes = await post(BACKEND_URL, {action:'mealengine', sub:'config'});
+      // Load meal engine config + macro calc in parallel
+      const [cfgRes, calcRes] = await Promise.all([
+        post(BACKEND_URL, {action:'mealengine', sub:'config'}),
+        post(BACKEND_URL, {action:'mealengine', sub:'calc',
+          sex: profile.sex || 'm',
+          height: profile.height || 175,
+          weight: profile.start_weight || 75,
+          activation_days: profile.activation_days || 8
+        })
+      ]);
       config = cfgRes;
-
-      // Load macro calc
-      const calcRes = await post(BACKEND_URL, {action:'mealengine', sub:'calc',
-        sex: profile.sex || 'm',
-        height: profile.height || 175,
-        weight: profile.start_weight || 75,
-        activation_days: profile.activation_days || 8
-      });
       macros = calcRes;
+
+      // Load existing meals for today from sheet
+      const planRes = await post(BACKEND_URL, {action:'mealplan', id:PID});
+      if (planRes.plan && planRes.plan.length) {
+        const existing = planRes.plan.filter(r => +r.day === currentDay);
+        existing.forEach(r => {
+          todayMeals.push({
+            slot: r.meal || 'Main',
+            name: r.recipe || 'Meal',
+            kcal: +r.kcal||0, protein: +r.protein||0,
+            fat: +r.fat||0, carbs: +r.carbs||0,
+            saved: true
+          });
+        });
+      }
+
+      renderPlanList();
       renderBudget();
 
     } catch(e) {
@@ -525,14 +559,14 @@ body{font-family:var(--sans);background:var(--paper);color:var(--ink);min-height
       return;
     }
     wrap.innerHTML = todayMeals.map((m, i) => `
-      <div class="plan-item">
+      <div class="plan-item" style="${m.saved ? 'opacity:.6;' : ''}">
         <div>
           <div class="pi-name">${esc(m.name)}</div>
-          <div class="pi-slot">${esc(m.slot)}</div>
+          <div class="pi-slot">${esc(m.slot)}${m.saved ? ' <span style="font-size:10px;color:var(--gold);">saved</span>' : ''}</div>
         </div>
         <div style="display:flex;align-items:center;">
           <span class="pi-kcal">${m.kcal} kcal</span>
-          <button class="pi-del" data-i="${i}">&#10005;</button>
+          ${m.saved ? '' : `<button class="pi-del" data-i="${i}">&#10005;</button>`}
         </div>
       </div>
     `).join('');
@@ -555,16 +589,19 @@ body{font-family:var(--sans);background:var(--paper);color:var(--ink);min-height
     btn.disabled = true;
     btn.textContent = 'Saving...';
 
-    // Default to day 1 for now (can be parameterized later)
-    const day = parseInt(params.get('day')) || 1;
-    const rows = todayMeals.map(m => ({
-      day, meal: m.slot, recipe: m.name,
+    // Only save new (unsaved) meals
+    const newMeals = todayMeals.filter(m => !m.saved);
+    if (!newMeals.length) { btn.textContent = 'Nothing new to save'; btn.disabled = false; return; }
+    const rows = newMeals.map(m => ({
+      day: currentDay, meal: m.slot, recipe: m.name,
       kcal: m.kcal, protein: m.protein, fat: m.fat, carbs: m.carbs
     }));
 
     try {
       const res = await post(BACKEND_URL, {action:'mealengine', sub:'save', id:PID, rows}, 15000);
       if (res.ok) {
+        todayMeals.forEach(m => m.saved = true);
+        renderPlanList();
         btn.textContent = 'Saved!';
         setTimeout(() => { btn.textContent = 'Save plan to sheet'; btn.disabled = false; }, 2000);
       } else {

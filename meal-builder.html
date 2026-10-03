@@ -1,10 +1,12 @@
 <!DOCTYPE html>
 <!-- ===================================================================== -->
-<!-- AEVUM Meal Builder  ·  mealbuilder.html  ·  v1.2.0  (2026-10-03)        -->
-<!-- Backends: Apps Script v1.17.0_FULL · Cloudflare Worker v1.11.0          -->
+<!-- AEVUM Meal Builder  ·  mealbuilder.html  ·  v1.3.0  (2026-10-03)        -->
+<!-- Backends: Apps Script v1.17.0_FULL · Cloudflare Worker v1.11.1          -->
 <!-- Rule-based food gate (Policy tab); budget from Rules; additive save.    -->
-<!-- v1.2.0: consumes per-ingredient `components`; macro totals summed by     -->
-<!--         the Worker (Sonnet + Atwater guard), not hallucinated whole-meal.-->
+<!-- v1.2.0: per-ingredient `components`; totals summed by Worker (Sonnet +   -->
+<!--         Atwater guard), not hallucinated whole-meal.                     -->
+<!-- v1.3.0: desktop layout (centred 920px, budget as 4 tiles); shows the     -->
+<!--         AI raw text / http detail on an error instead of bare "parse".   -->
 <!-- ===================================================================== -->
 <!-- ===================================================================== -->
 <html lang="en">
@@ -97,6 +99,23 @@ body{font-family:var(--sans);background:var(--paper);color:var(--ink);min-height
 .mbr-step{font-size:14px;color:var(--ink-soft);padding:6px 0 6px 28px;position:relative;line-height:1.45;counter-increment:ms;}
 .mbr-step::before{content:counter(ms);position:absolute;left:0;top:5px;width:20px;height:20px;background:var(--ink);color:#fff;border-radius:50%;font-size:11px;font-weight:600;display:flex;align-items:center;justify-content:center;}
 .mbr-flags{margin-top:10px;padding:10px;background:var(--warn-bg);border:1px solid #eBD9A8;border-radius:10px;font-size:13px;color:var(--warn);}
+
+/* ── Desktop layout: centre the app and make the budget a tile row ── */
+@media (min-width:760px){
+  .topbar,.controls,.app-body{max-width:920px;margin-left:auto;margin-right:auto;width:100%;}
+  .topbar{padding-left:24px;padding-right:24px;}
+  .controls{border:0;background:transparent;padding-left:24px;padding-right:24px;}
+  .status-bar{border:0;background:transparent;padding-left:24px;padding-right:24px;}
+  .budget{margin-left:24px;margin-right:24px;}
+  .builder{padding-left:24px;padding-right:24px;}
+  /* budget rows become 4 stat tiles instead of label-left / value-right */
+  #budgetRows{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+  #budgetRows .brow{flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:4px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;}
+  #budgetRows .brow span{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);}
+  #budgetRows .brow b{font-size:14px;}
+  /* two meals/options per row already; give result + builder breathing room */
+  .mb-grid{grid-template-columns:repeat(3,1fr);}
+}
 .mb-actions{display:flex;gap:8px;margin-top:14px;}
 .mb-actions button{flex:1;padding:13px;border-radius:12px;font-weight:600;font-size:14px;}
 .mb-accept{background:var(--ink);color:#fff;}
@@ -236,7 +255,7 @@ body{font-family:var(--sans);background:var(--paper);color:var(--ink);min-height
 <script>
 (function(){
   'use strict';
-  const MB_VERSION = 'v1.2.0';
+  const MB_VERSION = 'v1.3.0';
 
   /* ═══════════════════════════════════════════════
      CONFIG
@@ -699,7 +718,9 @@ body{font-family:var(--sans);background:var(--paper);color:var(--ink);min-height
   function renderResult() {
     const r = MB.result;
     if (!r || r.error) {
-      $('mbResultCard').innerHTML = `<div class="plan-empty">Error: ${esc(r ? r.error : 'no data')}</div>`;
+      const extra = (r && r.raw) ? `<div style="font-size:11px;color:var(--muted);margin-top:8px;white-space:pre-wrap;text-align:left;">AI said: ${esc(String(r.raw))}</div>` : '';
+      const detail = (r && r.detail) ? `<div style="font-size:11px;color:var(--muted);margin-top:8px;white-space:pre-wrap;text-align:left;">${esc(JSON.stringify(r.detail).slice(0,300))}</div>` : '';
+      $('mbResultCard').innerHTML = `<div class="plan-empty">Error: ${esc(r ? r.error : 'no data')}${extra}${detail}</div>`;
       return;
     }
 

@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>AEVUM Meal Builder</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,500;9..144,700&display=swap" rel="stylesheet">
+<style>
+/* ===== AEVUM Brand Tokens ===== */
+:root{
+  --ink:#1A1A1A;--ink-2:#111010;--ink-soft:#4a463f;
+  --gold:#B08D2E;--gold-deep:#8f6f1f;--gold-light:#d8b95e;
+  --paper:#FBFAF7;--card:#ffffff;
+  --line:#EBE5D8;--line-soft:#F2EDE2;
+  --muted:#938c7d;
+  --warn:#b8860b;--warn-bg:#fdf6e3;
+  --over:#c0392b;
+  --serif:'Fraunces',Georgia,serif;
+  --sans:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+button{cursor:pointer;border:none;font-family:var(--sans);}
+body{font-family:var(--sans);background:var(--paper);color:var(--ink);min-height:100dvh;padding:0 0 32px;}
+
+/* ===== Top bar ===== */
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:16px 16px 12px;border-bottom:1px solid var(--line-soft);}
+.topbar h1{font-family:var(--serif);font-size:20px;font-weight:500;letter-spacing:.02em;}
+.topbar .badge{font-size:11px;background:var(--gold);color:#fff;padding:3px 8px;border-radius:6px;font-weight:600;letter-spacing:.03em;}
+
+/* ===== Status bar ===== */
+.status-bar{padding:14px 16px;background:var(--card);border-bottom:1px solid var(--line-soft);}
+.status-bar .name{font-size:14px;font-weight:600;color:var(--ink);}
+.status-bar .meta{font-size:12px;color:var(--muted);margin-top:2px;}
+
+/* ===== Budget bar ===== */
+.budget{padding:14px 16px;background:var(--card);margin:12px 16px;border-radius:14px;border:1px solid var(--line);}
+.budget .brow{display:flex;justify-content:space-between;font-size:13px;color:var(--ink-soft);padding:3px 0;}
+.budget .brow b{font-family:var(--serif);font-weight:500;color:var(--ink);}
+.budget .brow .over{color:var(--over);font-weight:600;}
+.budget h3{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:6px;}
+
+/* ===== Builder steps ===== */
+.builder{padding:0 16px;}
+.mb-progress{display:flex;gap:4px;margin:18px 0;}
+.mb-dot{flex:1;height:4px;border-radius:2px;background:var(--line-soft);}
+.mb-dot.done{background:var(--gold);}
+.mb-dot.cur{background:var(--gold-deep);}
+
+.mb-step{display:none;}
+.mb-step.active{display:block;}
+.mb-q{font-family:var(--serif);font-size:19px;font-weight:500;margin-bottom:14px;line-height:1.3;}
+.mb-opts{display:flex;flex-direction:column;gap:8px;}
+.mb-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.mb-opt{padding:14px 16px;border:1px solid var(--line);border-radius:13px;background:var(--card);font-size:15px;font-weight:500;text-align:left;color:var(--ink);transition:border-color .15s,background .15s;}
+.mb-opt:active,.mb-opt.on{border-color:var(--gold);background:var(--gold);color:#fff;}
+.mb-opt.limited{border-left:3px solid var(--warn);}
+.mb-opt .tag{font-size:11px;color:var(--warn);font-weight:600;margin-left:6px;}
+.mb-back{color:var(--muted);font-size:14px;font-weight:500;padding:10px 0 0;display:flex;align-items:center;gap:4px;background:none;}
+.mb-next{width:100%;margin-top:14px;padding:15px;background:var(--ink);color:#fff;border-radius:14px;font-weight:600;font-size:15px;}
+.mb-next:disabled{opacity:.4;}
+.mb-pref-input{width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--card);margin-top:8px;font-size:14px;font-family:var(--sans);}
+.mb-pref-input::placeholder{color:var(--muted);}
+
+/* ===== Result card ===== */
+.mb-result{background:var(--card);border:1px solid var(--gold);border-radius:18px;padding:18px;margin-top:14px;}
+.mbr-name{font-family:var(--serif);font-size:20px;font-weight:500;margin-bottom:6px;}
+.mbr-macros{display:flex;gap:8px;margin-bottom:14px;}
+.mbr-m{flex:1;text-align:center;border:1px solid var(--line);border-radius:11px;padding:10px 4px;}
+.mbr-m .v{font-family:var(--serif);font-size:18px;font-weight:500;}
+.mbr-m .l{font-size:10px;color:var(--muted);text-transform:uppercase;margin-top:2px;}
+.mbr-section{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:14px 0 6px;}
+.mbr-ing{font-size:14px;color:var(--ink-soft);padding:4px 0;}
+.mbr-steps{counter-reset:ms;}
+.mbr-step{font-size:14px;color:var(--ink-soft);padding:6px 0 6px 28px;position:relative;line-height:1.45;counter-increment:ms;}
+.mbr-step::before{content:counter(ms);position:absolute;left:0;top:5px;width:20px;height:20px;background:var(--ink);color:#fff;border-radius:50%;font-size:11px;font-weight:600;display:flex;align-items:center;justify-content:center;}
+.mbr-flags{margin-top:10px;padding:10px;background:var(--warn-bg);border:1px solid #eBD9A8;border-radius:10px;font-size:13px;color:var(--warn);}
+.mb-actions{display:flex;gap:8px;margin-top:14px;}
+.mb-actions button{flex:1;padding:13px;border-radius:12px;font-weight:600;font-size:14px;}
+.mb-accept{background:var(--ink);color:#fff;}
+.mb-retry{border:1px solid var(--line);background:var(--card);color:var(--ink-soft);}
+
+/* ===== Plan list ===== */
+.plan-section{margin-top:18px;}
+.plan-section h3{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:8px;}
+.plan-item{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:6px;}
+.plan-item .pi-name{font-size:14px;font-weight:500;}
+.plan-item .pi-slot{font-size:11px;color:var(--muted);text-transform:uppercase;margin-top:2px;}
+.plan-item .pi-kcal{font-family:var(--serif);font-size:15px;font-weight:500;color:var(--gold-deep);}
+.plan-item .pi-del{font-size:18px;color:var(--muted);padding:0 0 0 12px;background:none;}
+.plan-empty{font-size:14px;color:var(--muted);text-align:center;padding:24px 0;}
+
+/* ===== Save bar ===== */
+.save-bar{position:fixed;bottom:0;left:0;right:0;padding:12px 16px;background:var(--paper);border-top:1px solid var(--line-soft);display:none;}
+.save-bar button{width:100%;padding:15px;background:var(--gold);color:var(--ink);border-radius:14px;font-weight:700;font-size:15px;letter-spacing:.02em;}
+.save-bar button:disabled{opacity:.4;}
+
+/* ===== Loading spinner ===== */
+.thinking{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* ===== Error state ===== */
+.error-box{margin:20px 16px;padding:16px;background:#fef2f2;border:1px solid #fca5a5;border-radius:12px;color:#991b1b;font-size:14px;}
+</style>
+</head>
+<body>
+
+<!-- Top bar -->
+<div class="topbar">
+  <h1>AEVUM Meal Builder</h1>
+  <span class="badge">ACTIVATION</span>
+</div>
+
+<!-- Status -->
+<div class="status-bar">
+  <div class="name" id="personName">Loading...</div>
+  <div class="meta" id="personMeta"></div>
+</div>
+
+<!-- Budget -->
+<div class="budget" id="budgetBar">
+  <h3>Daily budget</h3>
+  <div id="budgetRows"></div>
+</div>
+
+<!-- Builder -->
+<div class="builder">
+  <div class="mb-progress" id="mbProgress"></div>
+
+  <!-- Step 1: Meal type -->
+  <div class="mb-step active" id="mb-step-1">
+    <div class="mb-q">What are you building?</div>
+    <div class="mb-opts">
+      <button class="mb-opt" data-type="main">&#127869; Main meal</button>
+      <button class="mb-opt" data-type="snack">&#129379; Snack</button>
+      <button class="mb-opt" data-type="fruit">&#127822; Fruit</button>
+    </div>
+  </div>
+
+  <!-- Step 2: Pick item -->
+  <div class="mb-step" id="mb-step-2">
+    <div class="mb-q" id="mb-q2">Pick your protein</div>
+    <div class="mb-opts mb-grid" id="mb-opts-2"></div>
+    <button class="mb-back" id="mb-back-2">&#8249; Back</button>
+  </div>
+
+  <!-- Step 3: Cooking method (main only) -->
+  <div class="mb-step" id="mb-step-3">
+    <div class="mb-q">How should it be cooked?</div>
+    <div class="mb-opts mb-grid" id="mb-opts-3"></div>
+    <button class="mb-back" id="mb-back-3">&#8249; Back</button>
+  </div>
+
+  <!-- Step 4: Preferences + generate -->
+  <div class="mb-step" id="mb-step-4">
+    <div class="mb-q" id="mb-q4">Any preferences?</div>
+    <input class="mb-pref-input" id="mbPrefInput" type="text" placeholder="e.g. no mushrooms, Italian style..." autocomplete="off">
+    <button class="mb-next" id="mbGenerate">&#10022; Build with AI</button>
+    <button class="mb-back" id="mb-back-4">&#8249; Back</button>
+  </div>
+
+  <!-- Step 5: Result -->
+  <div class="mb-step" id="mb-step-5">
+    <div id="mbResultCard"></div>
+    <div class="mb-actions">
+      <button class="mb-retry" id="mbRetry">&#8635; Try again</button>
+      <button class="mb-accept" id="mbAccept">&#10003; Add to today</button>
+    </div>
+  </div>
+
+  <!-- Today's plan -->
+  <div class="plan-section" id="planSection">
+    <h3>Today's meals</h3>
+    <div id="planList"></div>
+  </div>
+</div>
+
+<!-- Save bar -->
+<div class="save-bar" id="saveBar">
+  <button id="savePlan">Save plan to sheet</button>
+</div>
+
+<!-- Error -->
+<div class="error-box" id="errorBox" style="display:none;"></div>
+
+<script>
+(function(){
+  'use strict';
+
+  /* ═══════════════════════════════════════════════
+     CONFIG — update these two URLs for your deploy
+     ═══════════════════════════════════════════════ */
+  const BACKEND_URL = ''; // your GAS web app URL
+  const WORKER_URL  = ''; // your Cloudflare Worker URL
+
+  /* ---- Helpers ---- */
+  const $ = id => document.getElementById(id);
+  const esc = s => {const d=document.createElement('div');d.textContent=s;return d.innerHTML;};
+  const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+
+  const params = new URLSearchParams(location.search);
+  const PID = (params.get('id') || '').toLowerCase();
+  if (!PID) {
+    $('errorBox').style.display = 'block';
+    $('errorBox').textContent = 'No ?id= parameter. Open this page with ?id=yourname';
+    return;
+  }
+
+  /* ---- POST helper ---- */
+  async function post(url, body, timeout) {
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), timeout || 15000);
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body),
+        signal: ctl.signal
+      });
+      return await res.json();
+    } finally { clearTimeout(t); }
+  }
+
+  /* ---- State ---- */
+  let profile = null;
+  let macros = null;    // from mealengine calc
+  let config = null;    // from mealengine config
+  let todayMeals = [];  // [{slot, name, kcal, protein, fat, carbs}]
+
+  const MB = {
+    step: 1, totalSteps: 5,
+    type: null, protein: null, method: null, prefs: '', result: null
+  };
+
+  /* ═══════════════════════════════════════════════
+     INIT: load profile + config + macros
+     ═══════════════════════════════════════════════ */
+  async function init() {
+    if (!BACKEND_URL) {
+      $('errorBox').style.display = 'block';
+      $('errorBox').textContent = 'BACKEND_URL not set. Edit the script and paste your GAS web app URL.';
+      return;
+    }
+
+    try {
+      // Load profile
+      const pRes = await post(BACKEND_URL, {action:'profile', id:PID});
+      profile = pRes.profile || {};
+      $('personName').textContent = profile.name || PID;
+      $('personMeta').textContent = 'Height: ' + (profile.height || '?') + ' cm';
+
+      // Load meal engine config
+      const cfgRes = await post(BACKEND_URL, {action:'mealengine', sub:'config'});
+      config = cfgRes;
+
+      // Load macro calc
+      const calcRes = await post(BACKEND_URL, {action:'mealengine', sub:'calc',
+        sex: profile.sex || 'm',
+        height: profile.height || 175,
+        weight: profile.start_weight || 75,
+        activation_days: profile.activation_days || 8
+      });
+      macros = calcRes;
+      renderBudget();
+
+    } catch(e) {
+      console.error('Init failed:', e);
+      $('errorBox').style.display = 'block';
+      $('errorBox').textContent = 'Failed to load: ' + String(e);
+    }
+  }
+
+  /* ---- Budget display ---- */
+  function usedMacros() {
+    let u = {kcal:0, protein:0, fat:0, carbs:0};
+    todayMeals.forEach(m => {
+      u.kcal += +m.kcal||0; u.protein += +m.protein||0;
+      u.fat += +m.fat||0; u.carbs += +m.carbs||0;
+    });
+    return u;
+  }
+
+  function renderBudget() {
+    if (!macros) return;
+    const u = usedMacros();
+    const rem = k => Math.round((macros[k === 'kcal' ? 'kcal_estimate' : k === 'protein' ? 'p_food' : k === 'carbs' ? 'c_daily' : 'f_daily'] || 0) - (u[k] || 0));
+    const cls = v => v < 0 ? 'over' : '';
+    $('budgetRows').innerHTML =
+      `<div class="brow"><span>Calories</span><b class="${cls(rem('kcal'))}">${rem('kcal')} kcal</b></div>` +
+      `<div class="brow"><span>Protein</span><b class="${cls(rem('protein'))}">${rem('protein')}g</b></div>` +
+      `<div class="brow"><span>Carbs</span><b class="${cls(rem('carbs'))}">${rem('carbs')}g</b></div>` +
+      `<div class="brow"><span>Fat</span><b>0g</b></div>`;
+  }
+
+  /* ═══════════════════════════════════════════════
+     BUILDER FLOW
+     ═══════════════════════════════════════════════ */
+  function renderProgress() {
+    const steps = MB.type === 'main' ? 5 : 4;
+    MB.totalSteps = steps;
+    let html = '';
+    for (let i = 1; i <= steps; i++) {
+      const cls = i < MB.step ? 'done' : (i === MB.step ? 'cur' : '');
+      html += `<div class="mb-dot ${cls}"></div>`;
+    }
+    $('mbProgress').innerHTML = html;
+  }
+
+  function goStep(n) {
+    MB.step = n;
+    for (let i = 1; i <= 5; i++) {
+      const el = $('mb-step-' + i);
+      if (el) el.classList.toggle('active', i === n);
+    }
+    renderProgress();
+  }
+
+  function resetBuilder() {
+    MB.step = 1; MB.type = null; MB.protein = null;
+    MB.method = null; MB.prefs = ''; MB.result = null;
+    goStep(1);
+  }
+
+  /* Step 1: meal type */
+  $('mb-step-1').querySelectorAll('.mb-opt').forEach(btn => {
+    btn.onclick = () => {
+      MB.type = btn.dataset.type;
+      buildStep2();
+      goStep(2);
+    };
+  });
+
+  /* Step 2: pick item */
+  function buildStep2() {
+    const wrap = $('mb-opts-2');
+    const q = $('mb-q2');
+    wrap.innerHTML = '';
+    if (!config) { wrap.innerHTML = '<div class="plan-empty">Loading config...</div>'; return; }
+
+    if (MB.type === 'main') {
+      q.textContent = 'Pick your protein';
+      config.proteins.allowed.forEach(p => {
+        wrap.insertAdjacentHTML('beforeend', `<button class="mb-opt" data-v="${esc(p)}">${esc(cap(p))}</button>`);
+      });
+      config.proteins.limited.forEach(p => {
+        wrap.insertAdjacentHTML('beforeend', `<button class="mb-opt limited" data-v="${esc(p)}">${esc(cap(p))}<span class="tag">limited</span></button>`);
+      });
+    } else if (MB.type === 'snack') {
+      q.textContent = 'Pick your snack';
+      config.snack_items.allowed.forEach(s => {
+        wrap.insertAdjacentHTML('beforeend', `<button class="mb-opt" data-v="${esc(s)}">${esc(cap(s))}</button>`);
+      });
+    } else {
+      q.textContent = 'Pick your fruit';
+      config.fruit.allowed.forEach(f => {
+        wrap.insertAdjacentHTML('beforeend', `<button class="mb-opt" data-v="${esc(f)}">${esc(cap(f))}</button>`);
+      });
+    }
+
+    wrap.querySelectorAll('.mb-opt').forEach(btn => {
+      btn.onclick = () => {
+        MB.protein = btn.dataset.v;
+        if (MB.type === 'main') { buildStep3(); goStep(3); }
+        else { buildStep4(); goStep(4); }
+      };
+    });
+  }
+
+  /* Step 3: cooking method */
+  function buildStep3() {
+    const wrap = $('mb-opts-3');
+    wrap.innerHTML = '';
+    if (!config) return;
+    config.cooking_methods.allowed.forEach(m => {
+      wrap.insertAdjacentHTML('beforeend', `<button class="mb-opt" data-v="${esc(m)}">${esc(cap(m))}</button>`);
+    });
+    wrap.querySelectorAll('.mb-opt').forEach(btn => {
+      btn.onclick = () => { MB.method = btn.dataset.v; buildStep4(); goStep(4); };
+    });
+  }
+
+  /* Step 4: preferences */
+  function buildStep4() {
+    const q = $('mb-q4');
+    if (MB.type === 'main') {
+      q.textContent = 'Any preferences?';
+      $('mbPrefInput').placeholder = 'e.g. no mushrooms, Italian style...';
+    } else if (MB.type === 'snack') {
+      q.textContent = 'How much?';
+      $('mbPrefInput').placeholder = 'e.g. 150g, or leave blank for AI suggestion';
+    } else {
+      q.textContent = 'Portion?';
+      $('mbPrefInput').placeholder = 'e.g. 80g, or leave blank (max 100g)';
+    }
+    $('mbPrefInput').value = '';
+  }
+
+  /* Generate */
+  $('mbGenerate').onclick = async () => {
+    const btn = $('mbGenerate');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="thinking"></span> Building...';
+    MB.prefs = $('mbPrefInput').value.trim();
+
+    const workerUrl = WORKER_URL || BACKEND_URL;
+    const u = usedMacros();
+    const m = macros || {};
+
+    try {
+      let result;
+      if (MB.type === 'main') {
+        result = await post(workerUrl, {
+          action: 'mealbuilder', sub: 'suggest',
+          protein: MB.protein, method: MB.method,
+          target_g: m.per_meal ? m.per_meal.protein_g : 120,
+          preferences: MB.prefs, exclude: ''
+        }, 30000);
+      } else if (MB.type === 'snack') {
+        result = await post(workerUrl, {
+          action: 'mealbuilder', sub: 'snack',
+          item: MB.protein,
+          remaining_kcal: Math.max(0, (m.kcal_estimate||500) - u.kcal),
+          remaining_protein: Math.max(0, (m.p_food||80) - u.protein),
+          remaining_carbs: Math.max(0, (m.c_daily||50) - u.carbs)
+        }, 20000);
+      } else {
+        result = await post(workerUrl, {
+          action: 'mealbuilder', sub: 'fruit',
+          fruit: MB.protein,
+          remaining_carbs: Math.max(0, (m.c_daily||50) - u.carbs)
+        }, 20000);
+      }
+      MB.result = result;
+      renderResult();
+      goStep(5);
+    } catch(e) {
+      $('mbResultCard').innerHTML = `<div class="plan-empty">AI couldn't build this meal. Try again.</div>`;
+      goStep(5);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '&#10022; Build with AI';
+    }
+  };
+
+  /* Step 5: render result */
+  function renderResult() {
+    const r = MB.result;
+    if (!r || r.error) {
+      $('mbResultCard').innerHTML = `<div class="plan-empty">Error: ${esc(r ? r.error : 'no data')}</div>`;
+      return;
+    }
+
+    const name = r.name || 'Meal';
+    const kcal = Math.round(r.kcal || 0);
+    const protein = Math.round(r.protein_total || r.protein || 0);
+    const fat = Math.round(r.fat || 0);
+    const carbs = Math.round(r.carbs || 0);
+
+    let ingHTML = '';
+    if (r.protein_item) ingHTML += `<div class="mbr-ing">&#8226; ${esc(r.protein_item)} , ${r.protein_g||'?'}g</div>`;
+    if (r.veg_items && r.veg_items.length) {
+      r.veg_items.forEach(v => { ingHTML += `<div class="mbr-ing">&#8226; ${esc(v.name)} , ${v.g||'?'}g</div>`; });
+    }
+    if (r.cooking_method) ingHTML += `<div class="mbr-ing" style="color:var(--muted);font-style:italic;">Method: ${esc(r.cooking_method)}</div>`;
+    if (r.seasoning) ingHTML += `<div class="mbr-ing" style="color:var(--muted);font-style:italic;">Seasoning: ${esc(r.seasoning)}</div>`;
+    if (r.item) ingHTML += `<div class="mbr-ing">&#8226; ${esc(r.item)} , ${r.portion_g||'?'}g</div>`;
+    if (r.fruit) ingHTML += `<div class="mbr-ing">&#8226; ${esc(r.fruit)} , ${r.portion_g||'?'}g</div>`;
+
+    let stepsHTML = '';
+    if (r.recipe_steps && r.recipe_steps.length) {
+      stepsHTML = `<div class="mbr-section">Steps</div><div class="mbr-steps">`;
+      r.recipe_steps.forEach(s => { stepsHTML += `<div class="mbr-step">${esc(s)}</div>`; });
+      stepsHTML += '</div>';
+    }
+
+    let flagsHTML = '';
+    if (r.flags && r.flags.length) flagsHTML = `<div class="mbr-flags">&#9888; ${r.flags.map(f=>esc(f)).join(' · ')}</div>`;
+    if (r.note) flagsHTML += `<div style="font-size:13px;color:var(--muted);margin-top:6px;font-style:italic;">${esc(r.note)}</div>`;
+
+    $('mbResultCard').innerHTML = `<div class="mb-result">
+      <div class="mbr-name">${esc(name)}</div>
+      <div class="mbr-macros">
+        <div class="mbr-m"><div class="v">${kcal}</div><div class="l">kcal</div></div>
+        <div class="mbr-m"><div class="v">${protein}</div><div class="l">protein</div></div>
+        <div class="mbr-m"><div class="v">${fat}</div><div class="l">fat</div></div>
+        <div class="mbr-m"><div class="v">${carbs}</div><div class="l">carbs</div></div>
+      </div>
+      <div class="mbr-section">Ingredients</div>
+      ${ingHTML}
+      ${stepsHTML}
+      ${flagsHTML}
+    </div>`;
+  }
+
+  /* ---- Accept: add to today ---- */
+  $('mbAccept').onclick = () => {
+    const r = MB.result;
+    if (!r) return;
+    const slot = MB.type === 'main' ? 'Main' : (MB.type === 'snack' ? 'Snack' : 'Fruit');
+    todayMeals.push({
+      slot, name: r.name || 'Meal',
+      kcal: Math.round(r.kcal||0),
+      protein: Math.round(r.protein_total||r.protein||0),
+      fat: Math.round(r.fat||0),
+      carbs: Math.round(r.carbs||0)
+    });
+    renderPlanList();
+    renderBudget();
+    resetBuilder();
+  };
+
+  /* ---- Retry / Back ---- */
+  $('mbRetry').onclick = () => goStep(4);
+  $('mb-back-2').onclick = () => goStep(1);
+  $('mb-back-3').onclick = () => goStep(2);
+  $('mb-back-4').onclick = () => { MB.type === 'main' ? goStep(3) : goStep(2); };
+
+  /* ═══════════════════════════════════════════════
+     PLAN LIST
+     ═══════════════════════════════════════════════ */
+  function renderPlanList() {
+    const wrap = $('planList');
+    if (!todayMeals.length) {
+      wrap.innerHTML = '<div class="plan-empty">No meals yet. Build one above.</div>';
+      $('saveBar').style.display = 'none';
+      return;
+    }
+    wrap.innerHTML = todayMeals.map((m, i) => `
+      <div class="plan-item">
+        <div>
+          <div class="pi-name">${esc(m.name)}</div>
+          <div class="pi-slot">${esc(m.slot)}</div>
+        </div>
+        <div style="display:flex;align-items:center;">
+          <span class="pi-kcal">${m.kcal} kcal</span>
+          <button class="pi-del" data-i="${i}">&#10005;</button>
+        </div>
+      </div>
+    `).join('');
+
+    wrap.querySelectorAll('.pi-del').forEach(btn => {
+      btn.onclick = () => {
+        todayMeals.splice(+btn.dataset.i, 1);
+        renderPlanList();
+        renderBudget();
+      };
+    });
+    $('saveBar').style.display = 'block';
+  }
+
+  /* ═══════════════════════════════════════════════
+     SAVE TO SHEET
+     ═══════════════════════════════════════════════ */
+  $('savePlan').onclick = async () => {
+    const btn = $('savePlan');
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+
+    // Default to day 1 for now (can be parameterized later)
+    const day = parseInt(params.get('day')) || 1;
+    const rows = todayMeals.map(m => ({
+      day, meal: m.slot, recipe: m.name,
+      kcal: m.kcal, protein: m.protein, fat: m.fat, carbs: m.carbs
+    }));
+
+    try {
+      const res = await post(BACKEND_URL, {action:'mealengine', sub:'save', id:PID, rows}, 15000);
+      if (res.ok) {
+        btn.textContent = 'Saved!';
+        setTimeout(() => { btn.textContent = 'Save plan to sheet'; btn.disabled = false; }, 2000);
+      } else {
+        btn.textContent = 'Error: ' + (res.error || 'unknown');
+        setTimeout(() => { btn.textContent = 'Save plan to sheet'; btn.disabled = false; }, 3000);
+      }
+    } catch(e) {
+      btn.textContent = 'Failed';
+      setTimeout(() => { btn.textContent = 'Save plan to sheet'; btn.disabled = false; }, 3000);
+    }
+  };
+
+  /* ---- Init ---- */
+  renderPlanList();
+  renderProgress();
+  init();
+
+})();
+</script>
+</body>
+</html>

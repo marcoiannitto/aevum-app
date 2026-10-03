@@ -69,6 +69,12 @@ body{font-family:var(--sans);background:var(--paper);color:var(--ink);min-height
 .mb-next:disabled{opacity:.4;}
 .mb-pref-input{width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--card);margin-top:8px;font-size:14px;font-family:var(--sans);}
 .mb-pref-input::placeholder{color:var(--muted);}
+.mb-group-h{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--gold-deep);font-weight:700;margin:14px 0 6px;}
+.mb-group-h:first-child{margin-top:0;}
+.mb-check{margin-top:10px;font-size:13px;}
+.mb-ok{color:#2f7a3d;font-weight:600;}
+.mb-banned{background:#fef2f2;border:1px solid #fca5a5;border-radius:10px;padding:10px;color:#991b1b;}
+.mb-free{margin-top:4px;}
 
 /* Result card */
 .mb-result{background:var(--card);border:1px solid var(--gold);border-radius:18px;padding:18px;margin-top:14px;}
@@ -252,13 +258,53 @@ body{font-family:var(--sans);background:var(--paper);color:var(--ink);min-height
   /* ---- State ---- */
   let PID = '';
   let profile = null;
-  let macros = null;
-  let config = null;
+  let rules = [];         // resolved Rules rows for this client (from `rules` route)
+  let clientModel = 'buckets';
+  let foods = [];         // Foods rows (suggestions) from `foods` route
+  let policy = [];         // editable per-phase rules from `policy` route
   let allPlan = [];       // all plan rows for this user
   let todayMeals = [];    // meals for currentDay [{slot, name, kcal, protein, fat, carbs, saved}]
   let currentDay = 1;
-  let maxDay = 35;        // program length
+  let maxDay = 31;        // program length
   let userStartDate = null;
+
+  /* ---- Phase + Rules helpers (everything from the backend, nothing hardcoded) ---- */
+  function phaseForDay(d) {
+    const A = +(profile && profile.activation_days) || 8;
+    if (d <= 2) return 'loading';
+    if (d <= 2 + A) return 'activation';
+    if (d <= 2 + A + 3) return 'transition';
+    return 'stabilization';
+  }
+  function ruleRow(phase, metric) { return rules.find(r => r.phase === phase && r.metric === metric) || null; }
+  function targetFor(metric) {
+    const ph = phaseForDay(currentDay);
+    const row = ruleRow(ph, metric);
+    if (!row) return null;
+    if (row.basis === 'adaptive_kcal') return (profile && +profile.current_target_kcal) || null; // stabilization: the tracker's adaptive target
+    return row.target;
+  }
+  function bandClass(v, row) {
+    if (!row || row.gated === false) return '';
+    if (row.amber_lo != null && v < row.amber_lo) return 'over';
+    if (row.amber_hi != null && v > row.amber_hi) return 'over';
+    const okLo = (row.green_lo == null) || v >= row.green_lo;
+    const okHi = (row.green_hi == null) || v <= row.green_hi;
+    return (okLo && okHi) ? '' : 'warn';
+  }
+  function policyForPhase(phase) { const r = policy.find(p => p.phase === phase); return r ? r.rules_text : ''; }
+  function foodsForPhase(phase) { return foods.filter(f => f.phase === phase); }
+  function pickItems(phase, category) {
+    return foodsForPhase(phase).filter(f => f.category === category && (f.verdict === 'yes' || f.verdict === 'limited'));
+  }
+  function allowedFor(phase) {
+    const names = cat => pickItems(phase, cat).map(f => f.item);
+    return {
+      proteins: names('protein'), vegetables: names('vegetable'), fruit: names('fruit'),
+      fats: names('fat'), dairy: names('dairy'), methods: names('cooking_method'),
+      seasonings: names('seasoning'), snacks: names('snack')
+    };
+  }
 
   const MB = {
     step: 1, totalSteps: 5,
@@ -356,19 +402,17 @@ body{font-family:var(--sans);background:var(--paper);color:var(--ink);min-height
       updatePersonDisplay();
       updateDayDisplay();
 
-      // Config + calc + plan in parallel
-      const [cfgRes, calcRes, planRes] = await Promise.all([
-        post(BACKEND_URL, {action:'mealengine', sub:'config'}),
-        post(BACKEND_URL, {action:'mealengine', sub:'calc',
-          sex: profile.sex || 'm',
-          height: profile.height || 175,
-          weight: profile.start_weight || 75,
-          activation_days: actDays
-        }),
+      // Rules + Foods + Policy + plan in parallel (all from the backend)
+      const [rulesRes, foodsRes, policyRes, planRes] = await Promise.all([
+        post(BACKEND_URL, {action:'rules', id:PID}),
+        post(BACKEND_URL, {action:'foods'}),
+        post(BACKEND_URL, {action:'policy'}),
         post(BACKEND_URL, {action:'mealplan', id:PID})
       ]);
-      config = cfgRes;
-      macros = calcRes;
+      rules = (rulesRes && rulesRes.rules) || [];
+      clientModel = (rulesRes && rulesRes.model) || 'buckets';
+      foods = (foodsRes && foodsRes.foods) || [];
+      policy = (policyRes && policyRes.policy) || [];
       allPlan = (planRes.plan || []);
 
       loadDayMeals();
@@ -394,6 +438,8 @@ body{font-family:var(--sans);background:var(--paper);color:var(--ink);min-height
     $('dayPrev').disabled = currentDay <= 1;
     $('dayNext').disabled = currentDay >= maxDay;
     $('planHeader').textContent = 'Day ' + currentDay + (dt ? ' (' + dt + ')' : '') + ' meals';
+    const badge = document.querySelector('.topbar .badge');
+    if (badge) badge.textContent = phaseForDay(currentDay).toUpperCase();
   }
 
   /* ---- Day navigation ---- */
@@ -428,7 +474,7 @@ body{font-family:var(--sans);background:var(--paper);color:var(--ink);min-height
     });
   }
 
-  /* ---- Budget display ---- */
+  /* ---- Budget display (targets from Rules, per phase/model) ---- */
   function usedMacros() {
     let u = {kcal:0, protein:0, fat:0, carbs:0};
     todayMeals.forEach(m => {
@@ -437,18 +483,23 @@ body{font-family:var(--sans);background:var(--paper);color:var(--ink);min-height
     });
     return u;
   }
-
   function renderBudget() {
-    if (!macros) return;
     const u = usedMacros();
-    const target = k => macros[k === 'kcal' ? 'kcal_estimate' : k === 'protein' ? 'p_food' : k === 'carbs' ? 'c_daily' : 'f_daily'] || 0;
-    const rem = k => Math.round(target(k) - (u[k] || 0));
-    const cls = v => v < 0 ? 'over' : '';
-    $('budgetRows').innerHTML =
-      `<div class="brow"><span>Calories</span><b class="${cls(rem('kcal'))}">${rem('kcal')} kcal</b></div>` +
-      `<div class="brow"><span>Protein</span><b class="${cls(rem('protein'))}">${rem('protein')}g</b></div>` +
-      `<div class="brow"><span>Carbs</span><b class="${cls(rem('carbs'))}">${rem('carbs')}g</b></div>` +
-      `<div class="brow"><span>Fat</span><b>0g</b></div>`;
+    const ph = phaseForDay(currentDay);
+    const row = (metric) => ruleRow(ph, metric);
+    const line = (label, metric, key) => {
+      const tgt = targetFor(metric), used = Math.round(u[key] || 0), r = row(metric);
+      if (tgt == null) return `<div class="brow"><span>${label}</span><b>${used}${key==='kcal'?' kcal':'g'}</b></div>`;
+      const rem = Math.round(tgt - used);
+      const cls = (r && r.gated !== false) ? (bandClass(used, r) || (rem < 0 ? 'over' : '')) : (rem < 0 ? 'over' : '');
+      const unit = key === 'kcal' ? ' kcal' : 'g';
+      return `<div class="brow"><span>${label}</span><b class="${cls}">${used} / ${tgt}${unit} · ${rem} left</b></div>`;
+    };
+    let html = line('Calories', 'kcal', 'kcal') + line('Protein', 'protein', 'protein') + line('Carbs', 'carbs', 'carbs');
+    const fr = row('fat');
+    if (fr && fr.gated !== false && targetFor('fat') != null) html += line('Fat', 'fat', 'fat');
+    else html += `<div class="brow"><span>Fat</span><b>${Math.round(u.fat||0)}g</b></div>`;
+    $('budgetRows').innerHTML = html;
   }
 
   /* ═══════════════════════════════════════════════
@@ -492,46 +543,70 @@ body{font-family:var(--sans);background:var(--paper);color:var(--ink);min-height
   /* Step 2: pick item */
   function buildStep2() {
     const wrap = $('mb-opts-2');
-    const q = $('mb-q2');
+    wrap.className = 'mb-opts'; // not a fixed grid; we render groups
     wrap.innerHTML = '';
-    if (!config) { wrap.innerHTML = '<div class="plan-empty">Loading config...</div>'; return; }
+    const ph = phaseForDay(currentDay);
+    const cat = MB.type === 'main' ? 'protein' : (MB.type === 'snack' ? 'snack' : 'fruit');
+    $('mb-q2').textContent = MB.type === 'main' ? 'Pick your protein (or type your own)' : (MB.type === 'snack' ? 'Pick a snack (or type your own)' : 'Pick a fruit (or type your own)');
+    const items = pickItems(ph, cat);
 
+    const btn = f => {
+      const lim = f.verdict === 'limited';
+      return `<button class="mb-opt${lim ? ' limited' : ''}" data-v="${esc(f.item)}" data-verdict="${f.verdict}" data-cap="${f.cap_g || ''}">${esc(cap(f.item))}${lim ? '<span class="tag">limited</span>' : ''}</button>`;
+    };
+    let html = '';
     if (MB.type === 'main') {
-      q.textContent = 'Pick your protein';
-      config.proteins.allowed.forEach(p => {
-        wrap.insertAdjacentHTML('beforeend', `<button class="mb-opt" data-v="${esc(p)}">${esc(cap(p))}</button>`);
-      });
-      config.proteins.limited.forEach(p => {
-        wrap.insertAdjacentHTML('beforeend', `<button class="mb-opt limited" data-v="${esc(p)}">${esc(cap(p))}<span class="tag">limited</span></button>`);
-      });
-    } else if (MB.type === 'snack') {
-      q.textContent = 'Pick your snack';
-      config.snack_items.allowed.forEach(s => {
-        wrap.insertAdjacentHTML('beforeend', `<button class="mb-opt" data-v="${esc(s)}">${esc(cap(s))}</button>`);
+      // group proteins by subcategory
+      const order = ['meat/poultry', 'fish/seafood', 'plant', 'egg', ''];
+      const groups = {};
+      items.forEach(f => { const k = f.subcategory || ''; (groups[k] = groups[k] || []).push(f); });
+      order.forEach(k => {
+        if (!groups[k] || !groups[k].length) return;
+        const label = k || 'Other';
+        html += `<div class="mb-group-h">${esc(cap(label))}</div><div class="mb-grid">${groups[k].map(btn).join('')}</div>`;
       });
     } else {
-      q.textContent = 'Pick your fruit';
-      config.fruit.allowed.forEach(f => {
-        wrap.insertAdjacentHTML('beforeend', `<button class="mb-opt" data-v="${esc(f)}">${esc(cap(f))}</button>`);
-      });
+      html += `<div class="mb-grid">${items.map(btn).join('')}</div>`;
     }
+    // free-text entry (AI checks it fits the phase)
+    html += `<div class="mb-free"><input id="mbFree" class="mb-pref-input" type="text" placeholder="Type any ingredient (e.g. bok choy)..." autocomplete="off" style="margin-top:12px;"><button id="mbFreeGo" class="mb-opt" style="margin-top:8px;text-align:center;">Use this</button></div><div id="mbCheck2" class="mb-check"></div>`;
+    wrap.innerHTML = html;
 
-    wrap.querySelectorAll('.mb-opt').forEach(btn => {
-      btn.onclick = () => {
-        MB.protein = btn.dataset.v;
-        if (MB.type === 'main') { buildStep3(); goStep(3); }
-        else { buildStep4(); goStep(MB.type === 'main' ? 4 : 3); }
-      };
-    });
+    wrap.querySelectorAll('.mb-opt[data-v]').forEach(b => { b.onclick = () => onPickIngredient(b.dataset.v, b.dataset.verdict, b.dataset.cap ? +b.dataset.cap : null, false); });
+    $('mbFreeGo').onclick = () => { const v = $('mbFree').value.trim(); if (v) onPickIngredient(v, null, null, true); };
+    $('mbFree').onkeydown = e => { if (e.key === 'Enter') $('mbFreeGo').click(); };
   }
 
-  /* Step 3: cooking method (main) or preferences (snack/fruit mapped to step 4 UI) */
+  /* Validate a chosen/typed ingredient against the editable Policy via AI, then advance. */
+  async function onPickIngredient(item, verdict, capG, typed) {
+    const ph = phaseForDay(currentDay);
+    const msg = $('mbCheck2');
+    if (typed) {
+      if (msg) msg.innerHTML = '<span class="thinking" style="border-color:rgba(0,0,0,.1);border-top-color:var(--gold);"></span> Checking if it fits the phase...';
+      const res = await post(WORKER_URL || BACKEND_URL, { action: 'foodcheck', phase: ph, policy: policyForPhase(ph), food: item }, 15000).catch(() => null);
+      verdict = res && res.verdict ? res.verdict : 'yes';
+      if (verdict === 'no') {
+        if (msg) msg.innerHTML = `<div class="mb-banned">✕ <b>${esc(cap(item))}</b> doesn't fit ${esc(ph)}${res && res.reason ? ' — ' + esc(res.reason) : ''}. Pick something else.</div>`;
+        return;
+      }
+      if (res && res.cap) { const n = parseInt(String(res.cap).replace(/[^0-9]/g, ''), 10); if (!isNaN(n)) capG = n; }
+      if (msg) msg.innerHTML = verdict === 'limited' ? `<div class="mb-ok">✓ OK, limited${res && res.cap ? ' (' + esc(res.cap) + ')' : ''}.</div>` : `<div class="mb-ok">✓ Fits ${esc(ph)}.</div>`;
+    }
+    MB.protein = item;
+    MB.cap = capG || null;
+    MB.limited = verdict === 'limited';
+    if (MB.type === 'main') { buildStep3(); goStep(3); }
+    else { buildStep4(); goStep(3); }
+  }
+
+  /* Step 3: cooking method (main only) */
   function buildStep3() {
     const wrap = $('mb-opts-3');
     wrap.innerHTML = '';
-    if (!config) return;
-    config.cooking_methods.allowed.forEach(m => {
-      wrap.insertAdjacentHTML('beforeend', `<button class="mb-opt" data-v="${esc(m)}">${esc(cap(m))}</button>`);
+    const methods = pickItems(phaseForDay(currentDay), 'cooking_method');
+    if (!methods.length) { wrap.innerHTML = '<div class="plan-empty">No cooking methods in the Foods tab.</div>'; }
+    methods.forEach(f => {
+      wrap.insertAdjacentHTML('beforeend', `<button class="mb-opt" data-v="${esc(f.item)}">${esc(cap(f.item))}</button>`);
     });
     wrap.querySelectorAll('.mb-opt').forEach(btn => {
       btn.onclick = () => { MB.method = btn.dataset.v; buildStep4(); goStep(4); };
@@ -563,33 +638,37 @@ body{font-family:var(--sans);background:var(--paper);color:var(--ink);min-height
 
     const workerUrl = WORKER_URL || BACKEND_URL;
     const u = usedMacros();
-    const m = macros || {};
+    const ph = phaseForDay(currentDay);
+    const tgt = { kcal: targetFor('kcal'), protein: targetFor('protein'), carbs: targetFor('carbs'), fat: targetFor('fat') };
+    const remain = {
+      kcal: tgt.kcal != null ? Math.max(0, Math.round(tgt.kcal - u.kcal)) : null,
+      protein: tgt.protein != null ? Math.max(0, Math.round(tgt.protein - u.protein)) : null,
+      carbs: tgt.carbs != null ? Math.max(0, Math.round(tgt.carbs - u.carbs)) : null
+    };
+    const allowed = allowedFor(ph);
+    const pol = policyForPhase(ph);
+    // per-meal protein target: split the daily protein target across 2 main meals
+    const perMealProtein = tgt.protein != null ? Math.round(tgt.protein / 2) : 120;
 
     try {
       let result;
       if (MB.type === 'main') {
         result = await post(workerUrl, {
-          action: 'mealbuilder', sub: 'suggest',
-          protein: MB.protein, method: MB.method,
-          target_g: m.per_meal ? m.per_meal.protein_g : 120,
-          remaining_kcal: Math.max(0, (m.kcal_estimate||500) - u.kcal),
-          remaining_protein: Math.max(0, (m.p_food||80) - u.protein),
-          remaining_carbs: Math.max(0, (m.c_daily||50) - u.carbs),
+          action: 'mealbuilder', sub: 'suggest', phase: ph, policy: pol,
+          protein: MB.protein, method: MB.method, target_g: perMealProtein,
+          targets: tgt, remaining: remain, allowed: allowed,
           preferences: MB.prefs, exclude: ''
         }, 30000);
       } else if (MB.type === 'snack') {
         result = await post(workerUrl, {
-          action: 'mealbuilder', sub: 'snack',
-          item: MB.protein,
-          remaining_kcal: Math.max(0, (m.kcal_estimate||500) - u.kcal),
-          remaining_protein: Math.max(0, (m.p_food||80) - u.protein),
-          remaining_carbs: Math.max(0, (m.c_daily||50) - u.carbs)
+          action: 'mealbuilder', sub: 'snack', phase: ph, policy: pol,
+          item: MB.protein, targets: tgt, remaining: remain, allowed: allowed
         }, 20000);
       } else {
         result = await post(workerUrl, {
-          action: 'mealbuilder', sub: 'fruit',
-          fruit: MB.protein,
-          remaining_carbs: Math.max(0, (m.c_daily||50) - u.carbs)
+          action: 'mealbuilder', sub: 'fruit', phase: ph, policy: pol,
+          fruit: MB.protein, cap_g: MB.cap || 100,
+          targets: tgt, remaining: remain, allowed: allowed
         }, 20000);
       }
       MB.result = result;

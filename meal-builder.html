@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- ===================================================================== -->
-<!-- AEVUM Meal Builder  ·  mealbuilder.html  ·  v1.3.0  (2026-10-03)        -->
+<!-- AEVUM Meal Builder  ·  mealbuilder.html  ·  v1.3.1  (2026-10-03)        -->
 <!-- Backends: Apps Script v1.17.0_FULL · Cloudflare Worker v1.11.1          -->
 <!-- Rule-based food gate (Policy tab); budget from Rules; additive save.    -->
 <!-- v1.2.0: per-ingredient `components`; totals summed by Worker (Sonnet +   -->
@@ -635,7 +635,7 @@ body{font-family:var(--sans);background:var(--paper);color:var(--ink);min-height
     MB.cap = capG || null;
     MB.limited = verdict === 'limited';
     if (MB.type === 'main') { buildStep3(); goStep(3); }
-    else { buildStep4(); goStep(3); }
+    else { buildStep4(); goStep(4); }
   }
 
   /* Step 3: cooking method (main only) */

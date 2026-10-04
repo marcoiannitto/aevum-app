@@ -197,7 +197,7 @@ a{color:var(--gold)}
 
 <script>
 /* ══════════════════════════════════════════
-   AEVUM Clients Dashboard v1.1.0
+   AEVUM Clients Dashboard v1.2.0
    ══════════════════════════════════════════
    v1.0.0 - Initial release
    v1.1.0 - Fix isTruthy for serum "yes" values
@@ -205,6 +205,8 @@ a{color:var(--gold)}
           - Increase phase band opacity (0.12 -> 0.22)
           - Fix 7-day avg legend (usePointStyle)
           - Add day range filter (day X to Y)
+   v1.2.0 - Skip protein compliance for buckets model
+            (buckets tracks meal structure, not macro grams)
    ══════════════════════════════════════════ */
 const GAS_URL = 'https://script.google.com/macros/s/AKfycby0jEwPEqESOu_SK8qYqiJxR-1MeT8Ax6fq0fHPHC6gfihMpPW4uJBt1lGwmK_inQ4-/exec';
 
@@ -388,12 +390,14 @@ function deriveCompliance(data, rules, model) {
       else if(st==='amber') issues.push({type:'kcal',sev:'amber',detail:'Kcal: '+row.kcal});
     }
 
-    // Protein
-    const pr = findRule(rules,phase,'protein',model) || findRule(rules,phase,'protein_food_g',model);
-    if(pr && pr.gated && row.protein) {
-      const st = bandStatus(num(row.protein),pr);
-      if(st==='red') issues.push({type:'protein',sev:'red',detail:'Protein: '+row.protein+'g'});
-      else if(st==='amber') issues.push({type:'protein',sev:'amber',detail:'Protein: '+row.protein+'g'});
+    // Protein (macros model only; buckets tracks meal structure, not macro grams)
+    if(model!=='buckets') {
+      const pr = findRule(rules,phase,'protein',model);
+      if(pr && pr.gated && row.protein) {
+        const st = bandStatus(num(row.protein),pr);
+        if(st==='red') issues.push({type:'protein',sev:'red',detail:'Protein: '+row.protein+'g'});
+        else if(st==='amber') issues.push({type:'protein',sev:'amber',detail:'Protein: '+row.protein+'g'});
+      }
     }
 
     // Carbs

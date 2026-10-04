@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AEVUM Graduation</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-annotation/3.0.1/chartjs-plugin-annotation.min.js"></script>
+<style>
+:root {
+  --ink:#1A1A1A; --ink-2:#111010; --ink-soft:#4a463f;
+  --gold:#B08D2E; --gold-deep:#8f6f1f; --gold-light:#d8b95e;
+  --paper:#FBFAF7; --card:#ffffff; --line:#EBE5D8; --line-soft:#F2EDE2;
+  --muted:#938c7d; --muted-dk:#9a9385;
+  --green:#2d7a3a; --green-bg:#e8f5e9;
+  --amber:#c47f17; --amber-bg:#fff8e1;
+  --red:#c62828; --red-bg:#fce4ec;
+  --info:#1565c0; --info-bg:#e3f2fd;
+  --ph-load:rgba(79,195,247,0.15); --ph-act:rgba(255,183,77,0.15);
+  --ph-trans:rgba(206,147,216,0.15); --ph-stab:rgba(129,199,132,0.15);
+  --ph-load-s:rgba(79,195,247,0.7); --ph-act-s:rgba(255,183,77,0.7);
+  --ph-trans-s:rgba(206,147,216,0.7); --ph-stab-s:rgba(129,199,132,0.7);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--paper);color:var(--ink);line-height:1.5}
+h1,h2,h3,.display{font-family:'Fraunces',serif;font-weight:600}
+a{color:var(--gold)}
+
+/* Header */
+.header{background:var(--ink-2);color:var(--paper);padding:16px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px;position:sticky;top:0;z-index:100}
+.header h1{font-size:20px;letter-spacing:2px;color:var(--gold-light)}
+.header-controls{display:flex;gap:12px;align-items:center}
+.header select{padding:8px 12px;border-radius:6px;border:1px solid var(--muted-dk);background:var(--ink);color:var(--paper);font-size:14px;min-width:180px}
+.header button{padding:8px 16px;border-radius:6px;border:none;background:var(--gold);color:var(--ink-2);font-weight:600;font-size:13px;cursor:pointer;transition:background 0.2s}
+.header button:hover{background:var(--gold-light)}
+.header button:disabled{opacity:0.4;cursor:default}
+
+/* Layout */
+.container{max-width:1100px;margin:0 auto;padding:24px 16px}
+.hidden{display:none!important}
+
+/* Setup / Error / Loading */
+.msg-box{text-align:center;padding:80px 24px;color:var(--muted)}
+.msg-box code{background:var(--line-soft);padding:2px 6px;border-radius:4px;font-size:13px}
+.spinner{width:32px;height:32px;border:3px solid var(--line);border-top-color:var(--gold);border-radius:50%;animation:spin 0.8s linear infinite;margin:80px auto}
+@keyframes spin{to{transform:rotate(360deg)}}
+.error-box{text-align:center;padding:40px;color:var(--red)}
+
+/* Stats row */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
+.stat-card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;text-align:center}
+.stat-label{display:block;font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:4px}
+.stat-value{display:block;font-family:'Fraunces',serif;font-size:28px;font-weight:700;color:var(--ink)}
+.stat-value.positive{color:var(--green)} .stat-value.negative{color:var(--red)}
+
+/* Phase bar */
+.phase-bar-section{margin-bottom:24px}
+.phase-bar-section h3{font-size:14px;color:var(--muted);margin-bottom:8px}
+.phase-bar{display:flex;border-radius:8px;overflow:hidden;height:32px}
+.phase-seg{display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:var(--ink-soft);white-space:nowrap;padding:0 8px}
+
+/* Chart cards */
+.charts-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+.chart-card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:20px;margin-bottom:16px}
+.chart-card.full{grid-column:1/-1}
+.chart-card h3{font-size:15px;color:var(--ink-soft);margin-bottom:12px}
+.chart-card canvas{width:100%!important;max-height:280px}
+
+/* Compliance dots */
+.dots-wrap{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.dot{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:#fff;cursor:pointer;position:relative;transition:transform 0.15s}
+.dot:hover{transform:scale(1.25);z-index:5}
+.dot.green{background:var(--green)} .dot.amber{background:var(--amber)}
+.dot.red{background:var(--red)} .dot.empty{background:var(--line);color:var(--muted)}
+.dot .tip{display:none;position:absolute;bottom:110%;left:50%;transform:translateX(-50%);background:var(--ink-2);color:var(--paper);padding:6px 10px;border-radius:6px;font-size:11px;white-space:nowrap;z-index:10;pointer-events:none}
+.dot:hover .tip{display:block}
+.legend{display:flex;gap:16px;font-size:12px;color:var(--muted)}
+.dot-sm{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px;vertical-align:middle}
+.dot-sm.green{background:var(--green)} .dot-sm.amber{background:var(--amber)}
+.dot-sm.red{background:var(--red)} .dot-sm.empty{background:var(--line)}
+
+/* Tables */
+.macro-table,.detail-table{width:100%;border-collapse:collapse;font-size:13px}
+.macro-table th,.detail-table th{text-align:left;padding:8px 10px;border-bottom:2px solid var(--line);color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:0.5px}
+.macro-table td,.detail-table td{padding:8px 10px;border-bottom:1px solid var(--line-soft)}
+.tag{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;margin:2px}
+.tag.red{background:var(--red-bg);color:var(--red)}
+.tag.amber{background:var(--amber-bg);color:var(--amber)}
+.tag.info{background:var(--info-bg);color:var(--info)}
+.muted-text{color:var(--muted);font-style:italic;font-size:13px}
+
+/* Report overlay */
+.report-overlay{position:fixed;inset:0;background:var(--ink-2);z-index:200;overflow-y:auto}
+.report-controls{position:sticky;top:0;background:rgba(17,16,16,0.95);padding:12px 24px;display:flex;gap:12px;justify-content:flex-end;z-index:201}
+.report-controls button{padding:8px 20px;border-radius:6px;border:none;cursor:pointer;font-weight:600;font-size:13px}
+.report-controls .btn-print{background:var(--gold);color:var(--ink-2)}
+.report-controls .btn-back{background:transparent;border:1px solid var(--muted-dk);color:var(--paper)}
+.report-page{max-width:800px;margin:0 auto;padding:60px 40px;color:var(--paper)}
+.report-page h1{font-family:'Fraunces',serif;font-size:36px;color:var(--gold-light);letter-spacing:3px;text-align:center}
+.report-page .tagline{text-align:center;color:var(--muted-dk);font-size:14px;letter-spacing:1px;margin-top:4px}
+.report-page h2{font-family:'Fraunces',serif;font-size:28px;color:var(--paper);text-align:center;margin:48px 0 8px}
+.report-page .rpt-name{text-align:center;color:var(--gold);font-size:16px;margin-bottom:40px}
+.report-page .rpt-stats{display:flex;justify-content:center;gap:40px;margin:32px 0 48px}
+.report-page .rpt-stat{text-align:center}
+.report-page .rpt-stat-val{display:block;font-family:'Fraunces',serif;font-size:36px;font-weight:700;color:var(--gold-light)}
+.report-page .rpt-stat-lbl{display:block;font-size:12px;color:var(--muted-dk);text-transform:uppercase;letter-spacing:1px;margin-top:4px}
+.report-page h3{font-family:'Fraunces',serif;font-size:18px;color:var(--gold);margin:40px 0 16px;padding-top:24px;border-top:1px solid rgba(255,255,255,0.08)}
+.report-page p{color:rgba(255,255,255,0.75);line-height:1.7;margin-bottom:12px}
+.report-page .rpt-chart{width:100%;border-radius:8px;margin:12px 0}
+.report-page .rpt-footer{text-align:center;color:var(--muted-dk);font-size:12px;margin-top:60px;padding-top:20px;border-top:1px solid rgba(255,255,255,0.08)}
+.report-page .rpt-macro{width:100%;border-collapse:collapse;margin:12px 0}
+.report-page .rpt-macro th{text-align:left;padding:6px 10px;color:var(--gold);font-size:11px;text-transform:uppercase;border-bottom:1px solid rgba(255,255,255,0.1)}
+.report-page .rpt-macro td{padding:6px 10px;color:rgba(255,255,255,0.7);font-size:13px;border-bottom:1px solid rgba(255,255,255,0.05)}
+
+@media print{
+  body{background:var(--ink-2)!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .header,.report-controls{display:none!important}
+  .report-overlay{position:static}
+  .report-page{padding:20px}
+}
+@media(max-width:700px){
+  .stats-row{grid-template-columns:1fr 1fr}
+  .charts-row{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <h1>AEVUM</h1>
+  <div class="header-controls">
+    <select id="client-select"><option value="">Select client...</option></select>
+    <button id="btn-report" disabled onclick="generateReport()">Generate Report</button>
+  </div>
+</header>
+
+<div class="container">
+  <div id="setup" class="msg-box hidden">
+    <p>Set <code>GAS_URL</code> at the top of the script to your Apps Script deployment URL,<br>
+    then add the <code>graduation</code> route to your Apps Script.</p>
+  </div>
+  <div id="loading" class="hidden"><div class="spinner"></div></div>
+  <div id="error" class="error-box hidden"></div>
+
+  <main id="dashboard" class="hidden">
+    <section class="stats-row">
+      <div class="stat-card"><span class="stat-label">Start Weight</span><span class="stat-value" id="v-start">--</span></div>
+      <div class="stat-card"><span class="stat-label">End Weight</span><span class="stat-value" id="v-end">--</span></div>
+      <div class="stat-card"><span class="stat-label">Change</span><span class="stat-value" id="v-delta">--</span></div>
+      <div class="stat-card"><span class="stat-label">Compliance</span><span class="stat-value" id="v-compliance">--</span></div>
+    </section>
+
+    <section class="phase-bar-section">
+      <h3>Phase Timeline</h3>
+      <div id="phase-bar" class="phase-bar"></div>
+    </section>
+
+    <section class="charts-row">
+      <div class="chart-card"><h3>Weight Progress</h3><canvas id="chart-weight"></canvas></div>
+      <div class="chart-card"><h3>Normalized Weight (% of peak)</h3><canvas id="chart-norm"></canvas></div>
+    </section>
+
+    <section class="chart-card full"><h3>Daily Calories</h3><canvas id="chart-kcal"></canvas></section>
+
+    <section class="chart-card full"><h3>Macro Averages by Phase</h3><div id="macro-table"></div></section>
+
+    <section class="chart-card full">
+      <h3>Compliance Timeline</h3>
+      <div id="compliance-dots" class="dots-wrap"></div>
+      <div class="legend">
+        <span><span class="dot-sm green"></span> Compliant</span>
+        <span><span class="dot-sm amber"></span> Minor</span>
+        <span><span class="dot-sm red"></span> Violation</span>
+        <span><span class="dot-sm empty"></span> No data</span>
+      </div>
+    </section>
+
+    <section class="chart-card full"><h3>Compliance Issues</h3><div id="compliance-detail"></div></section>
+  </main>
+</div>
+
+<div id="report" class="report-overlay hidden">
+  <div class="report-controls">
+    <button class="btn-back" onclick="exitReport()">Back</button>
+    <button class="btn-print" onclick="window.print()">Save as PDF</button>
+  </div>
+  <div class="report-page" id="report-content"></div>
+</div>
+
+<script>
+/* ══════════════════════════════════════════
+   CONFIGURE: paste your Apps Script /exec URL
+   ══════════════════════════════════════════ */
+const GAS_URL = 'PASTE_YOUR_APPS_SCRIPT_URL';
+/* ══════════════════════════════════════════ */
+
+/* ── State ── */
+const S = { clients:[], profile:null, data:[], rules:[], resolved:[], model:'buckets', compliance:[], stats:{} };
+let charts = {};
+
+/* ── Helpers ── */
+const $ = s => document.querySelector(s);
+const num = v => { if(v===''||v==null) return null; const n=Number(v); return isNaN(n)?null:n; };
+const cap = s => s ? s.charAt(0).toUpperCase()+s.slice(1) : '';
+const isTruthy = v => v===true||v==='TRUE'||v==='true'||v===1||v==='1';
+
+const PHASE_BG = {loading:'var(--ph-load)',activation:'var(--ph-act)',transition:'var(--ph-trans)',stabilization:'var(--ph-stab)',consolidation:'var(--ph-stab)'};
+const PHASE_SOLID = {loading:'var(--ph-load-s)',activation:'var(--ph-act-s)',transition:'var(--ph-trans-s)',stabilization:'var(--ph-stab-s)',consolidation:'var(--ph-stab-s)'};
+const PHASE_RGB = {loading:'rgba(79,195,247,0.12)',activation:'rgba(255,183,77,0.12)',transition:'rgba(206,147,216,0.12)',stabilization:'rgba(129,199,132,0.12)',consolidation:'rgba(129,199,132,0.12)'};
+const BAND_COLOR = {green:'#2d7a3a',amber:'#c47f17',red:'#c62828',none:'#B08D2E'};
+
+/* Alcohol detection keywords (the RULE for whether alcohol is gated comes from Rules tab) */
+const ALC = ['alcohol','beer','wine','gin','vodka','whiskey','whisky','rum','tequila','sake','soju',
+  'stout','ale','lager','cocktail','champagne','prosecco','brandy','cognac','bourbon','scotch',
+  'cider','mead','grappa','limoncello','amaretto','aperol','spritz','negroni'];
+
+/* ── GAS fetch ── */
+async function gas(params) {
+  const url = GAS_URL + '?' + new URLSearchParams(params);
+  const r = await fetch(url, { redirect:'follow' });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+
+/* ── Init ── */
+async function init() {
+  if (GAS_URL === 'PASTE_YOUR_APPS_SCRIPT_URL') { $('#setup').classList.remove('hidden'); return; }
+  $('#loading').classList.remove('hidden');
+  try {
+    const resp = await gas({ action:'graduation', sub:'clients' });
+    S.clients = resp.clients || [];
+    const sel = $('#client-select');
+    S.clients.forEach(c => { const o = document.createElement('option'); o.value=c.id; o.textContent=c.name; sel.appendChild(o); });
+    sel.onchange = () => { if(sel.value) loadClient(sel.value); };
+  } catch(e) { showError('Failed to load clients. Check GAS_URL and graduation route. ' + e.message); }
+  $('#loading').classList.add('hidden');
+}
+
+async function loadClient(id) {
+  $('#dashboard').classList.add('hidden');
+  $('#error').classList.add('hidden');
+  $('#loading').classList.remove('hidden');
+  try {
+    const resp = await gas({ action:'graduation', sub:'full', id });
+    S.profile = resp.profile;
+    S.model = resp.model || resp.profile.activation_model || 'buckets';
+    S.data = dedup(resp.data || []);
+    S.rules = resp.rules || [];
+    S.resolved = resolveRules(S.rules, S.profile);
+    S.compliance = deriveCompliance(S.data, S.resolved, S.model);
+    S.stats = computeStats(S.data, S.compliance);
+    render();
+    $('#btn-report').disabled = false;
+  } catch(e) { showError('Failed to load data: ' + e.message); }
+  $('#loading').classList.add('hidden');
+}
+
+function showError(msg) { const el=$('#error'); el.textContent=msg; el.classList.remove('hidden'); }
+
+/* ── Data processing ── */
+function dedup(rows) {
+  const byDay = {};
+  rows.forEach(r => {
+    const d = num(r.day); if(!d) return;
+    const ts = new Date(r.timestamp||0).getTime();
+    if (!byDay[d] || ts > new Date(byDay[d].timestamp||0).getTime()) byDay[d] = {...r, day:d};
+  });
+  return Object.values(byDay).sort((a,b) => a.day - b.day);
+}
+
+/* ── Rules engine ── */
+function resolveRules(raw, profile) {
+  const tw = num(profile.stab_target_weight) || num(profile.target_weight) || 70;
+  return raw.map(r => {
+    const o = {...r};
+    o.phase = String(o.phase||'').toLowerCase().trim();
+    o.model = String(o.model||'').toLowerCase().trim();
+    o.metric = String(o.metric||'').toLowerCase().trim();
+    o.basis = String(o.basis||'').toLowerCase().trim();
+    o.gated = String(o.gated||'').toLowerCase().trim() === 'yes';
+    ['value','green_lo','green_hi','amber_lo','amber_hi'].forEach(k => o[k] = num(o[k]));
+    if (o.basis === 'per_kg_target_weight') {
+      ['value','green_lo','green_hi','amber_lo','amber_hi'].forEach(k => {
+        if(o[k]!=null) o[k] = Math.round(o[k]*tw);
+      });
+    }
+    return o;
+  });
+}
+
+function findRule(rules, phase, metric, model) {
+  phase = (phase||'').toLowerCase().replace('consolidation','stabilization');
+  model = model || 'all';
+  let r = rules.find(x => x.phase===phase && x.metric===metric && (x.model===model || x.model==='all'));
+  if (!r && phase==='transition')
+    r = rules.find(x => x.phase==='activation' && x.metric===metric && (x.model===model || x.model==='all'));
+  return r || null;
+}
+
+function bandStatus(val, rule) {
+  if(!rule || val==null || !rule.gated) return 'none';
+  if(rule.amber_lo!=null && val < rule.amber_lo) return 'red';
+  if(rule.amber_hi!=null && val > rule.amber_hi) return 'red';
+  if(rule.green_lo!=null && val < rule.green_lo) return 'amber';
+  if(rule.green_hi!=null && val > rule.green_hi) return 'amber';
+  return 'green';
+}
+
+/* ── Compliance engine ── */
+function deriveCompliance(data, rules, model) {
+  return data.map(row => {
+    const issues = [];
+    const phase = String(row.phase||'').toLowerCase().replace('consolidation','stabilization');
+    const hasData = row.kcal || row.weight || row.notes || row.day_json;
+    if(!phase || !hasData) return {day:row.day, date:row.date, phase, status:'empty', issues:[]};
+
+    // Weight logged
+    const wr = findRule(rules, phase, 'weight_logged', model);
+    if(wr && wr.gated && !row.weight) issues.push({type:'weight',sev:'red',detail:'No weigh-in'});
+
+    // Serum AM/PM
+    const sar = findRule(rules, phase, 'serum_am', model);
+    if(sar && sar.gated && !isTruthy(row.serumam)) issues.push({type:'serum_am',sev:'red',detail:'Missed AM serum'});
+    const spr = findRule(rules, phase, 'serum_pm', model);
+    if(spr && spr.gated && !isTruthy(row.serumpm)) issues.push({type:'serum_pm',sev:'red',detail:'Missed PM serum'});
+
+    // day_json: alcohol + forbidden food
+    const dj = parseDJ(row.day_json);
+    if(dj) {
+      const meals = Array.isArray(dj) ? dj : (dj.meals || []);
+      meals.forEach(meal => {
+        (meal.items||[]).forEach(item => {
+          if(item.verdict === 'no') {
+            if(isAlc(item)) {
+              const ar = findRule(rules,phase,'alcohol',model);
+              if(ar && ar.gated) issues.push({type:'alcohol',sev:'red',detail:'Alcohol: '+(item.name||'unknown')});
+            } else {
+              const fr = findRule(rules,phase,'forbidden_food',model);
+              if(fr && fr.gated) issues.push({type:'food',sev:'red',detail:'Forbidden: '+(item.name||'unknown')});
+            }
+          }
+        });
+      });
+    }
+
+    // Alcohol in notes
+    if(row.notes && !issues.some(i=>i.type==='alcohol')) {
+      const nl = String(row.notes).toLowerCase();
+      if(ALC.some(w=>nl.includes(w))) {
+        const ar = findRule(rules,phase,'alcohol',model);
+        if(ar && ar.gated) issues.push({type:'alcohol',sev:'amber',detail:'Alcohol in notes'});
+      }
+    }
+
+    // Water
+    const wtr = findRule(rules,phase,'water_ml',model);
+    if(wtr && wtr.gated && row.water_ml!=null) {
+      const wml = num(row.water_ml);
+      if(wtr.amber_lo!=null && wml<wtr.amber_lo) issues.push({type:'water',sev:'red',detail:'Water: '+wml+'ml'});
+      else if(wtr.green_lo!=null && wml<wtr.green_lo) issues.push({type:'water',sev:'amber',detail:'Water low: '+wml+'ml'});
+    }
+
+    // Kcal (skip adaptive_kcal)
+    const kr = findRule(rules,phase,'kcal',model);
+    if(kr && kr.gated && kr.basis!=='adaptive_kcal' && row.kcal) {
+      const st = bandStatus(num(row.kcal),kr);
+      if(st==='red') issues.push({type:'kcal',sev:'red',detail:'Kcal: '+row.kcal});
+      else if(st==='amber') issues.push({type:'kcal',sev:'amber',detail:'Kcal: '+row.kcal});
+    }
+
+    // Protein
+    const pr = findRule(rules,phase,'protein',model) || findRule(rules,phase,'protein_food_g',model);
+    if(pr && pr.gated && row.protein) {
+      const st = bandStatus(num(row.protein),pr);
+      if(st==='red') issues.push({type:'protein',sev:'red',detail:'Protein: '+row.protein+'g'});
+      else if(st==='amber') issues.push({type:'protein',sev:'amber',detail:'Protein: '+row.protein+'g'});
+    }
+
+    // Carbs
+    const cr = findRule(rules,phase,'carbs',model);
+    if(cr && cr.gated && row.carbs) {
+      const st = bandStatus(num(row.carbs),cr);
+      if(st==='red') issues.push({type:'carbs',sev:'red',detail:'Carbs: '+row.carbs+'g'});
+      else if(st==='amber') issues.push({type:'carbs',sev:'amber',detail:'Carbs: '+row.carbs+'g'});
+    }
+
+    // Exercise strenuous (info only, gated=no)
+    const er = findRule(rules,phase,'exercise_kcal_warn',model);
+    if(er && row.exercise_kcal && num(row.exercise_kcal) > (er.green_hi||Infinity))
+      issues.push({type:'exercise',sev:'info',detail:'Strenuous: '+row.exercise_kcal+' kcal'});
+
+    const gated = issues.filter(i=>i.sev!=='info');
+    const status = gated.some(i=>i.sev==='red') ? 'red' : gated.some(i=>i.sev==='amber') ? 'amber' : 'green';
+    return {day:row.day, date:row.date, phase, status, issues};
+  });
+}
+
+function parseDJ(raw) { if(!raw) return null; try{ return typeof raw==='string'?JSON.parse(raw):raw; }catch{return null;} }
+function isAlc(item) {
+  const n=String(item.name||'').toLowerCase(), nt=String(item.note||'').toLowerCase(), c=String(item.category||'').toLowerCase();
+  return c==='alcohol' || ALC.some(w=>n.includes(w)) || nt.includes('alcohol');
+}
+
+/* ── Stats ── */
+function computeStats(data, compliance) {
+  const ws = data.filter(d=>d.weight).map(d=>({day:d.day, w:num(d.weight)}));
+  const sw = ws.length ? ws[0].w : null;
+  const ew = ws.length ? ws[ws.length-1].w : null;
+  const pk = ws.length ? Math.max(...ws.map(w=>w.w)) : null;
+  const delta = sw!=null&&ew!=null ? ew-sw : null;
+  const total = data.length;
+  const greenDays = compliance.filter(c=>c.status==='green').length;
+  const pct = total ? Math.round(greenDays/total*100) : 0;
+  const exDays = data.filter(d=>num(d.exercise_kcal)>0).length;
+  const avgK = data.filter(d=>d.kcal).length ? Math.round(data.filter(d=>d.kcal).reduce((s,d)=>s+num(d.kcal),0)/data.filter(d=>d.kcal).length) : 0;
+  return {startWeight:sw, endWeight:ew, peakWeight:pk, delta, totalDays:total, greenDays, compliancePct:pct, exerciseDays:exDays, avgKcal:avgK};
+}
+
+/* ── Phase segments from data ── */
+function phaseSegs(data) {
+  const segs=[]; let cur=null;
+  data.forEach(d=>{
+    const p=(d.phase||'').toLowerCase().replace('consolidation','stabilization');
+    if(p!==cur){ if(cur) segs[segs.length-1].end=d.day-1; segs.push({name:p,start:d.day}); cur=p; }
+  });
+  if(segs.length) segs[segs.length-1].end=data[data.length-1].day;
+  return segs;
+}
+
+/* ── Render all ── */
+function render() {
+  renderStats();
+  renderPhaseBar();
+  renderWeightChart();
+  renderNormChart();
+  renderKcalChart();
+  renderMacroTable();
+  renderComplianceDots();
+  renderComplianceDetail();
+  $('#dashboard').classList.remove('hidden');
+}
+
+function renderStats() {
+  const s=S.stats;
+  $('#v-start').textContent = s.startWeight!=null ? s.startWeight.toFixed(1)+' kg' : '--';
+  $('#v-end').textContent = s.endWeight!=null ? s.endWeight.toFixed(1)+' kg' : '--';
+  const dEl = $('#v-delta');
+  if(s.delta!=null) { dEl.textContent=(s.delta>0?'+':'')+s.delta.toFixed(1)+' kg'; dEl.className='stat-value '+(s.delta<=0?'positive':'negative'); }
+  else dEl.textContent='--';
+  const cEl = $('#v-compliance');
+  cEl.textContent = s.compliancePct+'%';
+  cEl.className = 'stat-value '+(s.compliancePct>=80?'positive':s.compliancePct>=60?'':'negative');
+}
+
+function renderPhaseBar() {
+  const segs=phaseSegs(S.data), total=S.data.length||1;
+  const bar=$('#phase-bar'); bar.innerHTML='';
+  const colors={loading:'#b3e5fc',activation:'#ffe0b2',transition:'#e1bee7',stabilization:'#c8e6c9'};
+  segs.forEach(seg=>{
+    const days=seg.end-seg.start+1;
+    const div=document.createElement('div');
+    div.className='phase-seg';
+    div.style.flex=days;
+    div.style.background=colors[seg.name]||'#eee';
+    div.textContent=cap(seg.name)+' ('+days+'d)';
+    bar.appendChild(div);
+  });
+}
+
+/* ── Charts ── */
+function destroyChart(key) { if(charts[key]){charts[key].destroy();delete charts[key];} }
+
+function phaseAnnotations(data) {
+  const segs=phaseSegs(data);
+  return segs.map(seg=>({
+    type:'box', xMin:String(seg.start), xMax:String(seg.end),
+    backgroundColor:PHASE_RGB[seg.name]||'rgba(0,0,0,0.03)', borderWidth:0,
+    drawTime:'beforeDatasetsDraw'
+  }));
+}
+
+function renderWeightChart() {
+  destroyChart('weight');
+  const labels=S.data.map(d=>String(d.day));
+  const weights=S.data.map(d=>num(d.weight));
+  // 7-day moving average
+  const smooth=weights.map((w,i)=>{
+    if(w==null) return null;
+    const start=Math.max(0,i-6);
+    const vals=weights.slice(start,i+1).filter(v=>v!=null);
+    return vals.length ? Math.round(vals.reduce((s,v)=>s+v,0)/vals.length*10)/10 : null;
+  });
+  charts.weight = new Chart($('#chart-weight'),{
+    type:'line',
+    data:{labels, datasets:[
+      {label:'Weight (kg)',data:weights,borderColor:'#B08D2E',backgroundColor:'rgba(176,141,46,0.1)',fill:true,tension:0.3,pointRadius:3,pointBackgroundColor:'#B08D2E',spanGaps:true},
+      {label:'7-day avg',data:smooth,borderColor:'#4a463f',borderDash:[5,3],pointRadius:0,tension:0.4,spanGaps:true}
+    ]},
+    options:{responsive:true,plugins:{annotation:{annotations:phaseAnnotations(S.data)},legend:{labels:{boxWidth:12,font:{size:11}}}},
+      scales:{x:{title:{display:true,text:'Day'}},y:{title:{display:true,text:'kg'}}}}
+  });
+}
+
+function renderNormChart() {
+  destroyChart('norm');
+  const pk=S.stats.peakWeight; if(!pk) return;
+  const labels=S.data.map(d=>String(d.day));
+  const vals=S.data.map(d=>{ const w=num(d.weight); return w!=null ? Math.round(w/pk*1000)/10 : null; });
+  charts.norm = new Chart($('#chart-norm'),{
+    type:'line',
+    data:{labels, datasets:[
+      {label:'% of peak',data:vals,borderColor:'#B08D2E',backgroundColor:'rgba(176,141,46,0.08)',fill:true,tension:0.3,pointRadius:3,pointBackgroundColor:'#B08D2E',spanGaps:true}
+    ]},
+    options:{responsive:true,plugins:{annotation:{annotations:phaseAnnotations(S.data)},legend:{display:false}},
+      scales:{x:{title:{display:true,text:'Day'}},y:{title:{display:true,text:'% of peak weight'},suggestedMin:90,suggestedMax:101}}}
+  });
+}
+
+function renderKcalChart() {
+  destroyChart('kcal');
+  const labels=S.data.map(d=>String(d.day));
+  const vals=S.data.map(d=>num(d.kcal));
+  const colors=S.data.map(d=>{
+    const phase=(d.phase||'').toLowerCase().replace('consolidation','stabilization');
+    const rule=findRule(S.resolved,phase,'kcal',S.model);
+    if(!rule||!rule.gated||rule.basis==='adaptive_kcal') return '#B08D2E';
+    const st=bandStatus(num(d.kcal),rule);
+    return BAND_COLOR[st]||'#B08D2E';
+  });
+
+  // Target line annotations for kcal
+  const targetAnns = [];
+  const segs=phaseSegs(S.data);
+  segs.forEach(seg=>{
+    const rule=findRule(S.resolved,seg.name,'kcal',S.model);
+    if(rule && rule.gated && rule.basis!=='adaptive_kcal' && rule.value!=null) {
+      targetAnns.push({type:'line',yMin:rule.value,yMax:rule.value,xMin:String(seg.start),xMax:String(seg.end),
+        borderColor:'rgba(176,141,46,0.5)',borderDash:[6,3],borderWidth:2,
+        label:{display:true,content:rule.value+' kcal',position:'start',font:{size:10},color:'#B08D2E',backgroundColor:'rgba(251,250,247,0.8)',padding:2}
+      });
+    }
+  });
+
+  charts.kcal = new Chart($('#chart-kcal'),{
+    type:'bar',
+    data:{labels, datasets:[{label:'Calories',data:vals,backgroundColor:colors,borderRadius:3}]},
+    options:{responsive:true,plugins:{annotation:{annotations:[...phaseAnnotations(S.data),...targetAnns]},legend:{display:false}},
+      scales:{x:{title:{display:true,text:'Day'}},y:{title:{display:true,text:'kcal'},beginAtZero:true}}}
+  });
+}
+
+function renderMacroTable() {
+  const phases={};
+  S.data.forEach(d=>{
+    const p=(d.phase||'').toLowerCase().replace('consolidation','stabilization');
+    if(!p) return;
+    if(!phases[p]) phases[p]=[];
+    phases[p].push(d);
+  });
+  const avg = (rows,key)=>{ const vs=rows.filter(r=>r[key]).map(r=>num(r[key])); return vs.length?Math.round(vs.reduce((s,v)=>s+v,0)/vs.length):'-'; };
+  const fmtTarget = (rule)=>{
+    if(!rule||!rule.gated) return '-';
+    if(rule.basis==='adaptive_kcal') return 'adaptive';
+    if(rule.green_lo!=null && rule.green_hi!=null) return rule.green_lo+'–'+rule.green_hi;
+    if(rule.green_lo!=null) return rule.green_lo+'+';
+    if(rule.green_hi!=null) return '<'+rule.green_hi;
+    if(rule.value!=null) return String(rule.value);
+    return '-';
+  };
+  let html='<table class="macro-table"><thead><tr><th>Phase</th><th>Days</th><th>Avg Kcal</th><th>Target</th><th>Avg Protein</th><th>Target</th><th>Avg Carbs</th><th>Cap</th><th>Avg Fat</th></tr></thead><tbody>';
+  const order=['loading','activation','transition','stabilization'];
+  order.forEach(p=>{
+    const rows=phases[p]; if(!rows) return;
+    const kr=findRule(S.resolved,p,'kcal',S.model);
+    const pr=findRule(S.resolved,p,'protein',S.model)||findRule(S.resolved,p,'protein_food_g',S.model);
+    const cr=findRule(S.resolved,p,'carbs',S.model);
+    html+=`<tr><td>${cap(p)}</td><td>${rows.length}</td>`;
+    html+=`<td>${avg(rows,'kcal')}</td><td>${fmtTarget(kr)}</td>`;
+    html+=`<td>${avg(rows,'protein')}</td><td>${fmtTarget(pr)}</td>`;
+    html+=`<td>${avg(rows,'carbs')}</td><td>${fmtTarget(cr)}</td>`;
+    html+=`<td>${avg(rows,'fat')}</td></tr>`;
+  });
+  html+='</tbody></table>';
+  $('#macro-table').innerHTML=html;
+}
+
+function renderComplianceDots() {
+  const wrap=$('#compliance-dots'); wrap.innerHTML='';
+  S.compliance.forEach(c=>{
+    const dot=document.createElement('div');
+    dot.className='dot '+c.status;
+    dot.textContent=c.day;
+    const tip=document.createElement('span');
+    tip.className='tip';
+    tip.textContent=c.issues.length ? c.issues.map(i=>i.detail).join(', ') : 'Compliant';
+    dot.appendChild(tip);
+    wrap.appendChild(dot);
+  });
+}
+
+function renderComplianceDetail() {
+  const issues=S.compliance.filter(c=>c.issues.length>0);
+  if(!issues.length){ $('#compliance-detail').innerHTML='<p class="muted-text">No compliance issues recorded.</p>'; return; }
+  let html='<table class="detail-table"><thead><tr><th>Day</th><th>Phase</th><th>Issues</th></tr></thead><tbody>';
+  issues.forEach(c=>{
+    html+=`<tr><td>${c.day}</td><td>${cap(c.phase)}</td><td>${c.issues.map(i=>'<span class="tag '+i.sev+'">'+i.detail+'</span>').join(' ')}</td></tr>`;
+  });
+  html+='</tbody></table>';
+  $('#compliance-detail').innerHTML=html;
+}
+
+/* ── Report ── */
+function generateReport() {
+  const s=S.stats, name=(S.profile.name||'Client');
+  const weightImg = charts.weight ? charts.weight.toBase64Image() : '';
+  const kcalImg = charts.kcal ? charts.kcal.toBase64Image() : '';
+
+  // Macro summary for report
+  const phases={};
+  S.data.forEach(d=>{const p=(d.phase||'').toLowerCase().replace('consolidation','stabilization');if(p){if(!phases[p])phases[p]=[];phases[p].push(d);}});
+  const avg=(rows,k)=>{const vs=rows.filter(r=>r[k]).map(r=>num(r[k]));return vs.length?Math.round(vs.reduce((s,v)=>s+v,0)/vs.length):'-';};
+  let macroHtml='<table class="rpt-macro"><thead><tr><th>Phase</th><th>Avg Kcal</th><th>Avg Protein</th><th>Avg Carbs</th></tr></thead><tbody>';
+  ['loading','activation','transition','stabilization'].forEach(p=>{
+    const rows=phases[p]; if(!rows) return;
+    macroHtml+=`<tr><td>${cap(p)}</td><td>${avg(rows,'kcal')}</td><td>${avg(rows,'protein')}g</td><td>${avg(rows,'carbs')}g</td></tr>`;
+  });
+  macroHtml+='</tbody></table>';
+
+  $('#report-content').innerHTML = `
+    <h1>AEVUM</h1>
+    <p class="tagline">The science of balance.</p>
+    <h2>Your ${s.totalDays}-Day Journey</h2>
+    <p class="rpt-name">${name}</p>
+    <div class="rpt-stats">
+      <div class="rpt-stat"><span class="rpt-stat-val">${s.delta!=null?(s.delta>0?'+':'')+s.delta.toFixed(1):'--'} kg</span><span class="rpt-stat-lbl">Weight Change</span></div>
+      <div class="rpt-stat"><span class="rpt-stat-val">${s.compliancePct}%</span><span class="rpt-stat-lbl">Program Compliance</span></div>
+      <div class="rpt-stat"><span class="rpt-stat-val">${s.exerciseDays}</span><span class="rpt-stat-lbl">Active Days</span></div>
+    </div>
+    <h3>Weight Progress</h3>
+    ${weightImg ? '<img src="'+weightImg+'" class="rpt-chart" alt="Weight progress">' : '<p>No weight data available.</p>'}
+    <h3>Nutrition Overview</h3>
+    ${kcalImg ? '<img src="'+kcalImg+'" class="rpt-chart" alt="Daily calories">' : '<p>No calorie data available.</p>'}
+    <h3>Nutrition by Phase</h3>
+    ${macroHtml}
+    <h3>What's Next</h3>
+    <p>Over ${s.totalDays} days, you committed to a structured wellness program and built habits that support lasting change. Your ${s.compliancePct}% compliance rate reflects real dedication to the process.</p>
+    <p>The patterns you have developed, from mindful nutrition choices to consistent daily check-ins, are the building blocks of sustainable wellness. Consider continuing with a maintenance phase to build on your progress. Your coach can help design a plan that fits your lifestyle and goals.</p>
+    <div class="rpt-footer"><p>niramaya.sg</p></div>
+  `;
+  $('#report').classList.remove('hidden');
+  $('#dashboard').parentElement.classList.add('hidden');
+  document.querySelector('.header').classList.add('hidden');
+}
+
+function exitReport() {
+  $('#report').classList.add('hidden');
+  $('#dashboard').parentElement.classList.remove('hidden');
+  document.querySelector('.header').classList.remove('hidden');
+}
+
+/* ── Boot ── */
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>

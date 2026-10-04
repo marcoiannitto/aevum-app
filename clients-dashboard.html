@@ -1,3 +1,4 @@
+<!-- AEVUM Clients Dashboard v1.3.1 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -82,6 +83,15 @@ a{color:var(--gold)}
 .dot-sm.green{background:var(--green)} .dot-sm.amber{background:var(--amber)}
 .dot-sm.red{background:var(--red)} .dot-sm.empty{background:var(--line)}
 
+/* Ring gauge */
+.ring-card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:20px;text-align:center}
+.ring-wrap{position:relative;width:120px;height:120px;margin:0 auto 8px}
+.ring-wrap svg{transform:rotate(-90deg)}
+.ring-label{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.ring-pct{font-family:'Fraunces',serif;font-size:28px;font-weight:700;line-height:1}
+.ring-sub{font-size:11px;color:var(--muted);margin-top:2px}
+.ring-title{font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
+
 /* Tables */
 .macro-table,.detail-table{width:100%;border-collapse:collapse;font-size:13px}
 .macro-table th,.detail-table th{text-align:left;padding:8px 10px;border-bottom:2px solid var(--line);color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:0.5px}
@@ -155,7 +165,7 @@ a{color:var(--gold)}
       <div class="stat-card"><span class="stat-label">Start Weight</span><span class="stat-value" id="v-start">--</span></div>
       <div class="stat-card"><span class="stat-label">End Weight</span><span class="stat-value" id="v-end">--</span></div>
       <div class="stat-card"><span class="stat-label">Change</span><span class="stat-value" id="v-delta">--</span></div>
-      <div class="stat-card"><span class="stat-label">Compliance</span><span class="stat-value" id="v-compliance">--</span></div>
+      <div class="ring-card" id="v-compliance-ring"></div>
     </section>
 
     <section class="phase-bar-section">
@@ -168,7 +178,7 @@ a{color:var(--gold)}
       <div class="chart-card"><h3>Normalized Weight (% of peak)</h3><canvas id="chart-norm"></canvas></div>
     </section>
 
-    <section class="chart-card full"><h3>Daily Calories</h3><canvas id="chart-kcal"></canvas></section>
+    <section class="chart-card full"><h3>Calorie Adherence</h3><canvas id="chart-kcal"></canvas></section>
 
     <section class="chart-card full"><h3>Macro Averages by Phase</h3><div id="macro-table"></div></section>
 
@@ -197,7 +207,7 @@ a{color:var(--gold)}
 
 <script>
 /* ══════════════════════════════════════════
-   AEVUM Clients Dashboard v1.2.0
+   AEVUM Clients Dashboard v1.3.1
    ══════════════════════════════════════════
    v1.0.0 - Initial release
    v1.1.0 - Fix isTruthy for serum "yes" values
@@ -207,6 +217,11 @@ a{color:var(--gold)}
           - Add day range filter (day X to Y)
    v1.2.0 - Skip protein compliance for buckets model
             (buckets tracks meal structure, not macro grams)
+   v1.3.0 - Phase bar: brand palette (gold/ink/warm/paper)
+          - Calorie chart: show % of target, no raw kcal
+          - Compliance: SVG ring gauge, reds only, 65/40 tiers
+   v1.3.1 - Fix alcohol false positive (substring match on "ale"
+            in words like "kale"); use word-boundary regex
    ══════════════════════════════════════════ */
 const GAS_URL = 'https://script.google.com/macros/s/AKfycby0jEwPEqESOu_SK8qYqiJxR-1MeT8Ax6fq0fHPHC6gfihMpPW4uJBt1lGwmK_inQ4-/exec';
 
@@ -222,7 +237,7 @@ const isTruthy = v => v===true||v==='TRUE'||v==='true'||v==='yes'||v==='YES'||v=
 
 const PHASE_BG = {loading:'var(--ph-load)',activation:'var(--ph-act)',transition:'var(--ph-trans)',stabilization:'var(--ph-stab)',consolidation:'var(--ph-stab)'};
 const PHASE_SOLID = {loading:'var(--ph-load-s)',activation:'var(--ph-act-s)',transition:'var(--ph-trans-s)',stabilization:'var(--ph-stab-s)',consolidation:'var(--ph-stab-s)'};
-const PHASE_RGB = {loading:'rgba(79,195,247,0.22)',activation:'rgba(255,183,77,0.22)',transition:'rgba(206,147,216,0.22)',stabilization:'rgba(129,199,132,0.22)',consolidation:'rgba(129,199,132,0.22)'};
+const PHASE_RGB = {loading:'rgba(176,141,46,0.15)',activation:'rgba(26,26,26,0.08)',transition:'rgba(212,197,160,0.18)',stabilization:'rgba(251,250,247,0.25)',consolidation:'rgba(251,250,247,0.25)'};
 const BAND_COLOR = {green:'#2d7a3a',amber:'#c47f17',red:'#c62828',none:'#B08D2E'};
 
 /* Alcohol detection keywords (the RULE for whether alcohol is gated comes from Rules tab) */
@@ -368,7 +383,7 @@ function deriveCompliance(data, rules, model) {
     // Alcohol in notes
     if(row.notes && !issues.some(i=>i.type==='alcohol')) {
       const nl = String(row.notes).toLowerCase();
-      if(ALC.some(w=>nl.includes(w))) {
+      if(ALC.some(w=>new RegExp('\\b'+w+'\\b').test(nl))) {
         const ar = findRule(rules,phase,'alcohol',model);
         if(ar && ar.gated) issues.push({type:'alcohol',sev:'amber',detail:'Alcohol in notes'});
       }
@@ -422,7 +437,7 @@ function deriveCompliance(data, rules, model) {
 function parseDJ(raw) { if(!raw) return null; try{ return typeof raw==='string'?JSON.parse(raw):raw; }catch{return null;} }
 function isAlc(item) {
   const n=String(item.name||'').toLowerCase(), nt=String(item.note||'').toLowerCase(), c=String(item.category||'').toLowerCase();
-  return c==='alcohol' || ALC.some(w=>n.includes(w)) || nt.includes('alcohol');
+  return c==='alcohol' || ALC.some(w=>new RegExp('\\b'+w+'\\b').test(n)) || /\balcohol\b/.test(nt);
 }
 
 /* ── Stats ── */
@@ -432,12 +447,13 @@ function computeStats(data, compliance) {
   const ew = ws.length ? ws[ws.length-1].w : null;
   const pk = ws.length ? Math.max(...ws.map(w=>w.w)) : null;
   const delta = sw!=null&&ew!=null ? ew-sw : null;
-  const total = data.length;
-  const greenDays = compliance.filter(c=>c.status==='green').length;
-  const pct = total ? Math.round(greenDays/total*100) : 0;
+  const scored = compliance.filter(c=>c.status!=='empty');
+  const total = scored.length;
+  const redFreeDays = scored.filter(c=>!c.issues.some(i=>i.sev==='red')).length;
+  const pct = total ? Math.round(redFreeDays/total*100) : 0;
   const exDays = data.filter(d=>num(d.exercise_kcal)>0).length;
   const avgK = data.filter(d=>d.kcal).length ? Math.round(data.filter(d=>d.kcal).reduce((s,d)=>s+num(d.kcal),0)/data.filter(d=>d.kcal).length) : 0;
-  return {startWeight:sw, endWeight:ew, peakWeight:pk, delta, totalDays:total, greenDays, compliancePct:pct, exerciseDays:exDays, avgKcal:avgK};
+  return {startWeight:sw, endWeight:ew, peakWeight:pk, delta, totalDays:data.length, scoredDays:total, redFreeDays, compliancePct:pct, exerciseDays:exDays, avgKcal:avgK};
 }
 
 /* ── Phase segments from data ── */
@@ -481,21 +497,42 @@ function renderStats() {
   const dEl = $('#v-delta');
   if(s.delta!=null) { dEl.textContent=(s.delta>0?'+':'')+s.delta.toFixed(1)+' kg'; dEl.className='stat-value '+(s.delta<=0?'positive':'negative'); }
   else dEl.textContent='--';
-  const cEl = $('#v-compliance');
-  cEl.textContent = s.compliancePct+'%';
-  cEl.className = 'stat-value '+(s.compliancePct>=80?'positive':s.compliancePct>=60?'':'negative');
+  renderComplianceRing(s);
+}
+
+function renderComplianceRing(s) {
+  const pct = s.compliancePct;
+  const color = pct>=65 ? 'var(--green)' : pct>=40 ? 'var(--amber)' : 'var(--red)';
+  const r=52, circ=2*Math.PI*r, offset=circ*(1-pct/100);
+  const el=$('#v-compliance-ring');
+  el.innerHTML = `
+    <div class="ring-wrap">
+      <svg width="120" height="120" viewBox="0 0 120 120">
+        <circle cx="60" cy="60" r="${r}" fill="none" stroke="var(--line-soft)" stroke-width="8"/>
+        <circle cx="60" cy="60" r="${r}" fill="none" stroke="${color}" stroke-width="8"
+          stroke-dasharray="${circ}" stroke-dashoffset="${offset}" stroke-linecap="round"/>
+      </svg>
+      <div class="ring-label">
+        <span class="ring-pct" style="color:${color}">${pct}%</span>
+        <span class="ring-sub">${s.redFreeDays}/${s.scoredDays} days</span>
+      </div>
+    </div>
+    <span class="ring-title">Compliance</span>`;
 }
 
 function renderPhaseBar() {
   const segs=phaseSegs(S.data), total=S.data.length||1;
   const bar=$('#phase-bar'); bar.innerHTML='';
-  const colors={loading:'#b3e5fc',activation:'#ffe0b2',transition:'#e1bee7',stabilization:'#c8e6c9'};
+  const colors={loading:'#B08D2E',activation:'#1A1A1A',transition:'#D4C5A0',stabilization:'#FBFAF7'};
+  const txtColors={loading:'#FBFAF7',activation:'#FBFAF7',transition:'#1A1A1A',stabilization:'#1A1A1A'};
   segs.forEach(seg=>{
     const days=seg.end-seg.start+1;
     const div=document.createElement('div');
     div.className='phase-seg';
     div.style.flex=days;
     div.style.background=colors[seg.name]||'#eee';
+    div.style.color=txtColors[seg.name]||'#1A1A1A';
+    if(seg.name==='stabilization') div.style.border='1px solid #EBE5D8';
     div.textContent=cap(seg.name)+' ('+days+'d)';
     bar.appendChild(div);
   });
@@ -555,38 +592,51 @@ function renderNormChart() {
   });
 }
 
+function getKcalTarget(row) {
+  const phase=(row.phase||'').toLowerCase().replace('consolidation','stabilization');
+  const rule=findRule(S.resolved,phase,'kcal',S.model);
+  if(!rule||!rule.gated) return null;
+  if(rule.basis==='adaptive_kcal') {
+    // Use profile's current adaptive target, or TDEE * maint_cut
+    const ct = num(S.profile.current_target_kcal);
+    if(ct) return ct;
+    const tdee = num(S.profile.tdee);
+    const cut = num(S.profile.maint_cut) || 0.9;
+    return tdee ? Math.round(tdee * cut) : null;
+  }
+  return rule.value;
+}
+
 function renderKcalChart() {
   destroyChart('kcal');
   const labels=S.data.map(d=>String(d.day));
-  const vals=S.data.map(d=>num(d.kcal));
-  const colors=S.data.map(d=>{
-    const phase=(d.phase||'').toLowerCase().replace('consolidation','stabilization');
-    const rule=findRule(S.resolved,phase,'kcal',S.model);
-    if(!rule||!rule.gated||rule.basis==='adaptive_kcal') return '#B08D2E';
-    const st=bandStatus(num(d.kcal),rule);
-    return BAND_COLOR[st]||'#B08D2E';
+  const vals=S.data.map(d=>{
+    const k=num(d.kcal); if(k==null) return null;
+    const target=getKcalTarget(d);
+    if(!target) return null;
+    return Math.round(k/target*100);
+  });
+  const colors=S.data.map((d,i)=>{
+    const v=vals[i]; if(v==null) return '#B08D2E';
+    if(v>=80 && v<=110) return '#2d7a3a';
+    if((v>=70 && v<80)||(v>110 && v<=120)) return '#c47f17';
+    return '#c62828';
   });
 
-  // Target line annotations for kcal
-  const targetAnns = [];
-  const segs=phaseSegs(S.data);
-  segs.forEach(seg=>{
-    const rule=findRule(S.resolved,seg.name,'kcal',S.model);
-    if(rule && rule.gated && rule.basis!=='adaptive_kcal' && rule.value!=null) {
-      const iMin=labels.indexOf(String(seg.start));
-      const iMax=labels.indexOf(String(seg.end));
-      targetAnns.push({type:'line',yMin:rule.value,yMax:rule.value,xMin:iMin-0.5,xMax:iMax+0.5,
-        borderColor:'rgba(176,141,46,0.5)',borderDash:[6,3],borderWidth:2,
-        label:{display:true,content:rule.value+' kcal',position:'start',font:{size:10},color:'#B08D2E',backgroundColor:'rgba(251,250,247,0.8)',padding:2}
-      });
-    }
-  });
+  // 100% target line
+  const targetAnns = [{
+    type:'line',yMin:100,yMax:100,
+    borderColor:'rgba(176,141,46,0.5)',borderDash:[6,3],borderWidth:2,
+    label:{display:true,content:'Target',position:'start',font:{size:10},color:'#B08D2E',backgroundColor:'rgba(251,250,247,0.8)',padding:2}
+  }];
 
   charts.kcal = new Chart($('#chart-kcal'),{
     type:'bar',
-    data:{labels, datasets:[{label:'Calories',data:vals,backgroundColor:colors,borderRadius:3}]},
-    options:{responsive:true,plugins:{annotation:{annotations:[...phaseAnnotations(S.data),...targetAnns]},legend:{display:false}},
-      scales:{x:{title:{display:true,text:'Day'}},y:{title:{display:true,text:'kcal'},beginAtZero:true}}}
+    data:{labels, datasets:[{label:'% of target',data:vals,backgroundColor:colors,borderRadius:3}]},
+    options:{responsive:true,plugins:{annotation:{annotations:[...phaseAnnotations(S.data),...targetAnns]},legend:{display:false},
+      tooltip:{callbacks:{label:ctx=>ctx.parsed.y!=null?ctx.parsed.y+'% of target':''}}},
+      scales:{x:{title:{display:true,text:'Day'}},y:{title:{display:true,text:'% of target'},beginAtZero:true,max:150,
+        ticks:{callback:v=>v+'%'}}}}
   });
 }
 
@@ -684,7 +734,7 @@ function generateReport() {
     <h3>Nutrition by Phase</h3>
     ${macroHtml}
     <h3>What's Next</h3>
-    <p>Over ${s.totalDays} days, you committed to a structured wellness program and built habits that support lasting change. Your ${s.compliancePct}% compliance rate reflects real dedication to the process.</p>
+    <p>Over ${s.totalDays} days, you committed to a structured wellness program and built habits that support lasting change. Your ${s.compliancePct}% compliance score (${s.redFreeDays} of ${s.scoredDays} days with no critical flags) reflects real dedication to the process.</p>
     <p>The patterns you have developed, from mindful nutrition choices to consistent daily check-ins, are the building blocks of sustainable wellness. Consider continuing with a maintenance phase to build on your progress. Your coach can help design a plan that fits your lifestyle and goals.</p>
     <div class="rpt-footer"><p>niramaya.sg</p></div>
   `;

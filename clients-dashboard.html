@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>AEVUM Graduation</title>
+<title>AEVUM Clients Dashboard</title>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-annotation/3.0.1/chartjs-plugin-annotation.min.js"></script>
@@ -32,6 +32,8 @@ a{color:var(--gold)}
 .header h1{font-size:20px;letter-spacing:2px;color:var(--gold-light)}
 .header-controls{display:flex;gap:12px;align-items:center}
 .header select{padding:8px 12px;border-radius:6px;border:1px solid var(--muted-dk);background:var(--ink);color:var(--paper);font-size:14px;min-width:180px}
+.header input[type=number]{width:60px;padding:8px;border-radius:6px;border:1px solid var(--muted-dk);background:var(--ink);color:var(--paper);font-size:13px;text-align:center}
+.header .range-label{color:var(--muted-dk);font-size:12px}
 .header button{padding:8px 16px;border-radius:6px;border:none;background:var(--gold);color:var(--ink-2);font-weight:600;font-size:13px;cursor:pointer;transition:background 0.2s}
 .header button:hover{background:var(--gold-light)}
 .header button:disabled{opacity:0.4;cursor:default}
@@ -131,6 +133,11 @@ a{color:var(--gold)}
   <h1>AEVUM</h1>
   <div class="header-controls">
     <select id="client-select"><option value="">Select client...</option></select>
+    <span class="range-label">Day</span>
+    <input type="number" id="day-from" placeholder="1" min="1">
+    <span class="range-label">to</span>
+    <input type="number" id="day-to" placeholder="31" min="1">
+    <button id="btn-filter" disabled onclick="applyFilter()">Filter</button>
     <button id="btn-report" disabled onclick="generateReport()">Generate Report</button>
   </div>
 </header>
@@ -190,24 +197,30 @@ a{color:var(--gold)}
 
 <script>
 /* ══════════════════════════════════════════
-   CONFIGURE: paste your Apps Script /exec URL
+   AEVUM Clients Dashboard v1.1.0
+   ══════════════════════════════════════════
+   v1.0.0 - Initial release
+   v1.1.0 - Fix isTruthy for serum "yes" values
+          - Fix phase band alignment (index-based)
+          - Increase phase band opacity (0.12 -> 0.22)
+          - Fix 7-day avg legend (usePointStyle)
+          - Add day range filter (day X to Y)
    ══════════════════════════════════════════ */
 const GAS_URL = 'https://script.google.com/macros/s/AKfycby0jEwPEqESOu_SK8qYqiJxR-1MeT8Ax6fq0fHPHC6gfihMpPW4uJBt1lGwmK_inQ4-/exec';
-/* ══════════════════════════════════════════ */
 
 /* ── State ── */
-const S = { clients:[], profile:null, data:[], rules:[], resolved:[], model:'buckets', compliance:[], stats:{} };
+const S = { clients:[], profile:null, data:[], dataFull:[], rules:[], resolved:[], model:'buckets', compliance:[], stats:{} };
 let charts = {};
 
 /* ── Helpers ── */
 const $ = s => document.querySelector(s);
 const num = v => { if(v===''||v==null) return null; const n=Number(v); return isNaN(n)?null:n; };
 const cap = s => s ? s.charAt(0).toUpperCase()+s.slice(1) : '';
-const isTruthy = v => v===true||v==='TRUE'||v==='true'||v===1||v==='1';
+const isTruthy = v => v===true||v==='TRUE'||v==='true'||v==='yes'||v==='YES'||v==='Yes'||v===1||v==='1';
 
 const PHASE_BG = {loading:'var(--ph-load)',activation:'var(--ph-act)',transition:'var(--ph-trans)',stabilization:'var(--ph-stab)',consolidation:'var(--ph-stab)'};
 const PHASE_SOLID = {loading:'var(--ph-load-s)',activation:'var(--ph-act-s)',transition:'var(--ph-trans-s)',stabilization:'var(--ph-stab-s)',consolidation:'var(--ph-stab-s)'};
-const PHASE_RGB = {loading:'rgba(79,195,247,0.12)',activation:'rgba(255,183,77,0.12)',transition:'rgba(206,147,216,0.12)',stabilization:'rgba(129,199,132,0.12)',consolidation:'rgba(129,199,132,0.12)'};
+const PHASE_RGB = {loading:'rgba(79,195,247,0.22)',activation:'rgba(255,183,77,0.22)',transition:'rgba(206,147,216,0.22)',stabilization:'rgba(129,199,132,0.22)',consolidation:'rgba(129,199,132,0.22)'};
 const BAND_COLOR = {green:'#2d7a3a',amber:'#c47f17',red:'#c62828',none:'#B08D2E'};
 
 /* Alcohol detection keywords (the RULE for whether alcohol is gated comes from Rules tab) */
@@ -245,13 +258,19 @@ async function loadClient(id) {
     const resp = await gas({ action:'graduation', sub:'full', id });
     S.profile = resp.profile;
     S.model = resp.model || resp.profile.activation_model || 'buckets';
-    S.data = dedup(resp.data || []);
+    S.dataFull = dedup(resp.data || []);
     S.rules = resp.rules || [];
     S.resolved = resolveRules(S.rules, S.profile);
-    S.compliance = deriveCompliance(S.data, S.resolved, S.model);
-    S.stats = computeStats(S.data, S.compliance);
-    render();
+    // Set default range inputs
+    if(S.dataFull.length) {
+      $('#day-from').value = S.dataFull[0].day;
+      $('#day-from').min = S.dataFull[0].day;
+      $('#day-to').value = S.dataFull[S.dataFull.length-1].day;
+      $('#day-to').max = S.dataFull[S.dataFull.length-1].day;
+    }
+    applyFilter();
     $('#btn-report').disabled = false;
+    $('#btn-filter').disabled = false;
   } catch(e) { showError('Failed to load data: ' + e.message); }
   $('#loading').classList.add('hidden');
 }
@@ -428,6 +447,16 @@ function phaseSegs(data) {
   return segs;
 }
 
+/* ── Day range filter ── */
+function applyFilter() {
+  const from = num($('#day-from').value) || 1;
+  const to = num($('#day-to').value) || 9999;
+  S.data = S.dataFull.filter(d => d.day >= from && d.day <= to);
+  S.compliance = deriveCompliance(S.data, S.resolved, S.model);
+  S.stats = computeStats(S.data, S.compliance);
+  render();
+}
+
 /* ── Render all ── */
 function render() {
   renderStats();
@@ -473,11 +502,16 @@ function destroyChart(key) { if(charts[key]){charts[key].destroy();delete charts
 
 function phaseAnnotations(data) {
   const segs=phaseSegs(data);
-  return segs.map(seg=>({
-    type:'box', xMin:String(seg.start), xMax:String(seg.end),
-    backgroundColor:PHASE_RGB[seg.name]||'rgba(0,0,0,0.03)', borderWidth:0,
-    drawTime:'beforeDatasetsDraw'
-  }));
+  const labels=data.map(d=>String(d.day));
+  return segs.map(seg=>{
+    const iMin=labels.indexOf(String(seg.start));
+    const iMax=labels.indexOf(String(seg.end));
+    return {
+      type:'box', xMin:iMin-0.5, xMax:iMax+0.5,
+      backgroundColor:PHASE_RGB[seg.name]||'rgba(0,0,0,0.03)', borderWidth:0,
+      drawTime:'beforeDatasetsDraw'
+    };
+  });
 }
 
 function renderWeightChart() {
@@ -495,9 +529,9 @@ function renderWeightChart() {
     type:'line',
     data:{labels, datasets:[
       {label:'Weight (kg)',data:weights,borderColor:'#B08D2E',backgroundColor:'rgba(176,141,46,0.1)',fill:true,tension:0.3,pointRadius:3,pointBackgroundColor:'#B08D2E',spanGaps:true},
-      {label:'7-day avg',data:smooth,borderColor:'#4a463f',borderDash:[5,3],pointRadius:0,tension:0.4,spanGaps:true}
+      {label:'7-day avg',data:smooth,borderColor:'#4a463f',borderDash:[5,3],pointRadius:0,tension:0.4,spanGaps:true,pointStyle:'line'}
     ]},
-    options:{responsive:true,plugins:{annotation:{annotations:phaseAnnotations(S.data)},legend:{labels:{boxWidth:12,font:{size:11}}}},
+    options:{responsive:true,plugins:{annotation:{annotations:phaseAnnotations(S.data)},legend:{labels:{usePointStyle:true,pointStyleWidth:20,boxHeight:8,font:{size:11}}}},
       scales:{x:{title:{display:true,text:'Day'}},y:{title:{display:true,text:'kg'}}}}
   });
 }
@@ -535,7 +569,9 @@ function renderKcalChart() {
   segs.forEach(seg=>{
     const rule=findRule(S.resolved,seg.name,'kcal',S.model);
     if(rule && rule.gated && rule.basis!=='adaptive_kcal' && rule.value!=null) {
-      targetAnns.push({type:'line',yMin:rule.value,yMax:rule.value,xMin:String(seg.start),xMax:String(seg.end),
+      const iMin=labels.indexOf(String(seg.start));
+      const iMax=labels.indexOf(String(seg.end));
+      targetAnns.push({type:'line',yMin:rule.value,yMax:rule.value,xMin:iMin-0.5,xMax:iMax+0.5,
         borderColor:'rgba(176,141,46,0.5)',borderDash:[6,3],borderWidth:2,
         label:{display:true,content:rule.value+' kcal',position:'start',font:{size:10},color:'#B08D2E',backgroundColor:'rgba(251,250,247,0.8)',padding:2}
       });

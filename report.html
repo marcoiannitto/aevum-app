@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<!-- ===================================================================== -->
+<!-- AEVUM Program Report · report.html · v1.0.0                           -->
+<!-- Standalone read-only report, linked from graduation onboarding        -->
+<!-- Backend: Apps Script graduation sub=full endpoint                     -->
+<!-- ===================================================================== -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#1A1A1A">
+<title>AEVUM — Program Report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#1A1A1A;--ink-soft:#4a463f;--gold:#B08D2E;--gold-deep:#8f6f1f;
+  --paper:#FBFAF7;--card:#ffffff;--line:#EBE5D8;--line-soft:#F2EDE2;--muted:#938c7d;
+  --ok:#4a463f;--warn:#B7791F;--over:#A13024;
+  --maint:#3E7A6A;--maint-soft:#2d5e52;--maint-bg:#E8F2EF;
+  --serif:"Fraunces",Georgia,"Times New Roman",serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{font-family:var(--sans);background:var(--paper);color:var(--ink);font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased;}
+.hidden{display:none!important;}
+.num{font-family:var(--serif);font-variant-numeric:tabular-nums;letter-spacing:-.01em;}
+
+/* --- Loading / Error --- */
+#loading{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:80vh;gap:16px;color:var(--muted);}
+#loading .spinner{width:32px;height:32px;border:3px solid var(--line);border-top-color:var(--gold);border-radius:50%;animation:spin .8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+#error{display:none;text-align:center;padding:80px 24px;color:var(--over);}
+#error h2{font-family:var(--serif);font-size:1.4rem;margin-bottom:8px;}
+
+/* --- Layout --- */
+.wrap{max-width:480px;margin:0 auto;padding:0 16px 48px;}
+.hero{background:var(--ink);color:#fff;padding:48px 24px 36px;text-align:center;}
+.hero h1{font-family:var(--serif);font-size:1.6rem;font-weight:500;margin-bottom:4px;letter-spacing:.01em;}
+.hero .sub{color:var(--muted);font-size:.85rem;margin-top:4px;}
+.hero .badge{display:inline-block;margin-top:16px;padding:6px 18px;border:1px solid var(--gold);border-radius:20px;color:var(--gold);font-size:.8rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;}
+
+/* --- Cards --- */
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;margin-top:20px;}
+.card h2{font-family:var(--serif);font-size:1.1rem;font-weight:500;margin-bottom:14px;color:var(--ink);}
+.card h3{font-size:.8rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:18px 0 8px;}
+.card h3:first-child{margin-top:0;}
+
+/* --- Stats grid --- */
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.stat{background:var(--paper);border-radius:10px;padding:14px;text-align:center;}
+.stat .val{font-family:var(--serif);font-size:1.5rem;font-weight:500;color:var(--ink);line-height:1.2;}
+.stat .lbl{font-size:.75rem;color:var(--muted);margin-top:2px;}
+.stat.wide{grid-column:1/-1;}
+.stat.gold .val{color:var(--gold);}
+.stat.maint .val{color:var(--maint);}
+
+/* --- Phase timeline --- */
+.timeline{display:flex;gap:2px;height:8px;border-radius:4px;overflow:hidden;margin:12px 0 8px;}
+.timeline .seg{border-radius:0;height:100%;}
+.phase-legend{display:flex;flex-wrap:wrap;gap:8px 14px;font-size:.75rem;color:var(--muted);margin-top:6px;}
+.phase-legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px;}
+
+/* --- Weight chart --- */
+.chart-wrap{position:relative;width:100%;aspect-ratio:2/1;margin:8px 0;}
+.chart-wrap canvas{width:100%;height:100%;}
+
+/* --- Day log table --- */
+.log-tbl{width:100%;border-collapse:collapse;font-size:.82rem;}
+.log-tbl th{text-align:left;font-weight:600;padding:8px 6px;border-bottom:2px solid var(--line);font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);}
+.log-tbl td{padding:7px 6px;border-bottom:1px solid var(--line-soft);}
+.log-tbl .phase-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;vertical-align:-1px;}
+.log-tbl tr:last-child td{border-bottom:none;}
+
+/* --- Macro averages --- */
+.macro-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line-soft);}
+.macro-row:last-child{border-bottom:none;}
+.macro-row .name{font-weight:500;font-size:.9rem;}
+.macro-row .avg{font-family:var(--serif);font-size:1rem;}
+
+/* --- Footer --- */
+.foot{text-align:center;padding:32px 16px;color:var(--muted);font-size:.75rem;}
+.foot a{color:var(--gold);text-decoration:none;}
+
+/* --- Print --- */
+@media print{
+  body{background:#fff;}
+  .card{break-inside:avoid;border-color:#ddd;}
+  .hero{background:#222;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+}
+</style>
+</head>
+<body>
+
+<!-- Loading state -->
+<div id="loading">
+  <div class="spinner"></div>
+  <span>Loading your report…</span>
+</div>
+
+<!-- Error state -->
+<div id="error" class="hidden">
+  <h2>Couldn't load report</h2>
+  <p id="errorMsg">Please check the link and try again.</p>
+</div>
+
+<!-- Report content (hidden until data loads) -->
+<div id="report" class="hidden">
+
+  <div class="hero">
+    <h1>Program Complete</h1>
+    <div class="sub" id="heroName"></div>
+    <div class="badge">AEVUM</div>
+  </div>
+
+  <div class="wrap">
+
+    <!-- Summary card -->
+    <div class="card">
+      <h2>Summary</h2>
+      <div class="stats">
+        <div class="stat gold">
+          <div class="val" id="sDays">—</div>
+          <div class="lbl">Days completed</div>
+        </div>
+        <div class="stat">
+          <div class="val" id="sLogged">—</div>
+          <div class="lbl">Days logged</div>
+        </div>
+        <div class="stat gold">
+          <div class="val" id="sWeightDelta">—</div>
+          <div class="lbl">Weight change</div>
+        </div>
+        <div class="stat">
+          <div class="val" id="sTarget">—</div>
+          <div class="lbl">Target weight</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Phase breakdown -->
+    <div class="card">
+      <h2>Phase Timeline</h2>
+      <div id="phaseTimeline" class="timeline"></div>
+      <div id="phaseLegend" class="phase-legend"></div>
+      <div class="stats" style="margin-top:14px;" id="phaseStats"></div>
+    </div>
+
+    <!-- Weight chart -->
+    <div class="card">
+      <h2>Weight Trend</h2>
+      <div class="chart-wrap">
+        <canvas id="weightChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Macro averages by phase -->
+    <div class="card">
+      <h2>Average Daily Intake</h2>
+      <div id="macroAvgs"></div>
+    </div>
+
+    <!-- Daily log -->
+    <div class="card">
+      <h2>Daily Log</h2>
+      <div style="overflow-x:auto;">
+        <table class="log-tbl">
+          <thead>
+            <tr>
+              <th>Day</th>
+              <th>Phase</th>
+              <th>Wt</th>
+              <th>Kcal</th>
+              <th>P</th>
+              <th>F</th>
+              <th>C</th>
+            </tr>
+          </thead>
+          <tbody id="logBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Maintenance setup -->
+    <div class="card hidden" id="maintCard">
+      <h2>Maintenance Setup</h2>
+      <div class="stats" id="maintStats"></div>
+    </div>
+
+  </div><!-- .wrap -->
+
+  <div class="foot">
+    Generated by <a href="https://app.niramaya.sg" target="_blank">AEVUM</a><br>
+    <span id="footDate"></span>
+  </div>
+
+</div><!-- #report -->
+
+<script>
+/* ===== CONFIG ===== */
+const GAS_URL='https://script.google.com/macros/s/AKfycby0jEwPEqESOu_SK8qYqiJxR-1MeT8Ax6fq0fHPHC6gfihMpPW4uJBt1lGwmK_inQ4-/exec';
+
+/* Phase fixed lengths (must match index.html) */
+const PH_FIXED={loading:2, transition:3, consolidation:18};
+
+const PHASE_COLORS={
+  loading:'#8a8a8a',
+  activation:'#B08D2E',
+  transition:'#B08D2E',
+  consolidation:'#4a463f',
+  maintenance:'#3E7A6A'
+};
+const PHASE_NAMES={
+  loading:'Loading',
+  activation:'Activation',
+  transition:'Transition',
+  consolidation:'Stabilization',
+  maintenance:'Maintenance'
+};
+
+/* ===== HELPERS ===== */
+const g=id=>document.getElementById(id);
+const params=new URLSearchParams(location.search);
+const PID=(params.get('id')||'').toLowerCase().replace(/[^a-z0-9_-]/g,'');
+
+function actDays(prof){return (prof&&+prof.activation_days>0)?+prof.activation_days:8;}
+function totalDays(prof){return PH_FIXED.loading+actDays(prof)+PH_FIXED.transition+PH_FIXED.consolidation;}
+
+function phaseFor(d,prof){
+  const act=actDays(prof);
+  const l1=PH_FIXED.loading, l2=l1+act, l3=l2+PH_FIXED.transition, l4=l3+PH_FIXED.consolidation;
+  if(d<=l1) return 'loading';
+  if(d<=l2) return 'activation';
+  if(d<=l3) return 'transition';
+  if(d<=l4) return 'consolidation';
+  return 'maintenance';
+}
+
+function parseDayJson(raw){
+  if(!raw) return null;
+  try{return JSON.parse(raw);}catch(e){return null;}
+}
+
+function showError(msg){
+  g('loading').classList.add('hidden');
+  g('error').classList.remove('hidden');
+  if(msg) g('errorMsg').textContent=msg;
+}
+
+/* ===== FETCH DATA ===== */
+async function load(){
+  if(!PID){showError('No client ID in URL.');return;}
+  try{
+    const url=GAS_URL+'?'+new URLSearchParams({action:'graduation',sub:'full',id:PID});
+    const resp=await fetch(url);
+    const d=await resp.json();
+    if(d.error){showError(d.error);return;}
+    if(!d.profile){showError('Profile not found.');return;}
+    render(d);
+  }catch(e){
+    showError('Network error: '+e.message);
+  }
+}
+
+/* ===== RENDER ===== */
+function render(d){
+  const prof=d.profile;
+  const days=(d.data||[]).sort((a,b)=>a.day-b.day);
+  const total=totalDays(prof);
+
+  /* --- Parse day data --- */
+  const parsed=days.map(row=>{
+    const j=parseDayJson(row.day_json);
+    return {
+      day:+row.day,
+      phase:phaseFor(+row.day,prof),
+      weight:j&&j.weight?+j.weight:null,
+      kcal:j&&j.kcal!=null?+j.kcal:null,
+      protein:j&&j.protein!=null?+j.protein:null,
+      fat:j&&j.fat!=null?+j.fat:null,
+      carbs:j&&j.carbs!=null?+j.carbs:null,
+      raw:j
+    };
+  }).filter(r=>r.day>0);
+
+  const logged=parsed.filter(r=>r.weight!=null||r.kcal!=null);
+  const weights=parsed.filter(r=>r.weight!=null&&r.weight>0);
+  const maxDay=parsed.length?Math.max(...parsed.map(r=>r.day)):total;
+
+  /* --- Hero --- */
+  g('heroName').textContent=prof.name||PID;
+
+  /* --- Summary --- */
+  g('sDays').textContent=maxDay;
+  g('sLogged').textContent=logged.length;
+  if(weights.length>=2){
+    const first=weights[0].weight, last=weights[weights.length-1].weight;
+    const delta=last-first;
+    g('sWeightDelta').textContent=(delta>0?'+':'')+delta.toFixed(1)+' kg';
+  }else{
+    g('sWeightDelta').textContent='—';
+  }
+  g('sTarget').textContent=prof.target_kg?prof.target_kg+' kg':'—';
+
+  /* --- Phase timeline --- */
+  const phases=[
+    {key:'loading',len:PH_FIXED.loading},
+    {key:'activation',len:actDays(prof)},
+    {key:'transition',len:PH_FIXED.transition},
+    {key:'consolidation',len:PH_FIXED.consolidation}
+  ];
+  /* Add maintenance if any days beyond total */
+  const maintDays=Math.max(0,maxDay-total);
+  if(maintDays>0) phases.push({key:'maintenance',len:maintDays});
+
+  let tlHtml='', lgHtml='';
+  phases.forEach(p=>{
+    tlHtml+=`<div class="seg" style="flex:${p.len};background:${PHASE_COLORS[p.key]}"></div>`;
+    lgHtml+=`<span><i style="background:${PHASE_COLORS[p.key]}"></i>${PHASE_NAMES[p.key]} (${p.len}d)</span>`;
+  });
+  g('phaseTimeline').innerHTML=tlHtml;
+  g('phaseLegend').innerHTML=lgHtml;
+
+  /* Phase stats: days logged per phase */
+  let psHtml='';
+  phases.forEach(p=>{
+    const count=logged.filter(r=>r.phase===p.key).length;
+    psHtml+=`<div class="stat"><div class="val">${count}/${p.len}</div><div class="lbl">${PHASE_NAMES[p.key]} logged</div></div>`;
+  });
+  g('phaseStats').innerHTML=psHtml;
+
+  /* --- Weight chart (canvas) --- */
+  drawWeightChart(weights,prof);
+
+  /* --- Macro averages by phase --- */
+  let maHtml='';
+  const activePhases=phases.filter(p=>logged.some(r=>r.phase===p.key));
+  activePhases.forEach(p=>{
+    const rows=logged.filter(r=>r.phase===p.key&&r.kcal!=null);
+    if(!rows.length)return;
+    const avg=(arr,fn)=>{const vals=arr.map(fn).filter(v=>v!=null&&!isNaN(v));return vals.length?Math.round(vals.reduce((s,v)=>s+v,0)/vals.length):null;};
+    const aKcal=avg(rows,r=>r.kcal);
+    const aProt=avg(rows,r=>r.protein);
+    const aFat=avg(rows,r=>r.fat);
+    const aCarb=avg(rows,r=>r.carbs);
+    maHtml+=`<h3 style="color:${PHASE_COLORS[p.key]}">${PHASE_NAMES[p.key]}</h3>`;
+    if(aKcal!=null) maHtml+=`<div class="macro-row"><span class="name">Calories</span><span class="avg num">${aKcal} kcal</span></div>`;
+    if(aProt!=null) maHtml+=`<div class="macro-row"><span class="name">Protein</span><span class="avg num">${aProt} g</span></div>`;
+    if(aFat!=null)  maHtml+=`<div class="macro-row"><span class="name">Fat</span><span class="avg num">${aFat} g</span></div>`;
+    if(aCarb!=null) maHtml+=`<div class="macro-row"><span class="name">Carbs</span><span class="avg num">${aCarb} g</span></div>`;
+  });
+  g('macroAvgs').innerHTML=maHtml||'<p style="color:var(--muted);font-size:.85rem;">No intake data logged.</p>';
+
+  /* --- Daily log --- */
+  let logHtml='';
+  parsed.forEach(r=>{
+    const phColor=PHASE_COLORS[r.phase]||'#ccc';
+    logHtml+=`<tr>
+      <td class="num">${r.day}</td>
+      <td><span class="phase-dot" style="background:${phColor}"></span>${PHASE_NAMES[r.phase]||''}</td>
+      <td class="num">${r.weight!=null?r.weight.toFixed(1):'—'}</td>
+      <td class="num">${r.kcal!=null?Math.round(r.kcal):'—'}</td>
+      <td class="num">${r.protein!=null?Math.round(r.protein):'—'}</td>
+      <td class="num">${r.fat!=null?Math.round(r.fat):'—'}</td>
+      <td class="num">${r.carbs!=null?Math.round(r.carbs):'—'}</td>
+    </tr>`;
+  });
+  g('logBody').innerHTML=logHtml||'<tr><td colspan="7" style="color:var(--muted);text-align:center;padding:20px;">No data.</td></tr>';
+
+  /* --- Maintenance card --- */
+  const mc=g('maintCard');
+  if(prof.maintenance_mode||prof.maintenance_diet){
+    mc.classList.remove('hidden');
+    let mHtml='';
+    if(prof.maintenance_mode){
+      const modeLabel=prof.maintenance_mode==='cut'?'Keep losing':'Maintain weight';
+      mHtml+=`<div class="stat maint"><div class="val">${modeLabel}</div><div class="lbl">Goal</div></div>`;
+    }
+    if(prof.maintenance_diet){
+      const dietLabels={keto:'Keto',high_protein:'High Protein',balanced:'Balanced'};
+      mHtml+=`<div class="stat maint"><div class="val">${dietLabels[prof.maintenance_diet]||prof.maintenance_diet}</div><div class="lbl">Diet type</div></div>`;
+    }
+    if(prof.current_target_kcal){
+      mHtml+=`<div class="stat"><div class="val num">${Math.round(prof.current_target_kcal)}</div><div class="lbl">Daily kcal target</div></div>`;
+    }
+    g('maintStats').innerHTML=mHtml;
+  }else{
+    mc.classList.add('hidden');
+  }
+
+  /* --- Footer date --- */
+  g('footDate').textContent=new Date().toLocaleDateString('en-SG',{year:'numeric',month:'long',day:'numeric'});
+
+  /* --- Show report --- */
+  g('loading').classList.add('hidden');
+  g('report').classList.remove('hidden');
+}
+
+/* ===== WEIGHT CHART (plain canvas, no lib) ===== */
+function drawWeightChart(weights,prof){
+  const canvas=g('weightChart');
+  if(!weights.length){
+    canvas.parentElement.innerHTML='<p style="color:var(--muted);font-size:.85rem;text-align:center;padding:20px 0;">No weight data.</p>';
+    return;
+  }
+  const dpr=window.devicePixelRatio||1;
+  const rect=canvas.parentElement.getBoundingClientRect();
+  const W=rect.width, H=rect.width/2;
+  canvas.width=W*dpr; canvas.height=H*dpr;
+  canvas.style.width=W+'px'; canvas.style.height=H+'px';
+  const ctx=canvas.getContext('2d');
+  ctx.scale(dpr,dpr);
+
+  const pad={t:16,r:12,b:28,l:42};
+  const cw=W-pad.l-pad.r, ch=H-pad.t-pad.b;
+
+  const vals=weights.map(w=>w.weight);
+  const daysArr=weights.map(w=>w.day);
+  let minV=Math.min(...vals), maxV=Math.max(...vals);
+  /* Add target line if present */
+  const target=prof.target_kg?+prof.target_kg:null;
+  if(target){minV=Math.min(minV,target);maxV=Math.max(maxV,target);}
+  const range=maxV-minV||1;
+  minV-=range*0.1; maxV+=range*0.1;
+  const vRange=maxV-minV;
+
+  const minD=Math.min(...daysArr), maxD=Math.max(...daysArr);
+  const dRange=maxD-minD||1;
+
+  const x=d=>pad.l+((d-minD)/dRange)*cw;
+  const y=v=>pad.t+((maxV-v)/vRange)*ch;
+
+  /* Grid lines */
+  ctx.strokeStyle='#EBE5D8';ctx.lineWidth=0.5;
+  const steps=4;
+  for(let i=0;i<=steps;i++){
+    const gy=pad.t+(ch/steps)*i;
+    ctx.beginPath();ctx.moveTo(pad.l,gy);ctx.lineTo(pad.l+cw,gy);ctx.stroke();
+    const label=(maxV-(vRange/steps)*i).toFixed(1);
+    ctx.fillStyle='#938c7d';ctx.font='11px -apple-system,sans-serif';ctx.textAlign='right';ctx.textBaseline='middle';
+    ctx.fillText(label,pad.l-6,gy);
+  }
+
+  /* X labels */
+  ctx.textAlign='center';ctx.textBaseline='top';ctx.fillStyle='#938c7d';ctx.font='11px -apple-system,sans-serif';
+  const xStep=Math.max(1,Math.floor(dRange/6));
+  for(let d=minD;d<=maxD;d+=xStep){
+    ctx.fillText('D'+d,x(d),H-pad.b+8);
+  }
+
+  /* Target line */
+  if(target){
+    ctx.setLineDash([4,4]);ctx.strokeStyle='#B08D2E80';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(pad.l,y(target));ctx.lineTo(pad.l+cw,y(target));ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle='#B08D2E';ctx.font='10px -apple-system,sans-serif';ctx.textAlign='left';
+    ctx.fillText('Target',pad.l+4,y(target)-12);
+  }
+
+  /* Weight line */
+  ctx.strokeStyle='#4a463f';ctx.lineWidth=2;ctx.lineJoin='round';ctx.lineCap='round';
+  ctx.beginPath();
+  weights.forEach((w,i)=>{
+    const px=x(w.day),py=y(w.weight);
+    if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+  });
+  ctx.stroke();
+
+  /* Dots */
+  weights.forEach(w=>{
+    const px=x(w.day),py=y(w.weight);
+    ctx.beginPath();ctx.arc(px,py,3,0,Math.PI*2);
+    ctx.fillStyle=PHASE_COLORS[w.phase]||'#4a463f';ctx.fill();
+  });
+}
+
+/* ===== BOOT ===== */
+load();
+</script>
+</body>
+</html>

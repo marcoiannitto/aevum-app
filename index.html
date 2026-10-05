@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ===================================================================== -->
 <!-- AEVUM Tracker · index.html · version in APP_VERSION const below        -->
-<!-- Backends: Apps Script v1.21.0 · Cloudflare Worker v1.13.0 (not deployed) -->
+<!-- Backends: Apps Script v1.22.0 · Cloudflare Worker v1.13.0 (not deployed) -->
 <!-- ===================================================================== -->
 <html lang="en">
 <head>
@@ -564,17 +564,47 @@ textarea.notes::placeholder{color:var(--muted);}
 .thinking{display:inline-block;width:15px;height:15px;border:2px solid rgba(143,111,31,.3);border-top-color:var(--gold-deep);border-radius:50%;animation:spin .7s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg);}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;}}
-/* ---- Graduation overlay ---- */
-.grad-overlay{position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:24px;}
-.grad-card{background:var(--card);border-radius:20px;padding:32px 24px;max-width:380px;width:100%;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,.25);}
-.grad-card .grad-icon{font-size:48px;margin-bottom:12px;}
-.grad-card h2{font-family:var(--serif);font-size:22px;margin:0 0 6px;color:var(--maint);}
-.grad-card p{font-size:14px;color:var(--ink-soft);line-height:1.5;margin:0 0 20px;}
-.grad-modes{display:flex;flex-direction:column;gap:10px;}
-.grad-mode{padding:16px;border:2px solid var(--line);border-radius:14px;background:var(--paper);cursor:pointer;text-align:left;transition:border-color .2s;}
-.grad-mode:hover,.grad-mode:focus{border-color:var(--maint);}
-.grad-mode .gm-title{font-weight:600;font-size:15px;color:var(--ink);margin-bottom:2px;}
-.grad-mode .gm-sub{font-size:13px;color:var(--muted);}
+/* ---- Graduation onboarding (multi-step) ---- */
+#gradOnboard{position:fixed;inset:0;background:var(--ink);color:#fff;z-index:2000;display:flex;flex-direction:column;padding:calc(env(safe-area-inset-top) + 40px) 28px 32px;overflow-y:auto;}
+#gradOnboard .grad-brand{font-family:var(--serif);font-size:28px;font-weight:500;letter-spacing:.14em;color:var(--gold);}
+#gradOnboard .grad-step{display:none;flex-direction:column;flex:1;}
+#gradOnboard .grad-step.active{display:flex;}
+/* Step 1: congrats */
+.grad-congrats .grad-icon{font-size:56px;margin:32px 0 16px;}
+.grad-congrats h2{font-family:var(--serif);font-size:24px;margin:0 0 10px;color:#fff;}
+.grad-congrats .grad-lead{font-size:15px;line-height:1.6;color:#c5c0b6;margin:0 0 24px;max-width:28ch;}
+.grad-congrats .grad-report-link{display:inline-flex;align-items:center;gap:8px;padding:14px 20px;background:#242320;border:1px solid #34322d;border-radius:14px;color:var(--gold);font-size:14px;font-weight:500;text-decoration:none;margin-bottom:24px;}
+.grad-congrats .grad-report-link:hover{border-color:var(--gold);}
+.grad-btn{width:100%;padding:16px;background:var(--gold);color:var(--ink);border-radius:14px;font-size:16px;font-weight:600;margin-top:auto;border:none;cursor:pointer;}
+.grad-btn:disabled{opacity:.4;cursor:default;}
+.grad-btn-outline{width:100%;padding:14px;background:transparent;border:1px solid #34322d;border-radius:14px;font-size:14px;color:#c5c0b6;margin-top:10px;cursor:pointer;}
+/* Step 2: goal picker */
+.grad-goal h2{font-family:var(--serif);font-size:20px;margin:32px 0 8px;color:#fff;}
+.grad-goal .grad-sub{font-size:14px;color:#8a857c;margin:0 0 20px;}
+.grad-options{display:flex;flex-direction:column;gap:10px;margin-bottom:20px;}
+.grad-opt{padding:16px;border:2px solid #34322d;border-radius:14px;background:#242320;cursor:pointer;text-align:left;transition:border-color .2s;}
+.grad-opt:hover,.grad-opt:focus{border-color:#5a5549;}
+.grad-opt.selected{border-color:var(--gold);background:#2a2820;}
+.grad-opt .go-title{font-weight:600;font-size:15px;color:#fff;margin-bottom:2px;}
+.grad-opt .go-sub{font-size:13px;color:#8a857c;}
+/* Step 3: diet picker */
+.grad-diet h2{font-family:var(--serif);font-size:20px;margin:32px 0 8px;color:#fff;}
+.grad-diet .grad-sub{font-size:14px;color:#8a857c;margin:0 0 20px;}
+.grad-diet-opt{padding:16px;border:2px solid #34322d;border-radius:14px;background:#242320;cursor:pointer;text-align:left;transition:border-color .2s;margin-bottom:10px;}
+.grad-diet-opt:hover,.grad-diet-opt:focus{border-color:#5a5549;}
+.grad-diet-opt.selected{border-color:var(--gold);background:#2a2820;}
+.grad-diet-opt .gd-title{font-weight:600;font-size:15px;color:#fff;margin-bottom:2px;}
+.grad-diet-opt .gd-sub{font-size:13px;color:#8a857c;}
+.grad-diet-opt .gd-split{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;}
+.grad-diet-opt .gd-pill{font-size:12px;padding:3px 8px;border-radius:8px;background:#34322d;color:#c5c0b6;}
+/* Step 4: confirm */
+.grad-confirm h2{font-family:var(--serif);font-size:20px;margin:32px 0 8px;color:#fff;}
+.grad-confirm .grad-sub{font-size:14px;color:#8a857c;margin:0 0 20px;}
+.grad-summary{background:#242320;border:1px solid #34322d;border-radius:14px;padding:18px;margin-bottom:24px;}
+.grad-summary .gs-row{display:flex;justify-content:space-between;padding:6px 0;font-size:14px;}
+.grad-summary .gs-row:not(:last-child){border-bottom:1px solid #34322d;}
+.grad-summary .gs-label{color:#8a857c;}
+.grad-summary .gs-val{color:#fff;font-weight:500;}
 /* ---- Calorie bank ---- */
 .calbank{background:var(--card);border-radius:14px;padding:14px 16px;margin-top:10px;border:1px solid var(--line);}
 .calbank .b-title{display:flex;justify-content:space-between;align-items:center;font-size:14px;font-weight:600;color:var(--ink);margin-bottom:8px;}
@@ -603,22 +633,69 @@ textarea.notes::placeholder{color:var(--muted);}
 </head>
 <body>
 
-<!-- GRADUATION OVERLAY (Maintenance entry) -->
-<div id="gradOverlay" class="grad-overlay hidden">
-  <div class="grad-card">
+<!-- GRADUATION ONBOARDING (multi-step maintenance entry) -->
+<div id="gradOnboard" class="hidden">
+  <div class="grad-brand">AEVUM</div>
+
+  <!-- Step 1: Congrats -->
+  <div class="grad-step grad-congrats" id="gradStep1">
     <div class="grad-icon">🎓</div>
     <h2>Program Complete</h2>
-    <p>You've finished the AEVUM metabolic protocol. Choose how you'd like to continue.</p>
-    <div class="grad-modes">
-      <div class="grad-mode" id="gradMaintain">
-        <div class="gm-title">Maintain weight</div>
-        <div class="gm-sub">Keep your current weight with adaptive calorie tracking</div>
+    <p class="grad-lead">You've finished the AEVUM metabolic protocol. Your body has a new baseline — let's keep it there.</p>
+    <a class="grad-report-link" id="gradReportLink" href="report.html" target="_blank">📊 View your program report</a>
+    <button class="grad-btn" id="gradNext1">Set up maintenance →</button>
+  </div>
+
+  <!-- Step 2: Goal picker (maintain vs cut) -->
+  <div class="grad-step grad-goal" id="gradStep2">
+    <h2>What's your goal?</h2>
+    <p class="grad-sub">This sets your calorie target for the next phase.</p>
+    <div class="grad-options" id="gradGoalOpts">
+      <div class="grad-opt" data-mode="maintain">
+        <div class="go-title">Maintain weight</div>
+        <div class="go-sub">Keep your current weight with adaptive calorie tracking</div>
       </div>
-      <div class="grad-mode" id="gradCut">
-        <div class="gm-title">Keep losing</div>
-        <div class="gm-sub">Continue a mild deficit to lose more weight</div>
+      <div class="grad-opt" data-mode="cut">
+        <div class="go-title">Keep losing</div>
+        <div class="go-sub">Continue a mild deficit to lose more weight</div>
       </div>
     </div>
+    <button class="grad-btn" id="gradNext2" disabled>Next →</button>
+    <button class="grad-btn-outline" id="gradBack2">← Back</button>
+  </div>
+
+  <!-- Step 3: Diet picker -->
+  <div class="grad-step grad-diet" id="gradStep3">
+    <h2>Choose your diet style</h2>
+    <p class="grad-sub">This determines which macros are tracked and gated.</p>
+    <div id="gradDietOpts">
+      <div class="grad-diet-opt" data-diet="keto">
+        <div class="gd-title">Keto</div>
+        <div class="gd-sub">High fat, very low carb — similar to the protocol</div>
+        <div class="gd-split" id="gdSplitKeto"></div>
+      </div>
+      <div class="grad-diet-opt" data-diet="high_protein">
+        <div class="gd-title">High protein</div>
+        <div class="gd-sub">Prioritize protein, moderate carbs and fat</div>
+        <div class="gd-split" id="gdSplitHP"></div>
+      </div>
+      <div class="grad-diet-opt" data-diet="balanced">
+        <div class="gd-title">Balanced</div>
+        <div class="gd-sub">Just calorie target, no macro gates</div>
+        <div class="gd-split" id="gdSplitBal"></div>
+      </div>
+    </div>
+    <button class="grad-btn" id="gradNext3" disabled>Next →</button>
+    <button class="grad-btn-outline" id="gradBack3">← Back</button>
+  </div>
+
+  <!-- Step 4: Confirm -->
+  <div class="grad-step grad-confirm" id="gradStep4">
+    <h2>Confirm your setup</h2>
+    <p class="grad-sub">You can change these later in settings.</p>
+    <div class="grad-summary" id="gradSummary"></div>
+    <button class="grad-btn" id="gradFinish">Start maintenance →</button>
+    <button class="grad-btn-outline" id="gradBack4">← Back</button>
   </div>
 </div>
 
@@ -1484,7 +1561,12 @@ function totals(){
    the app behaves exactly as before. */
 let RULES={model:'buckets',rules:[]};
 function ruleMapPhase(k){return k==='consolidation'?'stabilization':(k==='transition'?'activation':k);}
-function ruleFor(phaseKey,metric){const p=ruleMapPhase(phaseKey);return (RULES.rules||[]).find(r=>r.phase===p&&r.metric===metric)||null;}
+function ruleFor(phaseKey,metric,model){
+  const p=ruleMapPhase(phaseKey);
+  if(model) return (RULES.rules||[]).find(r=>r.phase===p&&r.model===model&&r.metric===metric)||null;
+  return (RULES.rules||[]).find(r=>r.phase===p&&r.metric===metric)||null;
+}
+function maintDiet(){return profile.maintenance_diet||localStorage.getItem(K('maintenance_diet'))||'balanced';}
 function actMacros(){return RULES.model==='macros';}
 /* generic band → colour: red below amber_lo or above amber_hi; green within green_lo..green_hi; else amber */
 function bandClass(v,row){
@@ -1694,11 +1776,27 @@ function renderGates(ph,t,macroAct){
   const isAct=(ph.key==='activation'||ph.key==='transition');
   if(isAct && !macroAct)return; // buckets model: macros hidden (buckets screen instead)
   const plainGate=(name,val)=>{const el=document.createElement('div');el.className='gate protein-target';el.innerHTML=`<div class="g-top"><span class="g-name">${name}</span><span class="g-val num">${val}<em>g</em></span></div>`;return el;};
+  // Resolve pct_of_kcal basis: convert percentage → grams using calorie target
+  // kcal-per-gram: protein=4, carbs=4, fat=9
+  const resolvePct=(row)=>{
+    if(!row||row.basis!=='pct_of_kcal')return row;
+    const kcal=effectiveStabTarget();if(!kcal)return row;
+    const cpg=row.metric==='fat'?9:4; // cal per gram
+    const resolved=Object.assign({},row);
+    if(resolved.target!=null) resolved.target=Math.round(kcal*(resolved.target/100)/cpg);
+    if(resolved.green_lo!=null) resolved.green_lo=Math.round(kcal*(resolved.green_lo/100)/cpg);
+    if(resolved.green_hi!=null) resolved.green_hi=Math.round(kcal*(resolved.green_hi/100)/cpg);
+    if(resolved.amber_lo!=null) resolved.amber_lo=Math.round(kcal*(resolved.amber_lo/100)/cpg);
+    if(resolved.amber_hi!=null) resolved.amber_hi=Math.round(kcal*(resolved.amber_hi/100)/cpg);
+    resolved.unit='g'; resolved.basis='resolved_pct';
+    return resolved;
+  };
   // Rules-driven target gate (bar fills vs target; colour from the Rules band)
   const ruleGate=(name,val,row)=>{
     if(!row)return plainGate(name,val);
-    const tgt=(row.target!=null)?row.target:(row.green_hi!=null?row.green_hi:null);
-    const cls=bandClass(val,row);
+    const r=resolvePct(row);
+    const tgt=(r.target!=null)?r.target:(r.green_hi!=null?r.green_hi:null);
+    const cls=bandClass(val,r);
     const el=document.createElement('div');el.className='gate '+(cls===''?'prot-ok':cls);
     const bar=tgt?`<div class="g-bar"><span style="width:${Math.min(100,val/tgt*100)}%"></span></div>`:'';
     el.innerHTML=`<div class="g-top"><span class="g-name">${name}</span><span class="g-val num">${val}${tgt?`<em> /${tgt}g</em>`:'<em>g</em>'}</span></div>${bar}`;
@@ -1713,9 +1811,16 @@ function renderGates(ph,t,macroAct){
     return;
   }
 
-  // Maintenance: protein range + carbs from Rules, fat ungated
+  // Maintenance: diet-type-aware gates from Rules (model = diet key)
   if(ph.key==='maintenance'){
-    const makeProteinM=()=>{
+    const diet=maintDiet();
+    const protRule=ruleFor('maintenance','protein',diet)||ruleFor('maintenance','protein','all');
+    const fatRule=ruleFor('maintenance','fat',diet)||ruleFor('maintenance','fat','all');
+    const carbRule=ruleFor('maintenance','carbs',diet)||ruleFor('maintenance','carbs','all');
+    // protein: use rule if available, else fallback to per-kg range
+    if(protRule){
+      wrap.appendChild(ruleGate('Protein',t.protein,protRule));
+    }else{
       const el=document.createElement('div');
       const wref=stabTargetWeight()||profile.weight;
       if(wref){
@@ -1728,12 +1833,20 @@ function renderGates(ph,t,macroAct){
         el.className='gate protein-target';
         el.innerHTML=`<div class="g-top"><span class="g-name">Protein</span><span class="g-val num">${t.protein}<em>g</em></span></div>`;
       }
-      return el;
-    };
-    wrap.appendChild(makeProteinM());
-    wrap.appendChild(plainGate('Fat',t.fat));
-    const carbRule=ruleFor('maintenance','carbs')||ruleFor('stabilization','carbs');
-    wrap.appendChild(ruleGate('Carbs',t.carbs,carbRule));
+      wrap.appendChild(el);
+    }
+    // fat: gated or plain depending on diet rules
+    if(fatRule&&fatRule.gated!==false&&fatRule.gated!=='no'){
+      wrap.appendChild(ruleGate('Fat',t.fat,fatRule));
+    }else{
+      wrap.appendChild(plainGate('Fat',t.fat));
+    }
+    // carbs: gated from diet rules
+    if(carbRule){
+      wrap.appendChild(ruleGate('Carbs',t.carbs,carbRule));
+    }else{
+      wrap.appendChild(plainGate('Carbs',t.carbs));
+    }
     return;
   }
 
@@ -2965,8 +3078,7 @@ function wire(){
   g('fcInput').onkeydown=e=>{if(e.key==='Enter')doFoodCheck();};
   g('rtClose')&&(g('rtClose').onclick=closeRoutine);g('rtScrim')&&(g('rtScrim').onclick=closeRoutine);
   g('mvClose')&&(g('mvClose').onclick=closeMovement);g('mvScrim')&&(g('mvScrim').onclick=closeMovement);
-  g('gradMaintain')&&(g('gradMaintain').onclick=()=>pickMaintenanceMode('maintain'));
-  g('gradCut')&&(g('gradCut').onclick=()=>pickMaintenanceMode('cut'));
+  wireGradOnboard();
   g('dPhase').onclick=openPhaseSheet;
   g('phClose').onclick=closePhaseSheet;g('phScrim').onclick=closePhaseSheet;
   g('piGo').onclick=()=>g('phaseIntro').classList.add('hidden');
@@ -2975,21 +3087,122 @@ function wire(){
   window.addEventListener('focus',checkRollover);
   setInterval(checkRollover,60000);
 }
-/* ---- Graduation overlay (maintenance mode selection) ---- */
+/* ---- Graduation onboarding (multi-step maintenance setup) ---- */
+let _gradMode=null, _gradDiet=null;
+
 function maybeGraduation(){
   if(!inMaintenance(currentDay))return;
   const seen=localStorage.getItem(K('grad_seen'));
-  if(seen)return; // already picked a mode
-  g('gradOverlay').classList.remove('hidden');
+  if(seen)return;
+  // populate diet split pills from Rules (all numbers from sheet)
+  populateDietSplits();
+  // set report link with client id
+  const rl=g('gradReportLink');
+  if(rl&&PID) rl.href='report.html?id='+encodeURIComponent(PID);
+  // show step 1
+  showGradStep(1);
+  g('gradOnboard').classList.remove('hidden');
 }
-function pickMaintenanceMode(mode){
-  profile.maintenance_mode=mode;
-  localStorage.setItem(K('maintenance_mode'),mode);
+
+function showGradStep(n){
+  [1,2,3,4].forEach(i=>{
+    const s=g('gradStep'+i);
+    if(s) s.classList.toggle('active',i===n);
+  });
+}
+
+function populateDietSplits(){
+  // read macro splits from Rules tab for each diet type
+  // model column = diet key (keto / high_protein / balanced)
+  const diets=['keto','high_protein','balanced'];
+  diets.forEach(d=>{
+    const el=g('gdSplit'+(d==='keto'?'Keto':d==='high_protein'?'HP':'Bal'));
+    if(!el)return;
+    const rules=(RULES.rules||[]).filter(r=>r.phase==='maintenance'&&r.model===d);
+    if(!rules.length){el.innerHTML='';return;}
+    let pills='';
+    rules.forEach(r=>{
+      if(r.metric==='kcal')return; // skip kcal row
+      const name=r.metric.charAt(0).toUpperCase()+r.metric.slice(1);
+      let val='';
+      if(r.gated===false||r.gated==='no'){val='not gated';}
+      else if(r.basis==='pct_of_kcal'&&r.target!=null){val=Math.round(r.target)+'%';}
+      else if(r.target!=null){val=r.target+(r.unit==='g'?'g':'');}
+      else if(r.green_hi!=null){val='≤'+r.green_hi+(r.unit==='g'?'g':'');}
+      else{val='tracked';}
+      pills+=`<span class="gd-pill">${name}: ${val}</span>`;
+    });
+    el.innerHTML=pills;
+  });
+}
+
+function wireGradOnboard(){
+  // Step 1 → 2
+  const n1=g('gradNext1'); if(n1) n1.onclick=()=>showGradStep(2);
+
+  // Step 2: goal selection
+  const gopts=g('gradGoalOpts');
+  if(gopts) gopts.onclick=e=>{
+    const opt=e.target.closest('.grad-opt');
+    if(!opt)return;
+    gopts.querySelectorAll('.grad-opt').forEach(o=>o.classList.remove('selected'));
+    opt.classList.add('selected');
+    _gradMode=opt.dataset.mode;
+    g('gradNext2').disabled=false;
+  };
+  const n2=g('gradNext2'); if(n2) n2.onclick=()=>showGradStep(3);
+  const b2=g('gradBack2'); if(b2) b2.onclick=()=>showGradStep(1);
+
+  // Step 3: diet selection
+  const dopts=g('gradDietOpts');
+  if(dopts) dopts.onclick=e=>{
+    const opt=e.target.closest('.grad-diet-opt');
+    if(!opt)return;
+    dopts.querySelectorAll('.grad-diet-opt').forEach(o=>o.classList.remove('selected'));
+    opt.classList.add('selected');
+    _gradDiet=opt.dataset.diet;
+    g('gradNext3').disabled=false;
+  };
+  const n3=g('gradNext3'); if(n3) n3.onclick=()=>{buildGradSummary();showGradStep(4);};
+  const b3=g('gradBack3'); if(b3) b3.onclick=()=>showGradStep(2);
+
+  // Step 4: confirm
+  const b4=g('gradBack4'); if(b4) b4.onclick=()=>showGradStep(3);
+  const fin=g('gradFinish'); if(fin) fin.onclick=finishGraduation;
+}
+
+function buildGradSummary(){
+  const el=g('gradSummary');if(!el)return;
+  const modeLabel=_gradMode==='maintain'?'Maintain weight':'Keep losing';
+  const dietLabels={keto:'Keto',high_protein:'High protein',balanced:'Balanced'};
+  let html=`<div class="gs-row"><span class="gs-label">Goal</span><span class="gs-val">${modeLabel}</span></div>`;
+  html+=`<div class="gs-row"><span class="gs-label">Diet style</span><span class="gs-val">${dietLabels[_gradDiet]||_gradDiet}</span></div>`;
+  // show macro split from Rules
+  const rules=(RULES.rules||[]).filter(r=>r.phase==='maintenance'&&r.model===_gradDiet);
+  rules.forEach(r=>{
+    if(r.metric==='kcal')return;
+    const name=r.metric.charAt(0).toUpperCase()+r.metric.slice(1);
+    let val='';
+    if(r.gated===false||r.gated==='no'){val='Not gated';}
+    else if(r.basis==='pct_of_kcal'&&r.target!=null){val=Math.round(r.target)+'% of calories';}
+    else if(r.target!=null){val=r.target+(r.unit==='g'?'g':'');}
+    else if(r.green_hi!=null){val='≤'+r.green_hi+(r.unit==='g'?'g':'');}
+    else{val='Tracked';}
+    html+=`<div class="gs-row"><span class="gs-label">${name}</span><span class="gs-val">${val}</span></div>`;
+  });
+  el.innerHTML=html;
+}
+
+function finishGraduation(){
+  profile.maintenance_mode=_gradMode;
+  profile.maintenance_diet=_gradDiet;
+  localStorage.setItem(K('maintenance_mode'),_gradMode);
+  localStorage.setItem(K('maintenance_diet'),_gradDiet);
   localStorage.setItem(K('grad_seen'),'1');
-  g('gradOverlay').classList.add('hidden');
+  g('gradOnboard').classList.add('hidden');
   // persist to backend
   if(BACKEND_URL){
-    postJSON(BACKEND_URL,{action:'graduation',id:PID,mode},'text/plain;charset=utf-8').catch(()=>{});
+    postJSON(BACKEND_URL,{action:'graduation',id:PID,mode:_gradMode,diet:_gradDiet},'text/plain;charset=utf-8').catch(()=>{});
   }
   render();
 }
@@ -3034,6 +3247,7 @@ function fetchProfile(){
         if(P.last_review_date)keep.last_review_date=P.last_review_date;
         if(P.last_change_reason!=null&&P.last_change_reason!=='')keep.last_change_reason=P.last_change_reason;
         if(P.maintenance_mode)keep.maintenance_mode=P.maintenance_mode;
+        if(P.maintenance_diet)keep.maintenance_diet=P.maintenance_diet;
         profile=Object.assign({},profile,keep);
         localStorage.setItem(K('profile'),JSON.stringify(profile));
         applyPhaseConfig();

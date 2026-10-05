@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- ===================================================================== -->
-<!-- AEVUM Program Report · report.html · v1.0.1                           -->
+<!-- AEVUM Program Report · report.html · v1.0.2                           -->
 <!-- Standalone read-only report, linked from graduation onboarding        -->
 <!-- Backend: Apps Script graduation sub=full endpoint                     -->
 <!-- ===================================================================== -->
@@ -201,7 +201,7 @@ body{font-family:var(--sans);background:var(--paper);color:var(--ink);font-size:
 
 <script>
 /* ===== SINGLE SOURCE OF TRUTH FOR VERSION ===== */
-const REPORT_VERSION='v1.0.1';
+const REPORT_VERSION='v1.0.2';
 
 /* ===== CONFIG ===== */
 const GAS_URL='https://script.google.com/macros/s/AKfycby0jEwPEqESOu_SK8qYqiJxR-1MeT8Ax6fq0fHPHC6gfihMpPW4uJBt1lGwmK_inQ4-/exec';
@@ -330,9 +330,6 @@ function render(d){
   });
   g('phaseStats').innerHTML=psHtml;
 
-  /* --- Weight chart (canvas) --- */
-  drawWeightChart(weights,prof);
-
   /* --- Macro averages by phase --- */
   let maHtml='';
   const activePhases=phases.filter(p=>logged.some(r=>r.phase===p.key));
@@ -392,9 +389,12 @@ function render(d){
   /* --- Footer date --- */
   g('footDate').textContent=new Date().toLocaleDateString('en-SG',{year:'numeric',month:'long',day:'numeric'});
 
-  /* --- Show report --- */
+  /* --- Show report (BEFORE canvas draw — canvas needs layout dimensions) --- */
   g('loading').classList.add('hidden');
   g('report').classList.remove('hidden');
+
+  /* --- Weight chart (canvas, must be visible for getBoundingClientRect) --- */
+  drawWeightChart(weights,prof);
 }
 
 /* ===== WEIGHT CHART (plain canvas, no lib) ===== */

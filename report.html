@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- ===================================================================== -->
-<!-- AEVUM Program Report · report.html · v1.0.0                           -->
+<!-- AEVUM Program Report · report.html · v1.0.1                           -->
 <!-- Standalone read-only report, linked from graduation onboarding        -->
 <!-- Backend: Apps Script graduation sub=full endpoint                     -->
 <!-- ===================================================================== -->
@@ -200,6 +200,9 @@ body{font-family:var(--sans);background:var(--paper);color:var(--ink);font-size:
 </div><!-- #report -->
 
 <script>
+/* ===== SINGLE SOURCE OF TRUTH FOR VERSION ===== */
+const REPORT_VERSION='v1.0.1';
+
 /* ===== CONFIG ===== */
 const GAS_URL='https://script.google.com/macros/s/AKfycby0jEwPEqESOu_SK8qYqiJxR-1MeT8Ax6fq0fHPHC6gfihMpPW4uJBt1lGwmK_inQ4-/exec';
 
@@ -239,11 +242,6 @@ function phaseFor(d,prof){
   return 'maintenance';
 }
 
-function parseDayJson(raw){
-  if(!raw) return null;
-  try{return JSON.parse(raw);}catch(e){return null;}
-}
-
 function showError(msg){
   g('loading').classList.add('hidden');
   g('error').classList.remove('hidden');
@@ -271,18 +269,18 @@ function render(d){
   const days=(d.data||[]).sort((a,b)=>a.day-b.day);
   const total=totalDays(prof);
 
-  /* --- Parse day data --- */
+  /* --- Parse day data (flat columns from Data tab) --- */
+  const num=v=>{const n=parseFloat(v);return isNaN(n)?null:n;};
   const parsed=days.map(row=>{
-    const j=parseDayJson(row.day_json);
+    const d=+row.day||0;
     return {
-      day:+row.day,
-      phase:phaseFor(+row.day,prof),
-      weight:j&&j.weight?+j.weight:null,
-      kcal:j&&j.kcal!=null?+j.kcal:null,
-      protein:j&&j.protein!=null?+j.protein:null,
-      fat:j&&j.fat!=null?+j.fat:null,
-      carbs:j&&j.carbs!=null?+j.carbs:null,
-      raw:j
+      day:d,
+      phase:phaseFor(d,prof),
+      weight:num(row.weight),
+      kcal:num(row.kcal),
+      protein:num(row.protein),
+      fat:num(row.fat),
+      carbs:num(row.carbs)
     };
   }).filter(r=>r.day>0);
 

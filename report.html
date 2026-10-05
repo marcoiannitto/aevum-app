@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <!-- ===================================================================== -->
-<!-- AEVUM Program Report · report.html · v1.1.0                           -->
-<!-- Premium redesign. Same data contract + backend as v1.0.x.            -->
-<!-- Added client-side metrics: start→end weight, consistency %, vs target.-->
-<!-- Backend: Apps Script graduation sub=full endpoint (unchanged)         -->
+<!-- AEVUM Program Report · report.html · v1.2.0                           -->
+<!-- Premium redesign. Consumes server-side compliance from GAS v1.23.0.  -->
+<!-- v1.2.0: Use resp.stats for weight + compliance % (was client-side).  -->
+<!-- Backend: Apps Script graduation sub=full endpoint returns stats{}     -->
 <!-- ===================================================================== -->
 <html lang="en">
 <head>
@@ -192,7 +192,7 @@ body{font-family:var(--sans);background:var(--paper);color:var(--ink);font-size:
       <div class="stats tri">
         <div class="stat gold"><div class="val num" id="sDays">—</div><div class="lbl">Days completed</div></div>
         <div class="stat"><div class="val num" id="sLogged">—</div><div class="lbl">Days logged</div></div>
-        <div class="stat"><div class="val num" id="sConsistency">—</div><div class="lbl">Consistency</div></div>
+        <div class="stat"><div class="val num" id="sConsistency">—</div><div class="lbl">Plan compliance</div></div>
       </div>
     </div>
 
@@ -347,15 +347,15 @@ function render(d){
   /* --- Hero --- */
   g('heroName').textContent=prof.name||PID;
 
-  /* --- Result --- */
+  /* --- Result (from backend stats) --- */
+  const st=d.stats||{};
   const target=prof.target_kg?+prof.target_kg:null;
-  if(weights.length>=2){
-    const first=weights[0].weight, last=weights[weights.length-1].weight;
-    const delta=last-first;
+  if(st.startWeight!=null&&st.endWeight!=null){
+    const delta=st.delta;
     g('sWeightDelta').textContent=(delta>0?'+':'')+delta.toFixed(1)+' kg';
-    g('sStartEnd').innerHTML=first.toFixed(1)+'<span class="arr">→</span>'+last.toFixed(1)+' kg';
+    g('sStartEnd').innerHTML=st.startWeight.toFixed(1)+'<span class="arr">→</span>'+st.endWeight.toFixed(1)+' kg';
     if(target){
-      const diff=last-target;
+      const diff=st.endWeight-target;
       const chip=g('sVsTarget');
       chip.classList.remove('hidden');
       if(diff<=0.05){ chip.textContent='Target reached'; chip.classList.add('reached'); }
@@ -369,7 +369,7 @@ function render(d){
   /* --- Commitment --- */
   g('sDays').textContent=maxDay;
   g('sLogged').textContent=logged.length;
-  g('sConsistency').textContent=total?Math.round(logged.length/total*100)+'%':'—';
+  g('sConsistency').textContent=st.compliancePct!=null?st.compliancePct+'%':'—';
   g('sTarget').textContent=target?target+' kg':'';
 
   /* --- Phase timeline --- */

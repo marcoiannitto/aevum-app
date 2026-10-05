@@ -1,4 +1,4 @@
-<!-- AEVUM Clients Dashboard v1.3.1 -->
+<!-- AEVUM Clients Dashboard v1.3.2 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -207,7 +207,7 @@ a{color:var(--gold)}
 
 <script>
 /* ══════════════════════════════════════════
-   AEVUM Clients Dashboard v1.3.1
+   AEVUM Clients Dashboard v1.3.2
    ══════════════════════════════════════════
    v1.0.0 - Initial release
    v1.1.0 - Fix isTruthy for serum "yes" values
@@ -222,6 +222,7 @@ a{color:var(--gold)}
           - Compliance: SVG ring gauge, reds only, 65/40 tiers
    v1.3.1 - Fix alcohol false positive (substring match on "ale"
             in words like "kale"); use word-boundary regex
+   v1.3.2 - Fix gated field: handle boolean from GAS (was string-only)
    ══════════════════════════════════════════ */
 const GAS_URL = 'https://script.google.com/macros/s/AKfycby0jEwPEqESOu_SK8qYqiJxR-1MeT8Ax6fq0fHPHC6gfihMpPW4uJBt1lGwmK_inQ4-/exec';
 
@@ -314,7 +315,7 @@ function resolveRules(raw, profile) {
     o.model = String(o.model||'').toLowerCase().trim();
     o.metric = String(o.metric||'').toLowerCase().trim();
     o.basis = String(o.basis||'').toLowerCase().trim();
-    o.gated = String(o.gated||'').toLowerCase().trim() === 'yes';
+    o.gated = o.gated === true || String(o.gated||'').toLowerCase().trim() === 'yes';
     ['value','green_lo','green_hi','amber_lo','amber_hi'].forEach(k => o[k] = num(o[k]));
     if (o.basis === 'per_kg_target_weight') {
       ['value','green_lo','green_hi','amber_lo','amber_hi'].forEach(k => {

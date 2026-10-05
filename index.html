@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ===================================================================== -->
-<!-- AEVUM Tracker  ·  index.html  ·  v1.21.0  (2026-10-03)                 -->
-<!-- Backends: Apps Script v1.17.0_FULL · Cloudflare Worker v1.10.0         -->
+<!-- AEVUM Tracker · index.html · version in APP_VERSION const below        -->
+<!-- Backends: Apps Script v1.21.0 · Cloudflare Worker v1.13.0 (not deployed) -->
 <!-- ===================================================================== -->
 <html lang="en">
 <head>
@@ -20,6 +20,7 @@
   --paper:#FBFAF7;--card:#ffffff;--line:#EBE5D8;--line-soft:#F2EDE2;--muted:#938c7d;
   --warn:#B7791F;--warn-bg:#FBF2DE;--over:#A13024;--over-bg:#F8E7E3;--ok:#4a463f;
   --water:#3E6B8A;
+  --maint:#3E7A6A;--maint-soft:#2d5e52;--maint-bg:#E8F2EF;
   --serif:"Fraunces",Georgia,"Times New Roman",serif;
   --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   --nav-h:64px;
@@ -563,9 +564,63 @@ textarea.notes::placeholder{color:var(--muted);}
 .thinking{display:inline-block;width:15px;height:15px;border:2px solid rgba(143,111,31,.3);border-top-color:var(--gold-deep);border-radius:50%;animation:spin .7s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg);}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;}}
+/* ---- Graduation overlay ---- */
+.grad-overlay{position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:24px;}
+.grad-card{background:var(--card);border-radius:20px;padding:32px 24px;max-width:380px;width:100%;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,.25);}
+.grad-card .grad-icon{font-size:48px;margin-bottom:12px;}
+.grad-card h2{font-family:var(--serif);font-size:22px;margin:0 0 6px;color:var(--maint);}
+.grad-card p{font-size:14px;color:var(--ink-soft);line-height:1.5;margin:0 0 20px;}
+.grad-modes{display:flex;flex-direction:column;gap:10px;}
+.grad-mode{padding:16px;border:2px solid var(--line);border-radius:14px;background:var(--paper);cursor:pointer;text-align:left;transition:border-color .2s;}
+.grad-mode:hover,.grad-mode:focus{border-color:var(--maint);}
+.grad-mode .gm-title{font-weight:600;font-size:15px;color:var(--ink);margin-bottom:2px;}
+.grad-mode .gm-sub{font-size:13px;color:var(--muted);}
+/* ---- Calorie bank ---- */
+.calbank{background:var(--card);border-radius:14px;padding:14px 16px;margin-top:10px;border:1px solid var(--line);}
+.calbank .b-title{display:flex;justify-content:space-between;align-items:center;font-size:14px;font-weight:600;color:var(--ink);margin-bottom:8px;}
+.calbank .cb-window{font-size:12px;font-weight:400;color:var(--muted);}
+.calbank .cb-summary{font-size:13px;color:var(--ink);margin-bottom:8px;}
+.calbank .cb-total{font-weight:700;font-size:15px;}
+.calbank .cb-target{color:var(--muted);}
+.calbank .cb-barwrap{margin-bottom:8px;}
+.calbank .cb-bg{height:8px;background:var(--line-soft);border-radius:4px;overflow:hidden;}
+.calbank .cb-bar{height:100%;border-radius:4px;transition:width .3s;}
+.calbank .cb-bar.ok{background:var(--maint);}
+.calbank .cb-bar.warn{background:var(--warn);}
+.calbank .cb-bar.over{background:var(--over);}
+.calbank .cb-detail{font-size:12px;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap;}
+.calbank .cb-day{padding:2px 6px;border-radius:6px;background:var(--card-soft,#f5f0e8);}
+.calbank .cb-day.ok{color:var(--maint);}
+.calbank .cb-day.warn{color:var(--warn);}
+.calbank .cb-day.over{color:var(--over);}
+.calbank .cb-status{font-size:13px;font-weight:500;display:inline-block;margin-left:6px;}
+.calbank .cb-status.ok{color:var(--maint);}
+.calbank .cb-status.warn{color:var(--warn);}
+.calbank .cb-status.over{color:var(--over);}
+/* ---- Maintenance phase badge ---- */
+.phase-maint .phase-dot{background:var(--maint)!important;}
 </style>
 </head>
 <body>
+
+<!-- GRADUATION OVERLAY (Maintenance entry) -->
+<div id="gradOverlay" class="grad-overlay hidden">
+  <div class="grad-card">
+    <div class="grad-icon">🎓</div>
+    <h2>Program Complete</h2>
+    <p>You've finished the AEVUM metabolic protocol. Choose how you'd like to continue.</p>
+    <div class="grad-modes">
+      <div class="grad-mode" id="gradMaintain">
+        <div class="gm-title">Maintain weight</div>
+        <div class="gm-sub">Keep your current weight with adaptive calorie tracking</div>
+      </div>
+      <div class="grad-mode" id="gradCut">
+        <div class="gm-title">Keep losing</div>
+        <div class="gm-sub">Continue a mild deficit to lose more weight</div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- ONBOARDING -->
 <div id="onboard">
@@ -638,6 +693,14 @@ textarea.notes::placeholder{color:var(--muted);}
       <div class="gates" id="gates"></div>
       <div class="buckets hidden" id="buckets"></div>
       <div class="protocol hidden" id="protocol"></div>
+    </div>
+
+    <!-- CALORIE BANK (maintenance) -->
+    <div class="calbank hidden" id="calBankBlock">
+      <div class="b-title"><span>Calorie bank</span><span class="cb-window" id="cbWindow"></span></div>
+      <div class="cb-summary" id="cbSummary"></div>
+      <div class="cb-barwrap"><div class="cb-bg"><div class="cb-bar" id="cbBar"></div></div></div>
+      <div class="cb-detail" id="cbDetail"></div>
     </div>
 
     <!-- WATER -->
@@ -955,51 +1018,18 @@ textarea.notes::placeholder{color:var(--muted);}
 </div>
 
 <script>
-/* ===== AEVUM tracker · v1.8.0 · 2026-09-21 =====
-   CHANGELOG
-   v1.8.0 — Program default now 31 days (Stabilization 18, was 22).
-            Stabilization hold target = avg of the 3 Transition weigh-ins (was incl. last Activation day);
-            reads a Sheet override `stab_target_weight` if set, else computes and auto-writes it once.
-            Stabilization calorie target = TDEE recomputed at the target weight × 0.85 × 0.90 (=0.765),
-            reached via the 6-day S-curve. Protein range now computed on the target weight.
-            Trends middle chart shows meal-portion adherence in Activation/Transition (calories in
-            Stabilization/Loading). "Today change" weight pill is neutral in Stabilization.
-            REQUIRES: Apps Script getProfile to return stab_target_weight + a `settarget` write action.
-   v1.7.0 — Batch: (9) phase 4 displayed as "Stabilization" everywhere (internal key still consolidation).
-            (11) Trends weight chart seeds the starting weight at day 1 so the drop shows from the start.
-            (10) Tap a logged meal's time to edit its date+time; moving the date re-files it to that day;
-                 window recomputes. (8) Nutrition plan day selector is now a phase-coloured calendar grid
-                 (whole program, today ring, plan dot, tap to select) with a legend + selected-day header.
-            (12) "Food" hub replaces the Can I Eat button: three tabs — Guide (browsable allowed/limited/
-                 not-allowed per phase), Can I eat? (per-phase AI check), Macros (AI macros, nothing logged).
-   v1.6.1 — Nutrition plan day chips now show the stage (phase name + colour dot) under each day.
-            (Activation length already reads profile.activation_days, count, default 8 — unchanged.)
-   v1.6.0 — Recipes tab: phase chip row (All / Loading / Activation / Stabilization).
-            Defaults to your current stage; switchable to browse any phase. Swap/Add-to-plan
-            defaults the filter to that plan day's phase. (Untagged recipes still show in all.)
-   v1.5.0 — Carbs gate bands changed to green<40 / amber 40-50 / red>50.
-            Calorie taper is now an S-curve over 6 days (15/35/55/75/90/100% of the
-            gap from 600 to need*0.9), replacing the linear +200/day. Exercise kcal on top.
-            Protein shown as a range in Stabilization only: green 1.2-1.5 g/kg,
-            amber 1.0-1.19 and >1.5-1.9, red <1.0 and >1.9. No protein bar in Activation/Transition.
-   v1.4.0 — Phase-aware nutrition. estimate + foodcheck now send the phase
-            (loading | activation | stabilization) so the Worker applies the right rulebook.
-            Can I Eat helper line changes per phase; foodcheck cache is now per phase.
-            Recipes filter by a new Recipes-tab "phase" column (untagged = shown in every phase).
-            REQUIRES: updated Cloudflare Worker + Apps Script getRecipes (phase field). See notes.
-   v1.3.0 — Day header now shows the calendar date under "Day X" (all phases, incl. Transition).
-            Stabilization calorie target tapers: 600 +200/day, capped at need*0.9, +exercise kcal.
-            Stabilization weight hold target = avg(last Activation day + 3 Transition weigh-ins),
-            averaging whatever of the 4 exists. Weight chart shows a hold band (green ±350g,
-            amber ±500g) and the day's weight is coloured by distance from it (red >500g).
-            Hold target is used only during Stabilization; earlier phases still use onboarding TGT.
-   v1.2.0 — Consolidation (stabilization) calorie target now need*0.9 + exercise kcal
-            (was need + exercise). Applied to Today bar, phase target, and Trends band.
-   v1.1.0 — Serum block hidden in Transition + Consolidation (shown only in Loading + Activation).
-            Fasting/eating window tag now shown in Transition (was Activation only).
-            Egg whites count at half weight in the protein bucket (6 eggs ≈ 1 meal-portion, not 2).
-   v1.0.0 — Baseline. */
-const APP_VERSION='v1.21.0';
+/* ===== SINGLE SOURCE OF TRUTH FOR VERSION ===== */
+const APP_VERSION='v1.22.0';
+
+/* CHANGELOG (full history in aevum-improvements.md)
+   v1.22.0 — Maintenance phase (open-ended). Graduation overlay, calorie bank, unclamped loops.
+   v1.21.0 — Rules tab, centralized targets, per-client activation_model.
+   v1.20.x — Config refactor, phase-aware Meals card.
+   v1.19.x — Fitness v2 UI, Movements cues.
+   v1.18.x — IA rename (Nutrition>Plan, Plan>Meals, Daily>Check-in).
+   v1.8.0  — 31-day program, adaptive stabilization target.
+   v1.7.0  — Stabilization rename, calendar grid, food hub.
+   v1.0.0  — Baseline. */
 
 /* ===== BACKEND CONFIG — paste your /exec URL between the quotes ===== */
 const BACKEND_URL = 'https://script.google.com/macros/s/AKfycby0jEwPEqESOu_SK8qYqiJxR-1MeT8Ax6fq0fHPHC6gfihMpPW4uJBt1lGwmK_inQ4-/exec';
@@ -1057,18 +1087,26 @@ const DEFAULTS={
   review_step_kcal:150,                        // kcal step per weekly review
   target_floor_kcal:1200,                      // never set the target below this
   hold_band_kg:0.7,                            // weight-trend tolerance before adjusting
-  smooth_days:7, min_weighins:4                // weight smoothing window / min data to act
+  smooth_days:7, min_weighins:4,               // weight smoothing window / min data to act
+  calbank_window:4,                            // calorie bank rolling window (days)
+  calbank_tolerance:0.05,                      // calorie bank +/- tolerance (5%)
+  maintenance_color:'#3E7A6A'                  // maintenance phase UI color
 };
 let CAL_LOW_AMBER=DEFAULTS.vlcd_low, CAL_HIGH_AMBER=DEFAULTS.vlcd_high;
 let MAINT_CUT=DEFAULTS.maint_cut;
 let STAB_AMBER_LOW=DEFAULTS.stab_amber_low, STAB_AMBER_HIGH=DEFAULTS.stab_amber_high;
+let CALBANK_WINDOW=DEFAULTS.calbank_window, CALBANK_TOLERANCE=DEFAULTS.calbank_tolerance;
+let MAINT_COLOR=DEFAULTS.maintenance_color;
 let CONFIG={};
 function cfg(key,def){const v=CONFIG[key];if(v===undefined||v===null||v==='')return def;const n=parseFloat(v);return isNaN(n)?def:n;}
+function cfgStr(key,def){const v=CONFIG[key];return(v===undefined||v===null||v==='')?def:String(v);}
 function cfgd(key){return cfg(key,DEFAULTS[key]);}  // Config value, else the single-source DEFAULTS default
 function applyConfig(){
   CAL_LOW_AMBER=cfgd('vlcd_low'); CAL_HIGH_AMBER=cfgd('vlcd_high');
   MAINT_CUT=cfgd('maint_cut');
   STAB_AMBER_LOW=cfgd('stab_amber_low'); STAB_AMBER_HIGH=cfgd('stab_amber_high');
+  CALBANK_WINDOW=cfgd('calbank_window'); CALBANK_TOLERANCE=cfgd('calbank_tolerance');
+  MAINT_COLOR=cfgStr('maintenance_color',DEFAULTS.maintenance_color);
 }
 function loadConfig(){
   const c=localStorage.getItem('aevum_config_cache'); if(c){try{CONFIG=JSON.parse(c);}catch(e){}}
@@ -1083,7 +1121,7 @@ function loadConfig(){
 function actDays(){return (profile&&+profile.activation_days>0)?+profile.activation_days:8;}
 function phaseLens(){return {loading:PH_FIXED.loading,activation:actDays(),transition:PH_FIXED.transition,consolidation:PH_FIXED.consolidation};}
 function totalDays(){const L=phaseLens();return L.loading+L.activation+L.transition+L.consolidation;}
-function applyPhaseConfig(){TOTAL_DAYS=totalDays();if(currentDay>TOTAL_DAYS)currentDay=TOTAL_DAYS;}
+function applyPhaseConfig(){TOTAL_DAYS=totalDays();/* maintenance is open-ended: no clamp */}
 
 const params=new URLSearchParams(location.search);
 const PID=(params.get('id')||'me').toLowerCase().replace(/[^a-z0-9_-]/g,'');
@@ -1091,24 +1129,28 @@ const K=s=>`aevum_${PID}_${s}`;
 
 function phaseFor(d){
   const L=phaseLens();
-  const l1=L.loading, l2=l1+L.activation, l3=l2+L.transition;
+  const l1=L.loading, l2=l1+L.activation, l3=l2+L.transition, l4=l3+L.consolidation;
   if(d<=l1) return {key:'loading',name:'Loading',color:'#8a8a8a'};
   if(d<=l2) return {key:'activation',name:'Activation',color:'#B08D2E'};
   if(d<=l3) return {key:'transition',name:'Transition',color:'#B08D2E'};
-  return {key:'consolidation',name:'Stabilization',color:'#4a463f'};
+  if(d<=l4) return {key:'consolidation',name:'Stabilization',color:'#4a463f'};
+  return {key:'maintenance',name:'Maintenance',color:MAINT_COLOR};
 }
+function inMaintenance(d){return phaseFor(d||currentDay).key==='maintenance';}
 function gatesFor(k){
   if(k==='activation'||k==='transition')return{fat:true,carb:true};
   if(k==='consolidation')return{fat:false,carb:true};
+  if(k==='maintenance')return{fat:false,carb:true};
   return{fat:false,carb:false};
 }
-/* AI ruleset key for the current day: loading | activation (covers transition) | stabilization */
-function aiPhaseKey(d){const k=phaseFor(d).key;if(k==='consolidation')return'stabilization';if(k==='transition')return'activation';return k;}
+/* AI ruleset key for the current day: loading | activation (covers transition) | stabilization | maintenance */
+function aiPhaseKey(d){const k=phaseFor(d).key;if(k==='consolidation')return'stabilization';if(k==='transition')return'activation';if(k==='maintenance')return'maintenance';return k;}
 /* short helper line shown in the Can I Eat sheet, per phase */
 function foodRuleLine(d){
   const k=aiPhaseKey(d);
   if(k==='loading')return 'Loading: eat freely to your target. Avoid only sweets, sugary drinks and alcohol.';
   if(k==='stabilization')return 'Stabilization: protein + fat + low-carb veg. Berries only. No sugar, starch, grains or added-sugar foods.';
+  if(k==='maintenance')return 'Maintenance: balanced meals, protein first. Keep carbs moderate. Track calories to stay on target.';
   return 'Grilled protein + vegetables. No rice, bread, noodles or potato. No oil, no sauce.';
 }
 /* recipe phase tag matches a phase key (untagged = shows in every phase) */
@@ -1145,7 +1187,13 @@ const PHASE_INFO={
     eat:'All protein, low-carb veg, healthy fats, full-fat dairy, berries.',
     avoid:'Sugar, grains, starch and most fruit.',
     targets:['Calories ramp up over 4 days to about 90% of maintenance, then hold','Carbs under 40 g a day, from veg','Protein 1.2 to 1.5 g per kg','Weight held within 500 g'],
-    expect:'You can eat more, but you are not out of the woods. Keep sugar and carbs out or the weight rebounds fast. Hold the line and the new set-point locks in. Energy returns and weight settles.'}
+    expect:'You can eat more, but you are not out of the woods. Keep sugar and carbs out or the weight rebounds fast. Hold the line and the new set-point locks in. Energy returns and weight settles.'},
+  maintenance:{sub:'Your new normal',
+    change:'The program is done. Now you keep going on your own with the tracker, adaptive calories and the AI meal analyser.',
+    eat:'Balanced meals: protein first, healthy fats, moderate carbs. Same principles, more freedom.',
+    avoid:'Excess sugar, ultra-processed food, large calorie spikes.',
+    targets:['Adaptive calorie target (TDEE x 0.90)','Protein 1.2 g per kg','Carbs moderate, from whole foods','Calorie bank: 4-day rolling balance'],
+    expect:'Weight may fluctuate day to day. Focus on the trend. The calorie bank gives you flexibility across days.'}
 };
 function phaseTargets(key){return (PHASE_INFO[key].targets||[]).map(t=>t.replace('{VLCD}',vlcdBand()));}
 /* inner content for both the tap sheet and the auto intro (prefix picks the class set) */
@@ -1162,12 +1210,15 @@ function phaseCardHTML(key,p){
 function phaseRanges(){
   const L=phaseLens();
   const a=L.loading, b=a+L.activation, c=b+L.transition, d=c+L.consolidation;
-  return [
+  const maxD=Math.max(d,currentDay||d);
+  const ranges=[
     {key:'loading',name:'Loading',color:'#8a8a8a',lo:1,hi:a},
     {key:'activation',name:'Activation',color:'#B08D2E',lo:a+1,hi:b},
     {key:'transition',name:'Transition',color:'#B08D2E',lo:b+1,hi:c},
     {key:'consolidation',name:'Stabilization',color:'#4a463f',lo:c+1,hi:d}
   ];
+  if(maxD>d) ranges.push({key:'maintenance',name:'Maintenance',color:MAINT_COLOR,lo:d+1,hi:maxD});
+  return ranges;
 }
 function phaseOverviewHTML(curKey){
   const rows=phaseRanges().map(r=>`<div class="ph-ov-row${r.key===curKey?' cur':''}"><span class="ph-ov-dot" style="background:${r.color}"></span><span class="ph-ov-name">${r.name}</span><span class="ph-ov-days">Day ${r.lo}–${r.hi}</span></div>`).join('');
@@ -1457,11 +1508,13 @@ function render(){
   g('whoName').textContent=profile.name;
   {const dt=dayToDate(currentDay);g('dNum').innerHTML='Day '+currentDay+(dt?`<span class="dday-date">${fmtShort(dt)}</span>`:'');}
   g('dPhase').innerHTML=`<span class="phase-dot" style="background:${ph.color}"></span>${ph.name}${fastingSuffix(ph)}<span class="ph-i">i</span>`;
-  g('prevDay').disabled=currentDay<=1;g('nextDay').disabled=currentDay>=TOTAL_DAYS;
+  g('prevDay').disabled=currentDay<=1;g('nextDay').disabled=false; /* maintenance: no upper bound */
   {const td=todayDayNum();g('todayBtn').classList.toggle('hidden',!td||currentDay===td);}
   const t=totals();
   const macroAct=(ph.key==='activation'||ph.key==='transition')&&actMacros();
   renderCalories(ph,t,macroAct);renderGates(ph,t,macroAct);renderBuckets(ph,macroAct);renderTimeline();renderPhaseBar();
+  if(ph.key==='maintenance') renderCalorieBank();
+  else { const cb=g('calBankBlock'); if(cb) cb.classList.add('hidden'); }
   // serum block: only in Loading + Activation
   g('serumBlock').classList.toggle('hidden',!(ph.key==='loading'||ph.key==='activation'));
   // strip
@@ -1485,6 +1538,12 @@ function renderPhaseBar(){
     html+=`<div class="pbseg${curKey===k?' cur':''}" style="flex:${len}"><span style="width:${(frac*100).toFixed(1)}%"></span></div>`;
     start+=len;
   });
+  /* maintenance: add a segment that grows with days beyond the program */
+  if(currentDay>total){
+    const mDays=currentDay-total;
+    const mFrac=1; /* always fully filled - we're on today */
+    html+=`<div class="pbseg${curKey==='maintenance'?' cur':''}" style="flex:${Math.max(3,mDays)};background:${MAINT_COLOR}20"><span style="width:100%;background:${MAINT_COLOR}"></span></div>`;
+  }
   el.innerHTML=html;
 }
 function fastingSuffix(ph){
@@ -1496,7 +1555,8 @@ function fastingSuffix(ph){
 
   // all meal timestamps across days
   let times=[];
-  for(let d=1; d<=TOTAL_DAYS; d++){
+  const maxD=Math.max(TOTAL_DAYS,currentDay||TOTAL_DAYS);
+  for(let d=1; d<=maxD; d++){
     const raw=localStorage.getItem(K('day_'+d));if(!raw)continue;
     const o=JSON.parse(raw);
     (o.meals||[]).forEach(m=>{const t=m.ts||reconstruct(o.date,m.time);if(t)times.push(t);});
@@ -1550,7 +1610,7 @@ function renderCalories(ph,t,macroAct){
   g('calNum').textContent=t.kcal.toLocaleString();
   const wrap=g('calBarWrap'),bar=g('calBar'),prot=g('protocol');
   wrap.classList.add('hidden');prot.classList.add('hidden');g('calUnit').textContent='kcal today';
-  if(ph.key==='consolidation'){
+  if(ph.key==='consolidation'||ph.key==='maintenance'){
     wrap.classList.remove('hidden');
     // Exercise is a tracker only, it does NOT move the target (activity multiplier already averages it in).
     const target=effectiveStabTarget(currentDay), ceil=stabTDEE(), pct=target>0?t.kcal/target*100:0;
@@ -1653,6 +1713,30 @@ function renderGates(ph,t,macroAct){
     return;
   }
 
+  // Maintenance: protein range + carbs from Rules, fat ungated
+  if(ph.key==='maintenance'){
+    const makeProteinM=()=>{
+      const el=document.createElement('div');
+      const wref=stabTargetWeight()||profile.weight;
+      if(wref){
+        const w=wref, lo=Math.round(w*PROTEIN_PER_KG), hi=Math.round(w*PROTEIN_KG_HI), ratio=t.protein/w;
+        const cls=ratio<1.0?'over':ratio<1.2?'warn':ratio<=PROTEIN_KG_HI*1.5?'ok':'warn';
+        const pct=Math.min(100,hi?t.protein/hi*100:0);
+        el.className='gate '+(cls==='ok'?'prot-ok':cls);
+        el.innerHTML=`<div class="g-top"><span class="g-name">Protein</span><span class="g-val num">${t.protein}<em> /${lo}–${hi}g</em></span></div><div class="g-bar"><span style="width:${pct}%"></span></div>`;
+      }else{
+        el.className='gate protein-target';
+        el.innerHTML=`<div class="g-top"><span class="g-name">Protein</span><span class="g-val num">${t.protein}<em>g</em></span></div>`;
+      }
+      return el;
+    };
+    wrap.appendChild(makeProteinM());
+    wrap.appendChild(plainGate('Fat',t.fat));
+    const carbRule=ruleFor('maintenance','carbs')||ruleFor('stabilization','carbs');
+    wrap.appendChild(ruleGate('Carbs',t.carbs,carbRule));
+    return;
+  }
+
   // Loading + Stabilization (unchanged behaviour)
   const cfg=gatesFor(ph.key);
   const makeGate=(name,val,target,red,gated)=>{
@@ -1729,6 +1813,37 @@ function renderExercise(){
   });
   el.querySelectorAll('.x').forEach(x=>x.onclick=()=>{day.exercise.splice(+x.dataset.i,1);saveDay(true);render();});
 }
+function renderCalorieBank(){
+  const block=g('calBankBlock');if(!block)return;
+  if(!inMaintenance(currentDay)){block.classList.add('hidden');return;}
+  block.classList.remove('hidden');
+  const win=CALBANK_WINDOW, tol=CALBANK_TOLERANCE;
+  const target=effectiveStabTarget(currentDay);
+  const windowTarget=target*win;
+  const tolHi=windowTarget*(1+tol), tolLo=windowTarget*(1-tol);
+  // collect last N days of calories (including today)
+  let totalKcal=0, dayDetails=[];
+  for(let i=0;i<win;i++){
+    const d=currentDay-i;if(d<1)continue;
+    const raw=localStorage.getItem(K('day_'+d));
+    let k=0;
+    if(raw){const o=JSON.parse(raw);k=Math.round(o.kcal||0)||(o.meals||[]).reduce((a,m)=>a+(+m.kcal||0),0);}
+    totalKcal+=k;dayDetails.unshift({day:d,kcal:k});
+  }
+  const diff=totalKcal-windowTarget;
+  const pct=windowTarget>0?totalKcal/windowTarget*100:0;
+  const st=totalKcal<=tolHi&&totalKcal>=tolLo?'ok':(totalKcal>tolHi?'over':'warn');
+  g('cbWindow').textContent=win+'-day window';
+  g('cbSummary').innerHTML=`<span class="cb-total num">${totalKcal.toLocaleString()}</span> / <span class="cb-target">${windowTarget.toLocaleString()} kcal</span> <span class="cb-status ${st}">${st==='ok'?'On track':st==='over'?'Over by '+Math.abs(Math.round(diff)):'Under by '+Math.abs(Math.round(diff))}</span>`;
+  const barEl=g('cbBar');barEl.style.width=Math.min(100,pct)+'%';barEl.className='cb-bar '+st;
+  // detail per day
+  let dtl='';
+  dayDetails.forEach(dd=>{
+    const cls=dd.kcal>target*(1+tol)?'over':dd.kcal<target*(1-tol)?'warn':'ok';
+    dtl+=`<span class="cb-day ${cls}">D${dd.day} ${dd.kcal}</span>`;
+  });
+  g('cbDetail').innerHTML=dtl;
+}
 function renderRate(kind){
   const el=g('r'+kind[0].toUpperCase()+kind.slice(1));el.innerHTML='';
   for(let i=1;i<=5;i++){const b=document.createElement('button');b.textContent=i;if(day[kind]===i)b.classList.add('on');
@@ -1776,7 +1891,7 @@ function fitRoutines(){
   const list=Object.values(byId); list.forEach(r=>r.steps.sort((a,b)=>a.order-b.order));
   return list;
 }
-const FIT_INTRO={loading:'Ease into movement. Gentle and short.',activation:'A little movement today. Pick something and follow along, no rush.',stabilization:'Pick a routine and follow along at your own pace.'};
+const FIT_INTRO={loading:'Ease into movement. Gentle and short.',activation:'A little movement today. Pick something and follow along, no rush.',stabilization:'Pick a routine and follow along at your own pace.',maintenance:'Keep moving. Pick a routine that fits your day.'};
 function fitThumb(m,cls){cls=cls||'fit-thumb';
   if(m&&m.video_url)return `<div class="${cls}"><video src="${encUrl(m.video_url)}#t=0.4" muted playsinline preload="metadata"></video></div>`;
   return `<div class="${cls}"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 12h2l2-5 4 10 2-5h2"/></svg></div></div>`;
@@ -1838,7 +1953,8 @@ function closeMovement(){const v=g('mvBody').querySelector('video');if(v){try{v.
 /* ---- trends ---- */
 function collectSeries(field){
   const out=[];
-  for(let d=1;d<=TOTAL_DAYS;d++){
+  const maxD=Math.max(TOTAL_DAYS,currentDay||TOTAL_DAYS);
+  for(let d=1;d<=maxD;d++){
     const r=localStorage.getItem(K('day_'+d));if(!r)continue;
     const o=JSON.parse(r);const v=parseFloat(o[field]);
     if(!isNaN(v)&&v>0)out.push({day:d,v});
@@ -1953,7 +2069,8 @@ function renderTrends(){
   const sr=g('statRow');sr.innerHTML='';
   const target=(profile&&profile.target_kg)||null;
   // stabilization: hold target replaces onboarding TGT as the reference, only during stabilization
-  const inStab=phaseFor(currentDay).key==='consolidation';
+  const curPK=phaseFor(currentDay).key;
+  const inStab=curPK==='consolidation'||curPK==='maintenance';
   const holdT=inStab?stabTargetWeight():null;
 
   // Weight stat
@@ -2012,23 +2129,36 @@ function trendsPhaseStrip(d0,dN){
     const len=L[k],a=s+1,b=s+len;s+=len;
     const lo=Math.max(a,d0),hi=Math.min(b,dN);
     if(hi<lo)return; // phase not in view
-    const x1=(a<=d0)?padL:xs(a-0.5);        // interior boundaries land between day gridlines
+    const x1=(a<=d0)?padL:xs(a-0.5);
     const x2=(b>=dN)?(W-padR):xs(b+0.5);
     const isCur=k===cur,wpx=x2-x1;
     segs+=`<rect x="${x1.toFixed(1)}" y="0" width="${Math.max(2,wpx).toFixed(1)}" height="6" rx="3" fill="${isCur?'#B08D2E':'#E2D8C0'}"/>`;
     labels+=`<span class="${isCur?'cur':''}" style="left:${pctOf((x1+x2)/2).toFixed(1)}%">${wpx>60?name:name[0]}</span>`;
   });
+  /* maintenance segment: open-ended beyond program */
+  if(dN>s){
+    const a=s+1,lo=Math.max(a,d0);
+    if(dN>=lo){
+      const x1=(a<=d0)?padL:xs(a-0.5);
+      const x2=W-padR;
+      const isCur=cur==='maintenance',wpx=x2-x1;
+      segs+=`<rect x="${x1.toFixed(1)}" y="0" width="${Math.max(2,wpx).toFixed(1)}" height="6" rx="3" fill="${isCur?MAINT_COLOR:'#C5DDD6'}"/>`;
+      labels+=`<span class="${isCur?'cur':''}" style="left:${pctOf((x1+x2)/2).toFixed(1)}%">${wpx>60?'Maintenance':'M'}</span>`;
+    }
+  }
   return `<svg viewBox="0 0 ${W} 6" width="100%" preserveAspectRatio="none" height="6">${segs}</svg><div class="trphase-labels">${labels}</div>`;
 }
 function phaseTargetLabel(dayNum){
   const ph=phaseFor(dayNum);
   if(ph.key==='loading')return 'Loading, eat high';
   if(ph.key==='activation'||ph.key==='transition')return ph.name+', target '+CAL_LOW_AMBER+'-'+CAL_HIGH_AMBER;
+  if(ph.key==='maintenance')return 'Maintenance, target ~'+effectiveStabTarget(dayNum)+' kcal';
   return 'Stabilization, target ~'+effectiveStabTarget(dayNum)+' kcal';
 }
 function collectMacroDays(){
   const out=[];
-  for(let d=1;d<=TOTAL_DAYS;d++){
+  const maxD=Math.max(TOTAL_DAYS,currentDay||TOTAL_DAYS);
+  for(let d=1;d<=maxD;d++){
     const r=localStorage.getItem(K('day_'+d));if(!r)continue;
     const o=JSON.parse(r);
     const meals=o.meals||[];
@@ -2048,6 +2178,7 @@ function phaseTargetKcal(dayNum){
   const basal=bmr/1.55*1; // rough BMR without activity for loading ref
   if(ph==='loading')return Math.round((profile&&profile.need?profile.need:2000)*1.5);
   if(ph==='activation'||ph==='transition')return 600; // mid of 500-700 for the bar reference
+  if(ph==='maintenance')return effectiveStabTarget(dayNum);
   return effectiveStabTarget(dayNum); // consolidation (adaptive on hold days)
 }
 function dayCalState(dayNum,k){
@@ -2056,7 +2187,7 @@ function dayCalState(dayNum,k){
   const tgt=phaseTargetKcal(dayNum);if(!tgt)return'ok';
   const pct=k/tgt*100;
   if(ph==='loading')return k>=tgt*0.9?'ok':(k>=tgt*0.6?'warn':'over'); // want high
-  // consolidation: green from that day's ramp target up to TDEE; amber just outside; red beyond.
+  // consolidation/maintenance: green from that day's ramp target up to TDEE; amber just outside; red beyond.
   const TD=stabTDEE();
   if(k>=tgt&&k<=TD)return'ok';
   if(k>=tgt*STAB_AMBER_LOW&&k<=TD*STAB_AMBER_HIGH)return'warn';
@@ -2087,7 +2218,7 @@ function macroBars(range){
   const okKcal=dayNum=>{
     const k=phaseFor(dayNum).key;
     if(k==='loading'){const t=phaseTargetKcal(dayNum)||1;return [t*0.9,t];}
-    if(k==='consolidation'){return [effectiveStabTarget(dayNum), stabTDEE()];}
+    if(k==='consolidation'||k==='maintenance'){return [effectiveStabTarget(dayNum), stabTDEE()];}
     return [CAL_LOW_AMBER,CAL_HIGH_AMBER];    // activation / transition
   };
   const fracFor=(dayNum,v)=>{
@@ -2140,7 +2271,8 @@ function dayPortions(o){
 function portionState(p){const f=p.filled/PORTION_TARGET;if(p.viol||f<0.34)return'over';if(f<0.84)return'warn';return'ok';}
 function collectPortionDays(){
   const out=[];
-  for(let d=1;d<=TOTAL_DAYS;d++){
+  const maxD=Math.max(TOTAL_DAYS,currentDay||TOTAL_DAYS);
+  for(let d=1;d<=maxD;d++){
     const k=phaseFor(d).key;if(k!=='activation'&&k!=='transition')continue;
     const r=localStorage.getItem(K('day_'+d));if(!r)continue;
     const p=dayPortions(JSON.parse(r));if(!p.any)continue;
@@ -2319,7 +2451,8 @@ function exportCSV(){
   const cols=['id','name','day','phase','date','weight','waist','serumAM','serumPM','kcal','protein','fat','carbs','water_ml','exercise_kcal','energy','hunger','sleep','notes'];
   const e=v=>{v=(v==null?'':String(v)).replace(/"/g,'""');return /[",\n]/.test(v)?`"${v}"`:v;};
   const rows=[cols.join(',')];
-  for(let d=1;d<=TOTAL_DAYS;d++){
+  const maxD=Math.max(TOTAL_DAYS,currentDay||TOTAL_DAYS);
+  for(let d=1;d<=maxD;d++){
     const r=localStorage.getItem(K('day_'+d));if(!r)continue;const o=JSON.parse(r);
     const t={kcal:o.kcal||0,protein:o.protein||0,fat:o.fat||0,carbs:o.carbs||0,exKcal:(o.exercise||[]).reduce((a,x)=>a+(+x.kcal||0),0)};
     const row={id:PID,name:profile.name,day:d,phase:phaseFor(d).name,date:o.date||'',weight:o.weight,waist:o.waist,serumAM:o.serumAM,serumPM:o.serumPM,kcal:t.kcal,protein:t.protein,fat:t.fat,carbs:t.carbs,water_ml:(o.water||0)*GLASS_ML,exercise_kcal:t.exKcal,energy:o.energy,hunger:o.hunger,sleep:o.sleep,notes:o.notes};
@@ -2360,7 +2493,7 @@ function saveMealTime(){
   let targetDay=currentDay;
   if(profile.start_date){const s=new Date(profile.start_date+'T00:00:00');
     if(!isNaN(s)){const d0=new Date(dt);d0.setHours(0,0,0,0);targetDay=Math.floor((d0.getTime()-s.getTime())/86400000)+1;}}
-  if(targetDay>=1&&targetDay<=TOTAL_DAYS&&targetDay!==currentDay){
+  if(targetDay>=1&&targetDay!==currentDay){
     const key=K('day_'+targetDay);const raw=localStorage.getItem(key);
     const tgt=raw?JSON.parse(raw):blankDay();tgt.meals=tgt.meals||[];
     if(!tgt.date)tgt.date=dt.toISOString().slice(0,10);
@@ -2388,6 +2521,13 @@ const FOOD_GUIDE={
     {t:'Dairy (full-fat only)',a:['Cheese: cheddar, mozzarella, feta, brie, goat','Heavy cream, sour cream','Plain full-fat Greek yogurt'],l:[],n:['Milk','Sweetened or low-fat/diet dairy']},
     {t:'Fruit (berries only)',a:['Strawberry, raspberry, blackberry, blueberry','Lemon, lime'],l:[],n:['All other fruit','Dried fruit & juice']},
     {t:'Rules',a:['Cook in allowed fats — fine now'],l:[],n:['No sugar, flour, breading or starchy sauce','Carbs under 50g/day, from veg']}
+  ],
+  maintenance:[
+    {t:'Protein (priority)',a:['Chicken, turkey, lean beef, pork','All fish and seafood','Whole eggs','Tofu, tempeh, legumes'],l:['Processed deli meats'],n:['Breaded or deep-fried']},
+    {t:'Vegetables & salads',a:['All vegetables — unlimited variety','Potato, sweet potato (moderate)','Leafy greens, cruciferous, root veg'],l:[],n:['Deep-fried or battered']},
+    {t:'Carbs (moderate)',a:['Rice, quinoa, oats','Whole-grain bread & pasta','Legumes, lentils'],l:['White bread, pastry'],n:['Sugary cereals','Excess refined carbs']},
+    {t:'Fats (healthy)',a:['Olive oil, avocado','Nuts, seeds','Butter, ghee (moderate)'],l:['Cheese (watch portions)'],n:['Trans fats, margarine']},
+    {t:'Rules',a:['Balanced meals, protein first','Track calories to stay on target','Calorie bank: flexibility across 4 days'],l:[],n:['Large calorie spikes','Ultra-processed food','Excess sugar']}
   ]
 };
 function renderGuide(){
@@ -2507,13 +2647,12 @@ function startDateStr(){return (profile&&(profile.start_date||profile.start))||'
 function effNow(){return Date.now()-DAY_START_HOUR*3600000;}         // "effective" now, shifted back 5h
 // LOCAL date string of the effective now (not UTC), so the 5am boundary tracks the user's clock
 function effTodayISO(){const d=new Date(effNow());return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
-/* today's program day from start date, clamped to 1..TOTAL_DAYS; null if no start date. */
+/* today's program day from start date, min 1, no upper clamp (maintenance is open-ended); null if no start date. */
 function todayDayNum(){
   const sd=startDateStr();if(!sd)return null;
   const s=new Date(sd+'T00:00:00');if(isNaN(s))return null;
   const d=Math.floor((effNow()-s.getTime())/86400000)+1;
-  const total=TOTAL_DAYS||totalDays();
-  return Math.max(1,Math.min(total,d));
+  return Math.max(1,d); /* no upper clamp: maintenance is open-ended */
 }
 function dayToDate(dayNum){
   const sd=startDateStr();if(!sd)return null;
@@ -2526,11 +2665,12 @@ function renderPlan(){
   const total=TOTAL_DAYS||totalDays();
   let todayDay=null;
   {const sd=startDateStr();if(sd){const s=new Date(sd+'T00:00:00');if(!isNaN(s))todayDay=Math.floor((effNow()-s.getTime())/86400000)+1;}}
-  if(planDay<1||planDay>total){planDay=(todayDay&&todayDay>=1&&todayDay<=total)?todayDay:1;}
+  const maxDay=Math.max(total,todayDay||total);
+  if(planDay<1||planDay>maxDay){planDay=(todayDay&&todayDay>=1)?todayDay:1;}
   // full-program calendar grid, coloured by phase
   const db=g('planDays');db.className='plan-cal';db.innerHTML='';
   const planned=new Set(planDaysAvailable());
-  for(let d=1;d<=total;d++){
+  for(let d=1;d<=maxDay;d++){
     const pf=phaseFor(d),has=planned.has(d)||planEdit[d];
     const cell=document.createElement('button');
     cell.className='cal-cell'+(d===planDay?' on':'')+(d===todayDay?' today':'');
@@ -2544,6 +2684,7 @@ function renderPlan(){
     `<span><i style="background:#8a8a8a"></i>Loading</span>`+
     `<span><i style="background:#B08D2E"></i>Activation/Transition</span>`+
     `<span><i style="background:#4a463f"></i>Stabilization</span>`+
+    `<span><i style="background:${MAINT_COLOR}"></i>Maintenance</span>`+
     `<span><i style="background:var(--gold-deep)"></i>has plan</span>`;}
   {const pf=phaseFor(planDay),dt=dayToDate(planDay);const hd=g('planDayHead');
    if(hd)hd.innerHTML=`<span class="pdh-dot" style="background:${pf.color}"></span><b>Day ${planDay}</b> · ${pf.name}${dt?' · '+fmtShort(dt):''}${planDay===todayDay?' · Today':''}`;}
@@ -2555,14 +2696,14 @@ function renderPlan(){
   // phase-aware targets for the planned-day card (mirror the Today page rules)
   const pk=phaseFor(planDay).key, gates=gatesFor(pk);
   let kcalS='', kcalSmall='';
-  if(pk==='consolidation'){
+  if(pk==='consolidation'||pk==='maintenance'){
     const tgt=effectiveStabTarget(planDay), ceil=stabTDEE();
     kcalSmall='/'+Math.round(tgt);
     kcalS=(tot.kcal>=tgt&&tot.kcal<=ceil)?'ok':((tot.kcal>=tgt*STAB_AMBER_LOW&&tot.kcal<=ceil*STAB_AMBER_HIGH)?'warn':'over');
   }else if(pk==='loading'){ kcalSmall=''; kcalS=''; }         // Loading: no calorie cap
   else { kcalSmall='/500-700'; kcalS=calState(tot.kcal); }    // Activation/Transition
   let protSmall='';
-  if(pk==='consolidation'){ const w=stabTargetWeight()||(profile&&profile.weight); if(w)protSmall='/'+Math.round(w*PROTEIN_PER_KG)+'–'+Math.round(w*PROTEIN_KG_HI); }
+  if(pk==='consolidation'||pk==='maintenance'){ const w=stabTargetWeight()||(profile&&profile.weight); if(w)protSmall='/'+Math.round(w*PROTEIN_PER_KG)+'–'+Math.round(w*PROTEIN_KG_HI); }
   else { const ptgt=(profile&&profile.weight)?Math.round(profile.weight*PROTEIN_PER_KG):null; if(ptgt)protSmall='/'+ptgt; }
   const fatS=gates.fat?gs(tot.fat,FAT_TARGET,FAT_RED):'',  fatSmall=gates.fat?('/'+FAT_TARGET):'';
   const carbS=gates.carb?gs(tot.carbs,CARB_TARGET,CARB_RED):'', carbSmall=gates.carb?('/'+CARB_TARGET):'';
@@ -2678,7 +2819,7 @@ function renderShopList(groups){
 }
 
 let RECIPES=[], rcFilter={q:'',cuisine:'all',phase:null}, rcLoaded=false;
-const PHASE_CHIPS=[['all','All'],['loading','Loading'],['activation','Activation'],['stabilization','Stabilization']];
+const PHASE_CHIPS=[['all','All'],['loading','Loading'],['activation','Activation'],['stabilization','Stabilization'],['maintenance','Maintenance']];
 function buildPhaseChips(){
   if(rcFilter.phase===null)rcFilter.phase=aiPhaseKey(currentDay); // default to current stage
   const wrap=g('rcPhases');if(!wrap)return;wrap.innerHTML='';
@@ -2781,7 +2922,7 @@ function closeRecipe(){
 
 function wire(){
   g('prevDay').onclick=()=>{saveDay(true);currentDay=Math.max(1,currentDay-1);loadDay();scrollTo(0,0);};
-  g('nextDay').onclick=()=>{saveDay(true);currentDay=Math.min(TOTAL_DAYS,currentDay+1);loadDay();scrollTo(0,0);};
+  g('nextDay').onclick=()=>{saveDay(true);currentDay=currentDay+1;loadDay();scrollTo(0,0);};
   g('todayBtn').onclick=()=>{const td=todayDayNum();if(!td)return;saveDay(true);currentDay=td;loadDay();scrollTo(0,0);};
   g('fWeight').oninput=e=>day.weight=e.target.value;g('fWeight').onblur=()=>saveDay(true);
   g('fNotes').oninput=e=>day.notes=e.target.value;g('fNotes').onblur=()=>saveDay(true);
@@ -2824,6 +2965,8 @@ function wire(){
   g('fcInput').onkeydown=e=>{if(e.key==='Enter')doFoodCheck();};
   g('rtClose')&&(g('rtClose').onclick=closeRoutine);g('rtScrim')&&(g('rtScrim').onclick=closeRoutine);
   g('mvClose')&&(g('mvClose').onclick=closeMovement);g('mvScrim')&&(g('mvScrim').onclick=closeMovement);
+  g('gradMaintain')&&(g('gradMaintain').onclick=()=>pickMaintenanceMode('maintain'));
+  g('gradCut')&&(g('gradCut').onclick=()=>pickMaintenanceMode('cut'));
   g('dPhase').onclick=openPhaseSheet;
   g('phClose').onclick=closePhaseSheet;g('phScrim').onclick=closePhaseSheet;
   g('piGo').onclick=()=>g('phaseIntro').classList.add('hidden');
@@ -2831,6 +2974,24 @@ function wire(){
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkRollover();});
   window.addEventListener('focus',checkRollover);
   setInterval(checkRollover,60000);
+}
+/* ---- Graduation overlay (maintenance mode selection) ---- */
+function maybeGraduation(){
+  if(!inMaintenance(currentDay))return;
+  const seen=localStorage.getItem(K('grad_seen'));
+  if(seen)return; // already picked a mode
+  g('gradOverlay').classList.remove('hidden');
+}
+function pickMaintenanceMode(mode){
+  profile.maintenance_mode=mode;
+  localStorage.setItem(K('maintenance_mode'),mode);
+  localStorage.setItem(K('grad_seen'),'1');
+  g('gradOverlay').classList.add('hidden');
+  // persist to backend
+  if(BACKEND_URL){
+    postJSON(BACKEND_URL,{action:'graduation',id:PID,mode},'text/plain;charset=utf-8').catch(()=>{});
+  }
+  render();
 }
 function boot(){
   g('top').classList.remove('hidden');g('scrollArea').classList.remove('hidden');g('nav').classList.remove('hidden');
@@ -2841,9 +3002,9 @@ function boot(){
   loadDay();
   loadConfig();loadMessages();loadRules();
   reviewTarget();
-  maybePhaseIntro();maybeDailyBrief();
+  maybePhaseIntro();maybeDailyBrief();maybeGraduation();
   fetchProfile();hydrateFromBackend();
-  setInterval(()=>{const ph=phaseFor(currentDay);if(ph.key==='activation'||ph.key==='transition')g('dPhase').innerHTML=`<span class="phase-dot" style="background:${ph.color}"></span>${ph.name}${fastingSuffix(ph)}<span class="ph-i">i</span>`;},60000);
+  setInterval(()=>{const ph=phaseFor(currentDay);if(ph.key==='activation'||ph.key==='transition')g('dPhase').innerHTML=`<span class="phase-dot" style="background:${ph.color}"></span>${ph.name}${fastingSuffix(ph)}<span class="ph-i">i</span>`;if(ph.key==='maintenance')g('dPhase').innerHTML=`<span class="phase-dot" style="background:${ph.color}"></span>${ph.name}<span class="ph-i">i</span>`;},60000);
 }
 function hydrateFromBackend(){
   // fill any days missing on THIS device from the Sheet (gap-fill only, never clobbers local)
@@ -2872,6 +3033,7 @@ function fetchProfile(){
         if(+P.prev_target_kcal>0)keep.prev_target_kcal=P.prev_target_kcal;
         if(P.last_review_date)keep.last_review_date=P.last_review_date;
         if(P.last_change_reason!=null&&P.last_change_reason!=='')keep.last_change_reason=P.last_change_reason;
+        if(P.maintenance_mode)keep.maintenance_mode=P.maintenance_mode;
         profile=Object.assign({},profile,keep);
         localStorage.setItem(K('profile'),JSON.stringify(profile));
         applyPhaseConfig();
@@ -2879,7 +3041,7 @@ function fetchProfile(){
         const td=todayDayNum();
         if(!bootUsedToday&&td){bootUsedToday=true;currentDay=td;loadDay();}else{render();}
         reviewTarget();
-        maybePhaseIntro();maybeDailyBrief();
+        maybePhaseIntro();maybeDailyBrief();maybeGraduation();
       }
     }).catch(()=>{});
 }

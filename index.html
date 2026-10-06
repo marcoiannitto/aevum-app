@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ===================================================================== -->
 <!-- AEVUM Tracker · index.html · version in APP_VERSION const below        -->
-<!-- Backends: Apps Script v1.22.0 · Cloudflare Worker v1.13.0 (not deployed) -->
+<!-- Backends: Apps Script v1.24.0 · Cloudflare Worker v1.13.0 (not deployed) -->
 <!-- ===================================================================== -->
 <html lang="en">
 <head>
@@ -1096,9 +1096,10 @@ textarea.notes::placeholder{color:var(--muted);}
 
 <script>
 /* ===== SINGLE SOURCE OF TRUTH FOR VERSION ===== */
-const APP_VERSION='v1.22.0';
+const APP_VERSION='v1.23.0';
 
 /* CHANGELOG (full history in aevum-improvements.md)
+   v1.23.0 — Stabilization kcal compliance from Rules tab (no hardcoded bands). Removed STAB_AMBER_LOW/HIGH.
    v1.22.0 — Maintenance phase (open-ended). Graduation overlay, calorie bank, unclamped loops.
    v1.21.0 — Rules tab, centralized targets, per-client activation_model.
    v1.20.x — Config refactor, phase-aware Meals card.
@@ -1159,7 +1160,6 @@ const WEIGHT_OK_G=350, WEIGHT_WARN_G=500;          // Stabilization weight band 
 const DEFAULTS={
   vlcd_low:400, vlcd_high:650,                 // Activation/Transition ok calorie band
   maint_cut:0.90,                              // Stabilization hold = TDEE x this
-  stab_amber_low:0.90, stab_amber_high:1.05,   // Stabilization amber band (x target low / x TDEE high)
   review_interval_days:7,                      // how often the adaptive target re-checks
   review_step_kcal:150,                        // kcal step per weekly review
   target_floor_kcal:1200,                      // never set the target below this
@@ -1171,7 +1171,6 @@ const DEFAULTS={
 };
 let CAL_LOW_AMBER=DEFAULTS.vlcd_low, CAL_HIGH_AMBER=DEFAULTS.vlcd_high;
 let MAINT_CUT=DEFAULTS.maint_cut;
-let STAB_AMBER_LOW=DEFAULTS.stab_amber_low, STAB_AMBER_HIGH=DEFAULTS.stab_amber_high;
 let CALBANK_WINDOW=DEFAULTS.calbank_window, CALBANK_TOLERANCE=DEFAULTS.calbank_tolerance;
 let MAINT_COLOR=DEFAULTS.maintenance_color;
 let CONFIG={};
@@ -1181,7 +1180,6 @@ function cfgd(key){return cfg(key,DEFAULTS[key]);}  // Config value, else the si
 function applyConfig(){
   CAL_LOW_AMBER=cfgd('vlcd_low'); CAL_HIGH_AMBER=cfgd('vlcd_high');
   MAINT_CUT=cfgd('maint_cut');
-  STAB_AMBER_LOW=cfgd('stab_amber_low'); STAB_AMBER_HIGH=cfgd('stab_amber_high');
   CALBANK_WINDOW=cfgd('calbank_window'); CALBANK_TOLERANCE=cfgd('calbank_tolerance');
   MAINT_COLOR=cfgStr('maintenance_color',DEFAULTS.maintenance_color);
 }
@@ -1695,10 +1693,11 @@ function renderCalories(ph,t,macroAct){
   if(ph.key==='consolidation'||ph.key==='maintenance'){
     wrap.classList.remove('hidden');
     // Exercise is a tracker only, it does NOT move the target (activity multiplier already averages it in).
-    const target=effectiveStabTarget(currentDay), ceil=stabTDEE(), pct=target>0?t.kcal/target*100:0;
-    // green from ramp target up to TDEE; amber just outside; red beyond
-    const cls=(t.kcal>=target&&t.kcal<=ceil)?'':((t.kcal>=target*STAB_AMBER_LOW&&t.kcal<=ceil*STAB_AMBER_HIGH)?' warn':' over');
-    bar.className='calbar'+cls;
+    const kr=ruleFor('stabilization','kcal');
+    const target=effectiveStabTarget(currentDay), pct=target>0?t.kcal/target*100:0;
+    // Bands from Rules tab (adaptive_kcal basis, resolved to absolutes by GAS)
+    const cls=kr?bandClass(t.kcal,kr):'';
+    bar.className='calbar'+(cls?' '+cls:'');
     bar.firstElementChild.style.width=Math.min(100,pct)+'%';
     g('calBarLeft').textContent=`${t.kcal.toLocaleString()} / ${target.toLocaleString()} kcal`;
     g('calBarRight').textContent=t.exKcal>0?`${t.exKcal} kcal exercise`:'';
@@ -2300,11 +2299,10 @@ function dayCalState(dayNum,k){
   const tgt=phaseTargetKcal(dayNum);if(!tgt)return'ok';
   const pct=k/tgt*100;
   if(ph==='loading')return k>=tgt*0.9?'ok':(k>=tgt*0.6?'warn':'over'); // want high
-  // consolidation/maintenance: green from that day's ramp target up to TDEE; amber just outside; red beyond.
-  const TD=stabTDEE();
-  if(k>=tgt&&k<=TD)return'ok';
-  if(k>=tgt*STAB_AMBER_LOW&&k<=TD*STAB_AMBER_HIGH)return'warn';
-  return'over';
+  // consolidation/maintenance: bands from Rules tab (adaptive_kcal basis)
+  const kr=ruleFor('stabilization','kcal');
+  if(!kr)return'ok';
+  return bandClass(k,kr)||'ok';
 }
 function macroBars(range){
   const data=collectMacroDays();
@@ -2810,9 +2808,10 @@ function renderPlan(){
   const pk=phaseFor(planDay).key, gates=gatesFor(pk);
   let kcalS='', kcalSmall='';
   if(pk==='consolidation'||pk==='maintenance'){
-    const tgt=effectiveStabTarget(planDay), ceil=stabTDEE();
+    const tgt=effectiveStabTarget(planDay);
     kcalSmall='/'+Math.round(tgt);
-    kcalS=(tot.kcal>=tgt&&tot.kcal<=ceil)?'ok':((tot.kcal>=tgt*STAB_AMBER_LOW&&tot.kcal<=ceil*STAB_AMBER_HIGH)?'warn':'over');
+    const kr=ruleFor('stabilization','kcal');
+    kcalS=kr?(bandClass(tot.kcal,kr)||'ok'):'ok';
   }else if(pk==='loading'){ kcalSmall=''; kcalS=''; }         // Loading: no calorie cap
   else { kcalSmall='/500-700'; kcalS=calState(tot.kcal); }    // Activation/Transition
   let protSmall='';

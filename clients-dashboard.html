@@ -1,4 +1,4 @@
-<!-- AEVUM Clients Dashboard v1.3.2 -->
+<!-- AEVUM Clients Dashboard v1.4.0 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -207,8 +207,12 @@ a{color:var(--gold)}
 
 <script>
 /* ══════════════════════════════════════════
-   AEVUM Clients Dashboard v1.3.2
+   AEVUM Clients Dashboard v1.4.0
    ══════════════════════════════════════════
+   v1.4.0 - Adaptive kcal compliance: resolveRules resolves
+            percentage thresholds from Rules tab to absolute kcal
+            using profile.current_target_kcal. deriveCompliance
+            no longer skips adaptive_kcal basis.
    v1.0.0 - Initial release
    v1.1.0 - Fix isTruthy for serum "yes" values
           - Fix phase band alignment (index-based)
@@ -223,6 +227,11 @@ a{color:var(--gold)}
    v1.3.1 - Fix alcohol false positive (substring match on "ale"
             in words like "kale"); use word-boundary regex
    v1.3.2 - Fix gated field: handle boolean from GAS (was string-only)
+   v1.3.3 - Fix kcal chart: show bars for all phases (loading,
+            activation, etc). getKcalTarget now always returns a
+            target per phase, matching tracker trends tab logic.
+            Color bands are phase-aware (loading wants high intake,
+            activation/transition want VLCD band, stab wants adaptive).
    ══════════════════════════════════════════ */
 const GAS_URL = 'https://script.google.com/macros/s/AKfycby0jEwPEqESOu_SK8qYqiJxR-1MeT8Ax6fq0fHPHC6gfihMpPW4uJBt1lGwmK_inQ4-/exec';
 
@@ -321,6 +330,16 @@ function resolveRules(raw, profile) {
       ['value','green_lo','green_hi','amber_lo','amber_hi'].forEach(k => {
         if(o[k]!=null) o[k] = Math.round(o[k]*tw);
       });
+    } else if (o.basis === 'adaptive_kcal') {
+      const at = num(profile.current_target_kcal);
+      o.value = at || null;
+      if (at) {
+        ['green_lo','green_hi','amber_lo','amber_hi'].forEach(k => {
+          if(o[k]!=null) o[k] = Math.round(at * o[k] / 100);
+        });
+      } else {
+        ['green_lo','green_hi','amber_lo','amber_hi'].forEach(k => { o[k] = null; });
+      }
     }
     return o;
   });
@@ -398,9 +417,9 @@ function deriveCompliance(data, rules, model) {
       else if(wtr.green_lo!=null && wml<wtr.green_lo) issues.push({type:'water',sev:'amber',detail:'Water low: '+wml+'ml'});
     }
 
-    // Kcal (skip adaptive_kcal)
+    // Kcal (adaptive_kcal bands resolved in resolveRules)
     const kr = findRule(rules,phase,'kcal',model);
-    if(kr && kr.gated && kr.basis!=='adaptive_kcal' && row.kcal) {
+    if(kr && kr.gated && row.kcal) {
       const st = bandStatus(num(row.kcal),kr);
       if(st==='red') issues.push({type:'kcal',sev:'red',detail:'Kcal: '+row.kcal});
       else if(st==='amber') issues.push({type:'kcal',sev:'amber',detail:'Kcal: '+row.kcal});

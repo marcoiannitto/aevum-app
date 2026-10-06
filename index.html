@@ -262,6 +262,9 @@ svg{display:block;}
 .mi-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
 .mi-dot.ok{background:#4a7c59;}.mi-dot.warn{background:var(--warn);}.mi-dot.bad{background:var(--over);}
 .mi-name{color:var(--ink-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.mi-mac{margin-left:auto;font-size:12px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums;}
+.meal-chevron{font-size:10px;color:var(--muted);margin-left:6px;transition:transform .2s;}
+.meal-body.open .meal-chevron{transform:rotate(90deg);}
 .mi-flag{margin-left:auto;flex-shrink:0;font-size:12px;font-weight:600;}
 .mi-flag.ok{color:#4a7c59;}.mi-flag.warn{color:var(--warn);}.mi-flag.bad{color:var(--over);}
 .protocol{margin-top:14px;padding:11px 14px;border-radius:12px;font-size:14px;font-weight:600;text-align:center;background:var(--paper-2,#F3F0E8);color:var(--ink-soft);}
@@ -1096,9 +1099,10 @@ textarea.notes::placeholder{color:var(--muted);}
 
 <script>
 /* ===== SINGLE SOURCE OF TRUTH FOR VERSION ===== */
-const APP_VERSION='v1.23.0';
+const APP_VERSION='v1.24.0';
 
 /* CHANGELOG (full history in aevum-improvements.md)
+   v1.24.0 — Collapsible ingredient macro breakdown in food log (all phases). Per-ingredient kcal/P/F/C visible on expand.
    v1.23.0 — Stabilization kcal compliance from Rules tab (no hardcoded bands). Removed STAB_AMBER_LOW/HIGH.
    v1.22.0 — Maintenance phase (open-ended). Graduation overlay, calorie bank, unclamped loops.
    v1.21.0 — Rules tab, centralized targets, per-client activation_model.
@@ -1886,12 +1890,18 @@ function renderTimeline(){
     let inner;
     if(noMacros){
       const st=mealStatus(m);
-      const flags=(m.items||[]).map(it=>{const f=itemFlag(it);return `<div class="mi"><span class="mi-dot ${f.cls}"></span><span class="mi-name">${esc(it.name)} ${it.grams||0}g</span><span class="mi-flag ${f.cls}">${esc(f.label)}</span></div>`;}).join('');
+      const flags=(m.items||[]).map(it=>{const f=itemFlag(it);return `<div class="mi"><span class="mi-dot ${f.cls}"></span><span class="mi-name">${esc(it.name)} ${it.grams||0}g</span><span class="mi-mac">${Math.round(it.kcal||0)} · ${Math.round(it.protein||0)}P ${Math.round(it.fat||0)}F ${Math.round(it.carbs||0)}C</span><span class="mi-flag ${f.cls}">${esc(f.label)}</span></div>`;}).join('');
       const kc=Math.round(m.kcal||0),pv=Math.round(m.protein||0),fv=Math.round(m.fat||0),cv=Math.round(m.carbs||0);
       const mac=`<b class="${kc>MEAL_KCAL?'mac over':''}">${kc}</b> kcal<span class="mac">${pv}P</span><span class="mac ${fv>MEAL_FAT?'over':''}">${fv}F</span><span class="mac ${cv>MEAL_CARB?'over':''}">${cv}C</span>`;
       inner=`<div class="meal-head"><span class="meal-name">${esc(m.name||'Meal')}</span><span class="mi-dot ${st}"></span></div><div class="meal-macros">${mac}</div>${flags?`<div class="mi-list collapsed">${flags}</div>`:''}`;
     }else{
-      inner=`<div class="meal-name">${esc(m.name||'Meal')}</div><div class="meal-macros"><b>${Math.round(m.kcal||0)}</b> kcal<span class="sep">·</span>${Math.round(m.protein||0)}P<span class="sep">·</span>${Math.round(m.fat||0)}F<span class="sep">·</span>${Math.round(m.carbs||0)}C</div>`;
+      const hasItems=(m.items||[]).length>0;
+      const bdown=hasItems?(m.items||[]).map(it=>{
+        const g_=it.grams||0,k=Math.round(it.kcal||0),p=Math.round(it.protein||0),f=Math.round(it.fat||0),c=Math.round(it.carbs||0);
+        return `<div class="mi"><span class="mi-name">${esc(it.name)} ${g_}g</span><span class="mi-mac">${k} · ${p}P ${f}F ${c}C</span></div>`;
+      }).join(''):'';
+      const chev=hasItems?'<span class="meal-chevron">&#9654;</span>':'';
+      inner=`<div class="meal-name">${esc(m.name||'Meal')}${chev}</div><div class="meal-macros"><b>${Math.round(m.kcal||0)}</b> kcal<span class="sep">·</span>${Math.round(m.protein||0)}P<span class="sep">·</span>${Math.round(m.fat||0)}F<span class="sep">·</span>${Math.round(m.carbs||0)}C</div>${bdown?`<div class="mi-list collapsed">${bdown}</div>`:''}`;
     }
     html+=`<div class="meal-row"><div class="meal-time editable" data-mt="${i}">${m.time||'– –'}</div><div class="meal-body" data-exp="${i}">${inner}</div><button class="meal-del" data-i="${i}">×</button></div>`;
   });

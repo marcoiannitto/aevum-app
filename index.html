@@ -612,6 +612,7 @@ textarea.notes::placeholder{color:var(--muted);}
 .calbank{background:var(--card);border-radius:14px;padding:14px 16px;margin-top:10px;border:1px solid var(--line);}
 .calbank .b-title{display:flex;justify-content:space-between;align-items:center;font-size:14px;font-weight:600;color:var(--ink);margin-bottom:8px;}
 .calbank .cb-window{font-size:12px;font-weight:400;color:var(--muted);}
+.calbank .cb-basis{font-size:12px;color:var(--muted);margin:2px 0 4px;}
 .calbank .cb-summary{font-size:13px;color:var(--ink);margin-bottom:8px;}
 .calbank .cb-total{font-weight:700;font-size:15px;}
 .calbank .cb-target{color:var(--muted);}
@@ -778,6 +779,7 @@ textarea.notes::placeholder{color:var(--muted);}
     <!-- CALORIE BANK (maintenance) -->
     <div class="calbank hidden" id="calBankBlock">
       <div class="b-title"><span>Calorie bank</span><span class="cb-window" id="cbWindow"></span></div>
+      <div class="cb-basis" id="cbBasis"></div>
       <div class="cb-summary" id="cbSummary"></div>
       <div class="cb-barwrap"><div class="cb-bg"><div class="cb-bar" id="cbBar"></div></div></div>
       <div class="cb-detail" id="cbDetail"></div>
@@ -1454,10 +1456,14 @@ function saveTargetFields(f){
 function reviewTarget(){
   if(!profile||!BACKEND_URL)return;
   const td=todayDayNum()||currentDay;
-  if(phaseFor(td).key!=='consolidation'||!isHoldDay(td))return;
-  // seed once, from the formula hold value — no client-visible change on day one
+  const ph=phaseFor(td).key;
+  // Run in stabilization hold AND maintenance (both program and free users)
+  const inStabHold=(ph==='consolidation'&&isHoldDay(td));
+  const inMaint=(ph==='maintenance');
+  if(!inStabHold&&!inMaint)return;
+  // seed once: stabilization uses formula ramp value, maintenance/free uses Mifflin TDEE
   if(!(+profile.current_target_kcal>0)){
-    const seed=stabTargetKcal(td);
+    const seed=inStabHold?stabTargetKcal(td):(profile.need||mifflin(profile));
     saveTargetFields({current_target_kcal:seed,prev_target_kcal:seed,last_review_date:effTodayISO(),last_change_reason:''});
     return;
   }
@@ -1475,8 +1481,12 @@ function reviewTarget(){
   const avg=a=>a.reduce((x,y)=>x+y,0)/a.length;
   const smoothed=avg(ws), half=Math.max(1,Math.floor(ws.length/2));
   const slope=avg(ws.slice(0,half))-avg(ws.slice(-half));   // >0 rising, <0 falling
-  const tw=stabTargetWeight(), band=cfgd('hold_band_kg');
-  const step=cfgd('review_step_kcal'), floor=cfgd('target_floor_kcal'), ceil=stabTDEE();
+  // target weight: stabilization uses stab target, maintenance uses target_kg or start_weight
+  const tw=inStabHold?stabTargetWeight():(+profile.target_kg>0?+profile.target_kg:(+profile.start_weight||+profile.weight||null));
+  const band=cfgd('hold_band_kg');
+  const step=cfgd('review_step_kcal'), floor=cfgd('target_floor_kcal');
+  // ceiling: stabilization uses stabTDEE, maintenance uses full Mifflin TDEE
+  const ceil=inStabHold?stabTDEE():(profile.need||mifflin(profile));
   let cur=+profile.current_target_kcal, next=cur, reason='';
   if(tw!=null){
     if(smoothed>tw+band && slope>0.05){ next=Math.max(floor,cur-step); reason='down'; }   // too high + rising → eat less
@@ -1555,7 +1565,7 @@ function initOnboard(){
         IS_PROGRAM=false;
         localStorage.setItem('aevum_last_id',PID);
         const url=new URL(location.href);url.searchParams.set('id',PID);history.replaceState(null,'',url);
-        profile=Object.assign(p,{program:false});
+        profile=Object.assign(p,{program:false,current_target_kcal:d.current_target_kcal||p.need});
         localStorage.setItem(K('profile'),JSON.stringify(profile));
         g('onboard').classList.add('hidden');boot();
       }).catch(()=>{alert('Could not connect. Check your internet and try again.');go.disabled=false;go.textContent='Begin';});
@@ -1730,7 +1740,7 @@ function renderCalories(ph,t,macroAct){
     wrap.classList.remove('hidden');
     // Exercise is a tracker only, it does NOT move the target (activity multiplier already averages it in).
     const kr=ruleFor('stabilization','kcal');
-    const target=effectiveStabTarget(currentDay), pct=target>0?t.kcal/target*100:0;
+    const target=(ph.key==='maintenance')?maintTarget():effectiveStabTarget(currentDay), pct=target>0?t.kcal/target*100:0;
     // Bands from Rules tab (adaptive_kcal basis, resolved to absolutes by GAS)
     const cls=kr?bandClass(t.kcal,kr):'';
     bar.className='calbar'+(cls?' '+cls:'');
@@ -1967,13 +1977,22 @@ function renderExercise(){
   });
   el.querySelectorAll('.x').forEach(x=>x.onclick=()=>{day.exercise.splice(+x.dataset.i,1);saveDay(true);render();});
 }
+function maintTarget(){
+  // Single source: current_target_kcal from profile (backend-adjustable)
+  const ct=profile&&+profile.current_target_kcal;
+  if(ct>0) return Math.round(ct);
+  // Fallback: Mifflin TDEE stored locally
+  if(profile&&+profile.need>0) return Math.round(+profile.need);
+  // Last resort: effectiveStabTarget (program clients without current_target_kcal)
+  return effectiveStabTarget(currentDay);
+}
 function renderCalorieBank(){
   const block=g('calBankBlock');if(!block)return;
   if(!inMaintenance(currentDay)){block.classList.add('hidden');return;}
   block.classList.remove('hidden');
   const win=CALBANK_WINDOW, tol=CALBANK_TOLERANCE;
-  const target=effectiveStabTarget(currentDay);
-  const windowTarget=target*win;
+  const daily=maintTarget();
+  const windowTarget=daily*win;
   const tolHi=windowTarget*(1+tol), tolLo=windowTarget*(1-tol);
   // collect last N days of calories (including today)
   let totalKcal=0, dayDetails=[];
@@ -1989,11 +2008,12 @@ function renderCalorieBank(){
   const st=totalKcal<=tolHi&&totalKcal>=tolLo?'ok':(totalKcal>tolHi?'over':'warn');
   g('cbWindow').textContent=win+'-day window';
   g('cbSummary').innerHTML=`<span class="cb-total num">${totalKcal.toLocaleString()}</span> / <span class="cb-target">${windowTarget.toLocaleString()} kcal</span> <span class="cb-status ${st}">${st==='ok'?'On track':st==='over'?'Over by '+Math.abs(Math.round(diff)):'Under by '+Math.abs(Math.round(diff))}</span>`;
+  g('cbBasis').textContent=`${daily.toLocaleString()} kcal/day × ${win} days`;
   const barEl=g('cbBar');barEl.style.width=Math.min(100,pct)+'%';barEl.className='cb-bar '+st;
   // detail per day
   let dtl='';
   dayDetails.forEach(dd=>{
-    const cls=dd.kcal>target*(1+tol)?'over':dd.kcal<target*(1-tol)?'warn':'ok';
+    const cls=dd.kcal>daily*(1+tol)?'over':dd.kcal<daily*(1-tol)?'warn':'ok';
     dtl+=`<span class="cb-day ${cls}">D${dd.day} ${dd.kcal}</span>`;
   });
   g('cbDetail').innerHTML=dtl;

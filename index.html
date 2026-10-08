@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ===================================================================== -->
 <!-- AEVUM Tracker · index.html · version in APP_VERSION const below        -->
-<!-- Backends: Apps Script v1.25.1 · API Proxy Worker v1.0.0 · AI Worker v1.13.0 · Frontend v1.27.0 -->
+<!-- Backends: Apps Script v1.25.1 · API Proxy Worker v1.0.0 · AI Worker v1.13.0 · Frontend v1.28.0 -->
 <!-- ===================================================================== -->
 <html lang="en">
 <head>
@@ -1101,9 +1101,10 @@ textarea.notes::placeholder{color:var(--muted);}
 
 <script>
 /* ===== SINGLE SOURCE OF TRUTH FOR VERSION ===== */
-const APP_VERSION='v1.27.0';
+const APP_VERSION='v1.28.0';
 
 /* CHANGELOG (full history in aevum-improvements.md)
+   v1.28.0 — Maintenance trends fix: calorie target uses maintTarget(), color bands use Rules maintenance rows, phase bar shows only Maintenance, weight chart shows original target line (not stab hold band).
    v1.27.0 — Security: GAS URL hidden behind Cloudflare Worker proxy. Frontend no longer exposes backend endpoint.
    v1.26.0 — Dynamic water goal: 30ml/kg body weight from Rules sheet (water_ml_per_kg), rounded to 0.1L. Removed hardcoded WATER_GOAL_GLASSES.
    v1.25.1 — Calorie bank: shows daily basis + 4-day total clearly, uses current_target_kcal for all users. Adaptive review runs in maintenance (not just stabilization). Free users seeded with full Mifflin TDEE.
@@ -2252,7 +2253,7 @@ function renderTrends(){
   const target=(profile&&profile.target_kg)||null;
   // stabilization: hold target replaces onboarding TGT as the reference, only during stabilization
   const curPK=phaseFor(currentDay).key;
-  const inStab=curPK==='consolidation'||curPK==='maintenance';
+  const inStab=curPK==='consolidation';
   const holdT=inStab?stabTargetWeight():null;
 
   // Weight stat
@@ -2303,9 +2304,15 @@ function trendsPhaseStrip(d0,dN){
   const W=440,padL=16,padR=16,span=(dN-d0)||1;
   const xs=d=>padL+(d-d0)/span*(W-padL-padR); // same mapping as the charts
   const pctOf=x=>x/W*100;
+  const cur=phaseFor(currentDay).key;
+  // maintenance user: single full-width bar, no prior-phase labels
+  if(cur==='maintenance'){
+    const segs=`<rect x="${padL}" y="0" width="${(W-padL-padR).toFixed(1)}" height="6" rx="3" fill="${MAINT_COLOR}"/>`;
+    const labels=`<span class="cur" style="left:50%">Maintenance</span>`;
+    return `<svg viewBox="0 0 ${W} 6" width="100%" preserveAspectRatio="none" height="6">${segs}</svg><div class="trphase-labels">${labels}</div>`;
+  }
   const L=phaseLens();
   const order=[['loading','Loading'],['activation','Activation'],['transition','Transition'],['consolidation','Stabilization']];
-  const cur=phaseFor(currentDay).key;
   let s=0,segs='',labels='';
   order.forEach(([k,name])=>{
     const len=L[k],a=s+1,b=s+len;s+=len;
@@ -2334,7 +2341,7 @@ function phaseTargetLabel(dayNum){
   const ph=phaseFor(dayNum);
   if(ph.key==='loading')return 'Loading, eat high';
   if(ph.key==='activation'||ph.key==='transition')return ph.name+', target '+CAL_LOW_AMBER+'-'+CAL_HIGH_AMBER;
-  if(ph.key==='maintenance')return 'Maintenance, target ~'+effectiveStabTarget(dayNum)+' kcal';
+  if(ph.key==='maintenance')return 'Maintenance, target ~'+maintTarget()+' kcal';
   return 'Stabilization, target ~'+effectiveStabTarget(dayNum)+' kcal';
 }
 function collectMacroDays(){
@@ -2360,7 +2367,7 @@ function phaseTargetKcal(dayNum){
   const basal=bmr/1.55*1; // rough BMR without activity for loading ref
   if(ph==='loading')return Math.round((profile&&profile.need?profile.need:2000)*1.5);
   if(ph==='activation'||ph==='transition')return 600; // mid of 500-700 for the bar reference
-  if(ph==='maintenance')return effectiveStabTarget(dayNum);
+  if(ph==='maintenance')return maintTarget();
   return effectiveStabTarget(dayNum); // consolidation (adaptive on hold days)
 }
 function dayCalState(dayNum,k){
@@ -2369,8 +2376,9 @@ function dayCalState(dayNum,k){
   const tgt=phaseTargetKcal(dayNum);if(!tgt)return'ok';
   const pct=k/tgt*100;
   if(ph==='loading')return k>=tgt*0.9?'ok':(k>=tgt*0.6?'warn':'over'); // want high
-  // consolidation/maintenance: bands from Rules tab (adaptive_kcal basis)
-  const kr=ruleFor('stabilization','kcal');
+  // consolidation/maintenance: bands from Rules tab
+  const rPhase=(ph==='maintenance')?'maintenance':'stabilization';
+  const kr=ruleFor(rPhase,'kcal');
   if(!kr)return'ok';
   return bandClass(k,kr)||'ok';
 }
@@ -2399,7 +2407,8 @@ function macroBars(range){
   const okKcal=dayNum=>{
     const k=phaseFor(dayNum).key;
     if(k==='loading'){const t=phaseTargetKcal(dayNum)||1;return [t*0.9,t];}
-    if(k==='consolidation'||k==='maintenance'){return [effectiveStabTarget(dayNum), stabTDEE()];}
+    if(k==='maintenance'){const mt=maintTarget()||1;return [mt*0.95, mt*1.05];}
+    if(k==='consolidation'){return [effectiveStabTarget(dayNum), stabTDEE()];}
     return [CAL_LOW_AMBER,CAL_HIGH_AMBER];    // activation / transition
   };
   const fracFor=(dayNum,v)=>{

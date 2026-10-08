@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ===================================================================== -->
 <!-- AEVUM Tracker · index.html · version in APP_VERSION const below        -->
-<!-- Backends: Apps Script v1.24.0 · Cloudflare Worker v1.13.0 (not deployed) -->
+<!-- Backends: Apps Script v1.25.0 · Cloudflare Worker v1.13.0 (not deployed) -->
 <!-- ===================================================================== -->
 <html lang="en">
 <head>
@@ -705,8 +705,8 @@ textarea.notes::placeholder{color:var(--muted);}
 <!-- ONBOARDING -->
 <div id="onboard">
   <div class="brand">AEVUM</div>
-  <div class="brand-sub">METABOLIC PROTOCOL</div>
-  <div class="lead">A few details to set your reference intake. This stays on your phone.</div>
+  <div class="brand-sub" id="obSub">METABOLIC PROTOCOL</div>
+  <div class="lead" id="obLead">A few details to set your reference intake. This stays on your phone.</div>
   <div class="fields">
     <div><label>Name</label><input id="ob-name" type="text" placeholder="First name" autocomplete="off"></div>
     <div><label>Sex</label>
@@ -1099,9 +1099,10 @@ textarea.notes::placeholder{color:var(--muted);}
 
 <script>
 /* ===== SINGLE SOURCE OF TRUTH FOR VERSION ===== */
-const APP_VERSION='v1.24.0';
+const APP_VERSION='v1.25.0';
 
 /* CHANGELOG (full history in aevum-improvements.md)
+   v1.25.0 — Free-user mode: self-registration, maintenance-only tracker for non-program users, program-only UI hidden (phase bar, serum, intros, graduation). Onboarding shows generic branding for free users.
    v1.24.0 — Collapsible ingredient macro breakdown in food log (all phases). Per-ingredient kcal/P/F/C visible on expand.
    v1.23.0 — Stabilization kcal compliance from Rules tab (no hardcoded bands). Removed STAB_AMBER_LOW/HIGH.
    v1.22.0 — Maintenance phase (open-ended). Graduation overlay, calorie bank, unclamped loops.
@@ -1203,10 +1204,12 @@ function totalDays(){const L=phaseLens();return L.loading+L.activation+L.transit
 function applyPhaseConfig(){TOTAL_DAYS=totalDays();/* maintenance is open-ended: no clamp */}
 
 const params=new URLSearchParams(location.search);
-const PID=(params.get('id')||'me').toLowerCase().replace(/[^a-z0-9_-]/g,'');
+let PID=(params.get('id')||'').toLowerCase().replace(/[^a-z0-9_-]/g,'')||localStorage.getItem('aevum_last_id')||'';
 const K=s=>`aevum_${PID}_${s}`;
+let IS_PROGRAM=true; // default true for existing clients, set false after profile load for free users
 
 function phaseFor(d){
+  if(!IS_PROGRAM) return {key:'maintenance',name:'Tracker',color:MAINT_COLOR};
   const L=phaseLens();
   const l1=L.loading, l2=l1+L.activation, l3=l2+L.transition, l4=l3+L.consolidation;
   if(d<=l1) return {key:'loading',name:'Loading',color:'#8a8a8a'};
@@ -1334,7 +1337,7 @@ function loadMessages(){
   const c=localStorage.getItem('aevum_messages_cache'); if(c){try{MESSAGES=JSON.parse(c);}catch(e){}}
   if(!BACKEND_URL)return;
   postJSON(BACKEND_URL,{action:'messages'},'text/plain;charset=utf-8')
-    .then(d=>{if(d&&Array.isArray(d.messages)){MESSAGES=d.messages;localStorage.setItem('aevum_messages_cache',JSON.stringify(MESSAGES));maybeDailyBrief();}})
+    .then(d=>{if(d&&Array.isArray(d.messages)){MESSAGES=d.messages;localStorage.setItem('aevum_messages_cache',JSON.stringify(MESSAGES));if(IS_PROGRAM)maybeDailyBrief();}})
     .catch(()=>{});
 }
 function dayData(n){const r=localStorage.getItem(K('day_'+n));if(!r)return null;try{return JSON.parse(r);}catch(e){return null;}}
@@ -1410,7 +1413,7 @@ function checkRollover(){
     lastKnownToday=td;
     if(wasOnToday){saveDay(true);currentDay=td;loadDay();}else{render();}
     reviewTarget();
-    maybePhaseIntro();maybeDailyBrief();
+    if(IS_PROGRAM){maybePhaseIntro();maybeDailyBrief();}
   }
 }
 /* ---- stabilization (consolidation) helpers ---- */
@@ -1522,9 +1525,11 @@ function stabWeightClass(w){
 let profile=null,currentDay=1,day=null,photoData=null,mealItems=[],bootUsedToday=false;
 
 /* ---- profile ---- */
-function loadProfile(){const r=localStorage.getItem(K('profile'));profile=r?JSON.parse(r):null;}
+function loadProfile(){const r=localStorage.getItem(K('profile'));profile=r?JSON.parse(r):null;if(profile&&profile.program===false)IS_PROGRAM=false;}
 function mifflin(p){const s=p.sex==='m'?5:-161;return Math.round((10*p.weight+6.25*p.height-5*p.age+s)*parseFloat(p.act));}
 function initOnboard(){
+  // Free-user onboarding: show generic branding
+  if(!PID){g('obSub').textContent='WELLNESS TRACKER';g('obLead').textContent='Set up your personal tracker. Your data stays on your phone.';}
   const name=g('ob-name'),age=g('ob-age'),h=g('ob-h'),w=g('ob-w'),act=g('ob-act'),go=g('ob-go'),prev=g('ob-preview');
   let sex=null;
   document.querySelectorAll('#ob-sex button').forEach(b=>b.onclick=()=>{sex=b.dataset.v;document.querySelectorAll('#ob-sex button').forEach(x=>x.classList.remove('on'));b.classList.add('on');check();});
@@ -1532,10 +1537,29 @@ function initOnboard(){
   function check(){go.disabled=!ready();prev.textContent=ready()?`Reference intake ≈ ${mifflin({sex,age:+age.value,height:+h.value,weight:+w.value,act:act.value}).toLocaleString()} kcal/day`:'';}
   [name,age,h,w].forEach(el=>el.oninput=check);act.onchange=check;
   go.onclick=()=>{
-    profile={name:name.value.trim(),sex,age:+age.value,height:+h.value,weight:+w.value,act:act.value,
+    const p={name:name.value.trim(),sex,age:+age.value,height:+h.value,weight:+w.value,act:act.value,
       need:mifflin({sex,age:+age.value,height:+h.value,weight:+w.value,act:act.value}),target_kg:parseFloat(g('ob-target').value)||null,start:new Date().toISOString().slice(0,10)};
-    localStorage.setItem(K('profile'),JSON.stringify(profile));
-    g('onboard').classList.add('hidden');boot();
+    if(PID){
+      // Existing client with ?id= (onboarded by Marco): save locally, boot
+      profile=p;
+      localStorage.setItem(K('profile'),JSON.stringify(profile));
+      g('onboard').classList.add('hidden');boot();
+    }else{
+      // Free user: register via backend, get unique ID
+      go.disabled=true;go.textContent='Setting up...';
+      fetch(BACKEND_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body:JSON.stringify({action:'register',name:p.name,sex:p.sex,age:p.age,height:p.height,weight:p.weight,act:p.act,target_kg:p.target_kg})
+      }).then(r=>r.json()).then(d=>{
+        if(d.error){alert(d.error);go.disabled=false;go.textContent='Begin';return;}
+        PID=d.id;
+        IS_PROGRAM=false;
+        localStorage.setItem('aevum_last_id',PID);
+        const url=new URL(location.href);url.searchParams.set('id',PID);history.replaceState(null,'',url);
+        profile=Object.assign(p,{program:false});
+        localStorage.setItem(K('profile'),JSON.stringify(profile));
+        g('onboard').classList.add('hidden');boot();
+      }).catch(()=>{alert('Could not connect. Check your internet and try again.');go.disabled=false;go.textContent='Begin';});
+    }
   };
 }
 
@@ -1590,8 +1614,14 @@ function render(){
   const ph=phaseFor(currentDay);
   maybeWriteStabTarget();
   g('whoName').textContent=profile.name;
-  {const dt=dayToDate(currentDay);g('dNum').innerHTML='Day '+currentDay+(dt?`<span class="dday-date">${fmtShort(dt)}</span>`:'');}
-  g('dPhase').innerHTML=`<span class="phase-dot" style="background:${ph.color}"></span>${ph.name}${fastingSuffix(ph)}<span class="ph-i">i</span>`;
+  if(IS_PROGRAM){
+    const dt=dayToDate(currentDay);g('dNum').innerHTML='Day '+currentDay+(dt?`<span class="dday-date">${fmtShort(dt)}</span>`:'');
+    g('dPhase').innerHTML=`<span class="phase-dot" style="background:${ph.color}"></span>${ph.name}${fastingSuffix(ph)}<span class="ph-i">i</span>`;
+    g('dPhase').style.display='';
+  }else{
+    const dt=dayToDate(currentDay);g('dNum').textContent=dt?fmtShort(dt):'';
+    g('dPhase').style.display='none';
+  }
   g('prevDay').disabled=currentDay<=1;g('nextDay').disabled=false; /* maintenance: no upper bound */
   {const td=todayDayNum();g('todayBtn').classList.toggle('hidden',!td||currentDay===td);}
   const t=totals();
@@ -1604,6 +1634,8 @@ function render(){
   // strip
   g('serumAM').classList.toggle('on',day.serumAM);
   g('serumPM').classList.toggle('on',day.serumPM);
+  // hide phase bar + serum for free users
+  if(!IS_PROGRAM){g('phaseBar').style.display='none';g('serumBlock').classList.add('hidden');}
   renderWater();
   // daily
   g('fWeight').value=day.weight;g('fNotes').value=day.notes;
@@ -1979,7 +2011,7 @@ function switchTab(name){
   document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('on',b.dataset.tab===name));
   const hideDay=(name==='trends'||name==='nutrition');
   g('daybar').style.display = hideDay?'none':'flex';
-  g('phaseBar').style.display = hideDay?'none':'flex';
+  g('phaseBar').style.display = (hideDay||!IS_PROGRAM)?'none':'flex';
   if(name==='trends')renderTrends();
   if(name==='nutrition'){rcFilter.phase=aiPhaseKey(currentDay);loadRecipes();if(rcLoaded){buildPhaseChips();renderRecipeList();}loadPlan();}
   scrollTo(0,0);
@@ -3224,9 +3256,9 @@ function boot(){
   loadDay();
   loadConfig();loadMessages();loadRules();
   reviewTarget();
-  maybePhaseIntro();maybeDailyBrief();maybeGraduation();
+  if(IS_PROGRAM){maybePhaseIntro();maybeDailyBrief();maybeGraduation();}
   fetchProfile();hydrateFromBackend();
-  setInterval(()=>{const ph=phaseFor(currentDay);if(ph.key==='activation'||ph.key==='transition')g('dPhase').innerHTML=`<span class="phase-dot" style="background:${ph.color}"></span>${ph.name}${fastingSuffix(ph)}<span class="ph-i">i</span>`;if(ph.key==='maintenance')g('dPhase').innerHTML=`<span class="phase-dot" style="background:${ph.color}"></span>${ph.name}<span class="ph-i">i</span>`;},60000);
+  if(IS_PROGRAM){setInterval(()=>{const ph=phaseFor(currentDay);if(ph.key==='activation'||ph.key==='transition')g('dPhase').innerHTML=`<span class="phase-dot" style="background:${ph.color}"></span>${ph.name}${fastingSuffix(ph)}<span class="ph-i">i</span>`;if(ph.key==='maintenance')g('dPhase').innerHTML=`<span class="phase-dot" style="background:${ph.color}"></span>${ph.name}<span class="ph-i">i</span>`;},60000);}
 }
 function hydrateFromBackend(){
   // fill any days missing on THIS device from the Sheet (gap-fill only, never clobbers local)
@@ -3257,6 +3289,8 @@ function fetchProfile(){
         if(P.last_change_reason!=null&&P.last_change_reason!=='')keep.last_change_reason=P.last_change_reason;
         if(P.maintenance_mode)keep.maintenance_mode=P.maintenance_mode;
         if(P.maintenance_diet)keep.maintenance_diet=P.maintenance_diet;
+        if(P.program===false){keep.program=false;IS_PROGRAM=false;}
+        else if(P.program===true){keep.program=true;IS_PROGRAM=true;}
         profile=Object.assign({},profile,keep);
         localStorage.setItem(K('profile'),JSON.stringify(profile));
         applyPhaseConfig();
@@ -3264,7 +3298,7 @@ function fetchProfile(){
         const td=todayDayNum();
         if(!bootUsedToday&&td){bootUsedToday=true;currentDay=td;loadDay();}else{render();}
         reviewTarget();
-        maybePhaseIntro();maybeDailyBrief();maybeGraduation();
+        if(IS_PROGRAM){maybePhaseIntro();maybeDailyBrief();maybeGraduation();}
       }
     }).catch(()=>{});
 }
@@ -3281,7 +3315,7 @@ window.addEventListener('popstate',()=>{
   if(g('phSheet')&&g('phSheet').classList.contains('show')){g('phScrim').classList.remove('show');g('phSheet').classList.remove('show');}
 });
 loadProfile();
-if(profile){g('onboard').classList.add('hidden');boot();}else{initOnboard();}
+if(profile&&PID){g('onboard').classList.add('hidden');boot();}else{initOnboard();}
 </script>
 </body>
 </html>

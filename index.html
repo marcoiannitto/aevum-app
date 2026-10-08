@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ===================================================================== -->
 <!-- AEVUM Tracker · index.html · version in APP_VERSION const below        -->
-<!-- Backends: Apps Script v1.25.1 · Cloudflare Worker v1.13.0 (not deployed) -->
+<!-- Backends: Apps Script v1.25.1 · Cloudflare Worker v1.13.0 (not deployed) · Frontend v1.26.0 -->
 <!-- ===================================================================== -->
 <html lang="en">
 <head>
@@ -1101,9 +1101,10 @@ textarea.notes::placeholder{color:var(--muted);}
 
 <script>
 /* ===== SINGLE SOURCE OF TRUTH FOR VERSION ===== */
-const APP_VERSION='v1.25.1';
+const APP_VERSION='v1.26.0';
 
 /* CHANGELOG (full history in aevum-improvements.md)
+   v1.26.0 — Dynamic water goal: 30ml/kg body weight from Rules sheet (water_ml_per_kg), rounded to 0.1L. Removed hardcoded WATER_GOAL_GLASSES.
    v1.25.1 — Calorie bank: shows daily basis + 4-day total clearly, uses current_target_kcal for all users. Adaptive review runs in maintenance (not just stabilization). Free users seeded with full Mifflin TDEE.
    v1.25.0 — Free-user mode: self-registration, maintenance-only tracker for non-program users, program-only UI hidden (phase bar, serum, intros, graduation). Onboarding shows generic branding for free users.
    v1.24.0 — Collapsible ingredient macro breakdown in food log (all phases). Per-ingredient kcal/P/F/C visible on expand.
@@ -1149,7 +1150,7 @@ function aiPost(payload,ms){return postJSON(aiURL(),payload,'application/json',m
 let TOTAL_DAYS=31;                                 // recomputed from phase lengths at boot
 const PH_FIXED={loading:2,transition:3,consolidation:18}; // activation is per-person; default total 2+8+3+18=31
 const DAY_START_HOUR=5;                             // a new "day" rolls over at 5am local
-const GLASS_ML=250, WATER_GOAL_GLASSES=10;         // water: 10 x 250ml = 2.5L
+const GLASS_ML=250;                                // water glass size (ml)
 const PROTEIN_PER_KG=1.2, PROTEIN_KG_HI=1.5;       // protein target range (g per kg of target weight)
 const FAT_TARGET=20, FAT_RED=25;                   // fat (g): green<=20, amber 20-25, red>25
 const CARB_TARGET=40, CARB_RED=50;                 // carbs (g): green<=40, amber 40-50, red>50
@@ -1175,7 +1176,8 @@ const DEFAULTS={
   smooth_days:7, min_weighins:4,               // weight smoothing window / min data to act
   calbank_window:4,                            // calorie bank rolling window (days)
   calbank_tolerance:0.05,                      // calorie bank +/- tolerance (5%)
-  maintenance_color:'#3E7A6A'                  // maintenance phase UI color
+  maintenance_color:'#3E7A6A',                 // maintenance phase UI color
+  water_ml_per_kg:30                           // water goal: ml per kg body weight
 };
 let CAL_LOW_AMBER=DEFAULTS.vlcd_low, CAL_HIGH_AMBER=DEFAULTS.vlcd_high;
 let MAINT_CUT=DEFAULTS.maint_cut;
@@ -1956,17 +1958,16 @@ function renderTimeline(){
 function renderWater(){
   const glasses=day.water||0;
   const litres=(glasses*GLASS_ML/1000);
-  const goalL=WATER_GOAL_GLASSES*GLASS_ML/1000;
+  const goalL=waterGoalL();
+  const goalGlasses=Math.ceil(goalL*1000/GLASS_ML);
   g('wLitres').textContent=litres.toFixed(litres%1?1:0).replace(/\.0$/,'');
-  g('wGlasses').textContent=`${glasses} of ${WATER_GOAL_GLASSES} glasses`;
-  const met=glasses>=WATER_GOAL_GLASSES;
+  g('wGlasses').textContent=`${glasses} of ${goalGlasses} glasses`;
+  const met=glasses>=goalGlasses;
   g('waterBlock').classList.toggle('goal',met);
-  // vessel fill (cap visual at goal; overshoot stays full)
-  const H=84, pct=Math.min(1,glasses/WATER_GOAL_GLASSES), h=pct*H;
+  const H=84, pct=Math.min(1,glasses/goalGlasses), h=pct*H;
   const fill=g('waterFill');
   if(fill){fill.setAttribute('y',(H-h).toFixed(1));fill.setAttribute('height',h.toFixed(1));}
-  g('waterBlock').classList.toggle('goal',met);
-  g('wGoalMark').textContent = met ? '✓ 2.5 L' : '';
+  g('wGoalMark').textContent = met ? `✓ ${goalL.toFixed(1)} L` : '';
 }
 function renderExercise(){
   const el=g('exList');if(!day.exercise.length){el.innerHTML='';return;}
@@ -1986,6 +1987,11 @@ function maintTarget(){
   if(profile&&+profile.need>0) return Math.round(+profile.need);
   // Last resort: effectiveStabTarget (program clients without current_target_kcal)
   return effectiveStabTarget(currentDay);
+}
+function waterGoalL(){
+  const w=profile&&+profile.weight;
+  if(w>0){const raw=w*cfgd('water_ml_per_kg')/1000;return Math.round(raw*10)/10;}
+  return 2.5; // fallback
 }
 function renderCalorieBank(){
   const block=g('calBankBlock');if(!block)return;

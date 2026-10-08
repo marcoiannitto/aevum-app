@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ===================================================================== -->
 <!-- AEVUM Tracker · index.html · version in APP_VERSION const below        -->
-<!-- Backends: Apps Script v1.25.0 · Cloudflare Worker v1.13.0 (not deployed) -->
+<!-- Backends: Apps Script v1.25.1 · Cloudflare Worker v1.13.0 (not deployed) -->
 <!-- ===================================================================== -->
 <html lang="en">
 <head>
@@ -1101,9 +1101,10 @@ textarea.notes::placeholder{color:var(--muted);}
 
 <script>
 /* ===== SINGLE SOURCE OF TRUTH FOR VERSION ===== */
-const APP_VERSION='v1.25.0';
+const APP_VERSION='v1.25.1';
 
 /* CHANGELOG (full history in aevum-improvements.md)
+   v1.25.1 — Calorie bank: shows daily basis + 4-day total clearly, uses current_target_kcal for all users. Adaptive review runs in maintenance (not just stabilization). Free users seeded with full Mifflin TDEE.
    v1.25.0 — Free-user mode: self-registration, maintenance-only tracker for non-program users, program-only UI hidden (phase bar, serum, intros, graduation). Onboarding shows generic branding for free users.
    v1.24.0 — Collapsible ingredient macro breakdown in food log (all phases). Per-ingredient kcal/P/F/C visible on expand.
    v1.23.0 — Stabilization kcal compliance from Rules tab (no hardcoded bands). Removed STAB_AMBER_LOW/HIGH.

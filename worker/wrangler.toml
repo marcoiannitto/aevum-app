@@ -1,0 +1,10 @@
+name = "aevum-api"
+main = "index.js"
+compatibility_date = "2024-09-01"
+
+# GAS_URL must be set as a secret:
+#   npx wrangler secret put GAS_URL
+# Then paste your Apps Script web app URL when prompted.
+
+[vars]
+ALLOWED_ORIGIN = "https://app.niramaya.sg"

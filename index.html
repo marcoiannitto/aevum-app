@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ===================================================================== -->
 <!-- AEVUM Tracker · index.html · version in APP_VERSION const below        -->
-<!-- Backends: Apps Script v1.25.1 · Cloudflare Worker v1.13.0 (not deployed) · Frontend v1.26.0 -->
+<!-- Backends: Apps Script v1.25.1 · API Proxy Worker v1.0.0 · AI Worker v1.13.0 · Frontend v1.27.0 -->
 <!-- ===================================================================== -->
 <html lang="en">
 <head>
@@ -1101,9 +1101,10 @@ textarea.notes::placeholder{color:var(--muted);}
 
 <script>
 /* ===== SINGLE SOURCE OF TRUTH FOR VERSION ===== */
-const APP_VERSION='v1.26.0';
+const APP_VERSION='v1.27.0';
 
 /* CHANGELOG (full history in aevum-improvements.md)
+   v1.27.0 — Security: GAS URL hidden behind Cloudflare Worker proxy. Frontend no longer exposes backend endpoint.
    v1.26.0 — Dynamic water goal: 30ml/kg body weight from Rules sheet (water_ml_per_kg), rounded to 0.1L. Removed hardcoded WATER_GOAL_GLASSES.
    v1.25.1 — Calorie bank: shows daily basis + 4-day total clearly, uses current_target_kcal for all users. Adaptive review runs in maintenance (not just stabilization). Free users seeded with full Mifflin TDEE.
    v1.25.0 — Free-user mode: self-registration, maintenance-only tracker for non-program users, program-only UI hidden (phase bar, serum, intros, graduation). Onboarding shows generic branding for free users.
@@ -1119,7 +1120,7 @@ const APP_VERSION='v1.26.0';
    v1.0.0  — Baseline. */
 
 /* ===== BACKEND CONFIG — paste your /exec URL between the quotes ===== */
-const BACKEND_URL = 'https://script.google.com/macros/s/AKfycby0jEwPEqESOu_SK8qYqiJxR-1MeT8Ax6fq0fHPHC6gfihMpPW4uJBt1lGwmK_inQ4-/exec';
+const BACKEND_URL = 'https://aevum-api.marco-iannitto.workers.dev'; // Cloudflare Worker proxy (GAS URL hidden server-side)
 const AI_URL = 'https://sweet-fire-a436.marco-iannitto.workers.dev'; // Cloudflare Worker for AI calls
 function aiURL(){return AI_URL||BACKEND_URL;}
 /* POST with a hard timeout, so a slow/stuck response fails cleanly instead of freezing

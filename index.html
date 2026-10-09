@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ===================================================================== -->
 <!-- AEVUM Tracker · index.html · version in APP_VERSION const below        -->
-<!-- Backends: Apps Script v1.25.1 · API Proxy Worker v1.0.0 · AI Worker v1.13.0 · Frontend v1.28.0 -->
+<!-- Backends: Apps Script v1.26.0 · API Proxy Worker v1.0.0 · AI Worker v1.13.0 · Frontend v1.29.0 -->
 <!-- ===================================================================== -->
 <html lang="en">
 <head>
@@ -1188,9 +1188,10 @@ textarea.notes::placeholder{color:var(--muted);}
 
 <script>
 /* ===== SINGLE SOURCE OF TRUTH FOR VERSION ===== */
-const APP_VERSION='v1.28.0';
+const APP_VERSION='v1.29.0';
 
 /* CHANGELOG (full history in aevum-improvements.md)
+   v1.29.0 — Activity level: 6-tier radio card picker (Sedentary to Athlete) with exercise definitions. Maintenance seed uses TDEE x 0.90 (was full TDEE). hold_band_kg default 0.7 to 0.5.
    v1.28.0 — Maintenance trends fix: calorie target uses maintTarget(), color bands use Rules maintenance rows (pct basis fix), phase bar shows only Maintenance, weight chart shows original target line.
    v1.27.0 — Security: GAS URL hidden behind Cloudflare Worker proxy. Frontend no longer exposes backend endpoint.
    v1.26.0 — Dynamic water goal: 30ml/kg body weight from Rules sheet (water_ml_per_kg), rounded to 0.1L. Removed hardcoded WATER_GOAL_GLASSES.

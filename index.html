@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ===================================================================== -->
 <!-- AEVUM Tracker · index.html · version in APP_VERSION const below        -->
-<!-- Backends: Apps Script v1.26.0 · API Proxy Worker v1.0.0 · AI Worker v1.13.0 · Frontend v1.29.0 -->
+<!-- Backends: Apps Script v1.26.0 · API Proxy Worker v1.0.0 · AI Worker v1.13.0 · Frontend v1.30.0 -->
 <!-- ===================================================================== -->
 <html lang="en">
 <head>
@@ -66,7 +66,7 @@ svg{display:block;}
 /* ===== TOP BAR ===== */
 .topbar{position:sticky;top:0;z-index:20;background:rgba(251,250,247,.92);backdrop-filter:saturate(180%) blur(12px);-webkit-backdrop-filter:saturate(180%) blur(12px);border-bottom:1px solid var(--line);padding:calc(env(safe-area-inset-top) + 10px) 18px 0;}
 .topbar .line1{display:flex;align-items:baseline;justify-content:space-between;}
-.topbar .who{font-size:13px;color:var(--muted);cursor:pointer;}
+.topbar .who{font-size:13px;color:var(--muted);cursor:pointer;}.topbar .who::after{content:' ›';opacity:.45;font-size:11px;}
 .topbar .mark{font-family:var(--serif);font-size:17px;letter-spacing:.18em;}
 .daybar{display:flex;align-items:center;justify-content:space-between;padding:8px 0 12px;}
 .daybar .arrow{width:38px;height:38px;border-radius:11px;border:1px solid var(--line);background:var(--card);font-size:20px;color:var(--ink-soft);display:flex;align-items:center;justify-content:center;}
@@ -1188,9 +1188,10 @@ textarea.notes::placeholder{color:var(--muted);}
 
 <script>
 /* ===== SINGLE SOURCE OF TRUTH FOR VERSION ===== */
-const APP_VERSION='v1.29.0';
+const APP_VERSION='v1.30.0';
 
 /* CHANGELOG (full history in aevum-improvements.md)
+   v1.30.0 — Profile tap affordance: chevron after name in topbar to signal tappability.
    v1.29.0 — Activity level: 6-tier radio card picker (Sedentary to Athlete) with exercise definitions. Maintenance seed uses TDEE x 0.90 (was full TDEE). hold_band_kg default 0.7 to 0.5.
    v1.28.0 — Maintenance trends fix: calorie target uses maintTarget(), color bands use Rules maintenance rows (pct basis fix), phase bar shows only Maintenance, weight chart shows original target line.
    v1.27.0 — Security: GAS URL hidden behind Cloudflare Worker proxy. Frontend no longer exposes backend endpoint.

@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<!-- ===================================================================== -->
+<!-- AEVUM Reset Report · report-reset.html · v1.0.0                       -->
+<!-- Mid-program milestone report at end of Transition (day 13).           -->
+<!-- Based on report.html structure; uses graduation endpoint sub=reset.   -->
+<!-- ===================================================================== -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#141311">
+<title>AEVUM — Reset Report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,ital,wght@9..144,0,400;9..144,0,500;9..144,0,600;9..144,1,400&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#141311;--ink-2:#0f0e0d;--ink-soft:#4a463f;
+  --gold:#B08D2E;--gold-deep:#8f6f1f;--gold-light:#d8b95e;
+  --paper:#FBFAF7;--card:#ffffff;--line:#EBE5D8;--line-soft:#F2EDE2;--muted:#938c7d;
+  --serif:"Fraunces",Georgia,"Times New Roman",serif;
+  --sans:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --ease:cubic-bezier(.22,.61,.36,1);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{font-family:var(--sans);background:var(--paper);color:var(--ink);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;}
+.hidden{display:none!important;}
+.num{font-family:var(--serif);font-variant-numeric:tabular-nums;letter-spacing:-.01em;}
+
+/* reveal */
+.rise{opacity:0;transform:translateY(16px);transition:opacity .7s var(--ease),transform .7s var(--ease);}
+.rise.in{opacity:1;transform:none;}
+@media(prefers-reduced-motion:reduce){.rise{opacity:1;transform:none;}}
+
+/* --- Loading / Error --- */
+#loading{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:85vh;gap:16px;color:var(--muted);}
+#loading .spinner{width:30px;height:30px;border:2.5px solid var(--line);border-top-color:var(--gold);border-radius:50%;animation:spin .8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+#error{display:none;text-align:center;padding:80px 24px;color:var(--ink-soft);}
+#error h2{font-family:var(--serif);font-size:1.4rem;margin-bottom:8px;}
+
+/* --- Layout --- */
+.wrap{max-width:520px;margin:0 auto;padding:0 18px 20px;}
+.eyebrow{font-size:11px;letter-spacing:.26em;text-transform:uppercase;font-weight:600;color:var(--gold-deep);}
+
+/* --- Hero --- */
+.hero{position:relative;background:var(--ink);color:#fff;padding:60px 24px 54px;text-align:center;overflow:hidden;}
+.hero-glow{position:absolute;inset:0;background:radial-gradient(70% 70% at 50% 8%,rgba(176,141,46,.3),transparent 62%);}
+.hero-inner{position:relative;z-index:1;}
+.seal{width:62px;height:62px;margin:0 auto 22px;}
+.hero .kicker{font-size:11px;letter-spacing:.3em;text-transform:uppercase;font-weight:600;color:var(--gold-light);margin-bottom:16px;}
+.hero h1{font-family:var(--serif);font-size:clamp(2rem,9vw,2.7rem);font-weight:500;line-height:1.02;letter-spacing:-.02em;}
+.hero h1 em{font-style:italic;color:var(--gold-light);font-weight:400;}
+.hero .who{margin-top:16px;font-size:.95rem;color:#cfc7b8;}
+.hero .who b{color:#fff;font-weight:500;}
+
+/* --- Cards --- */
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:24px 22px;margin-top:16px;box-shadow:0 1px 0 rgba(0,0,0,.02),0 18px 40px -34px rgba(26,26,26,.28);}
+.card > .eyebrow{display:block;margin-bottom:16px;}
+.card h2{font-family:var(--serif);font-size:1.15rem;font-weight:500;margin-bottom:14px;color:var(--ink);letter-spacing:-.01em;}
+
+/* --- Result (feature) --- */
+.result{text-align:center;background:linear-gradient(180deg,#fff, #fffdf8);border-color:#ecdfbd;}
+.result .metric{font-family:var(--serif);font-size:clamp(3rem,16vw,4.4rem);font-weight:500;line-height:1;color:var(--gold-deep);letter-spacing:-.03em;margin:4px 0 10px;}
+.result .startend{font-size:1rem;color:var(--ink-soft);font-family:var(--serif);}
+.result .startend .arr{color:var(--gold);margin:0 8px;}
+
+/* --- Stats grid --- */
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.stats.tri{grid-template-columns:repeat(3,1fr);}
+.stat{background:var(--paper);border:1px solid var(--line-soft);border-radius:12px;padding:15px 10px;text-align:center;}
+.stat .val{font-family:var(--serif);font-size:1.5rem;font-weight:500;color:var(--ink);line-height:1.15;}
+.stat .lbl{font-size:.72rem;color:var(--muted);margin-top:3px;letter-spacing:.01em;}
+.stat.gold .val{color:var(--gold-deep);}
+
+/* --- Phase timeline --- */
+.timeline{display:flex;gap:3px;height:12px;border-radius:7px;overflow:hidden;margin:4px 0 14px;}
+.timeline .seg{height:100%;transition:flex .8s var(--ease);}
+.phase-legend{display:flex;flex-wrap:wrap;gap:8px;font-size:.74rem;color:var(--ink-soft);}
+.phase-legend span{display:inline-flex;align-items:center;gap:6px;background:var(--paper);border:1px solid var(--line-soft);padding:5px 10px;border-radius:100px;}
+.phase-legend i{display:inline-block;width:9px;height:9px;border-radius:3px;}
+
+/* --- Weight chart --- */
+.chart-wrap{position:relative;width:100%;aspect-ratio:16/10;margin:6px 0 2px;}
+.chart-wrap canvas{width:100%;height:100%;}
+
+/* --- Note from Marco --- */
+.note{background:var(--ink);color:#f3efe6;border:none;position:relative;overflow:hidden;}
+.note-glow{position:absolute;inset:0;background:radial-gradient(60% 70% at 20% 0%,rgba(176,141,46,.22),transparent 60%);}
+.note .inner{position:relative;z-index:1;}
+.note .eyebrow{color:var(--gold-light);}
+.note p{font-family:var(--serif);font-size:1.08rem;line-height:1.5;color:#ece6da;margin-top:14px;}
+.note .sign{margin-top:18px;font-family:var(--serif);font-style:italic;font-size:1.2rem;color:var(--gold-light);}
+
+/* --- Next phase card --- */
+.next-card{background:linear-gradient(180deg,#fff,#f7f3eb);border-color:#e0d8c4;}
+
+/* --- Appendix (details) --- */
+.appendix{margin-top:16px;border:1px solid var(--line);border-radius:18px;background:var(--card);overflow:hidden;}
+.appendix summary{list-style:none;cursor:pointer;padding:18px 22px;font-family:var(--serif);font-size:1.05rem;color:var(--ink);display:flex;align-items:center;justify-content:space-between;}
+.appendix summary::-webkit-details-marker{display:none;}
+.appendix summary .chev{color:var(--gold);transition:transform .3s var(--ease);font-size:.9rem;}
+.appendix[open] summary .chev{transform:rotate(180deg);}
+.appendix .body{padding:0 22px 22px;}
+
+/* macro rows */
+.macro-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--line-soft);}
+.macro-row:last-child{border-bottom:none;}
+.macro-row .name{font-weight:500;font-size:.9rem;color:var(--ink-soft);}
+.macro-row .avg{font-family:var(--serif);font-size:1.02rem;color:var(--ink);}
+.body h3{font-size:.74rem;text-transform:uppercase;letter-spacing:.08em;margin:18px 0 6px;font-weight:600;}
+.body h3:first-child{margin-top:4px;}
+
+/* log table */
+.log-tbl{width:100%;border-collapse:collapse;font-size:.82rem;}
+.log-tbl th{text-align:left;font-weight:600;padding:9px 6px;border-bottom:1.5px solid var(--line);font-size:.68rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);}
+.log-tbl td{padding:8px 6px;border-bottom:1px solid var(--line-soft);}
+.log-tbl tr:nth-child(even) td{background:var(--paper);}
+.log-tbl .phase-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:0;}
+.log-tbl tr:last-child td{border-bottom:none;}
+
+/* --- Footer --- */
+.foot{text-align:center;padding:30px 16px 46px;color:var(--muted);font-size:.74rem;}
+.foot .mark{font-family:var(--serif);letter-spacing:.2em;text-transform:uppercase;color:var(--gold-deep);font-size:.8rem;}
+.foot a{color:var(--gold-deep);text-decoration:none;}
+.foot .date{margin-top:8px;}
+
+/* --- Print --- */
+@media print{
+  body{background:#fff;}
+  .card,.appendix{break-inside:avoid;border-color:#ddd;box-shadow:none;}
+  .hero,.note{background:#1a1a1a;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  .appendix{open:true;}
+  .appendix .body{display:block!important;}
+  .rise{opacity:1;transform:none;}
+}
+</style>
+</head>
+<body>
+
+<!-- Loading state -->
+<div id="loading">
+  <div class="spinner"></div>
+  <span>Loading your report...</span>
+</div>
+
+<!-- Error state -->
+<div id="error" class="hidden">
+  <h2>Couldn't load report</h2>
+  <p id="errorMsg">Please check the link and try again.</p>
+</div>
+
+<!-- Report content (hidden until data loads) -->
+<div id="report" class="hidden">
+
+  <div class="hero">
+    <div class="hero-glow"></div>
+    <div class="hero-inner">
+      <svg class="seal" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+        <circle cx="32" cy="32" r="29" stroke="#d8b95e" stroke-width="1.5" opacity=".6"/>
+        <circle cx="32" cy="32" r="23" stroke="#B08D2E" stroke-width="1"/>
+        <path d="M23 32.5l6.5 6.5L42 26.5" stroke="#d8b95e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <div class="kicker">AEVUM · Reset Report</div>
+      <h1>Reset <em>Complete.</em></h1>
+      <div class="who">Great work, <b id="heroName"></b>. Your body has been reset.</div>
+    </div>
+  </div>
+
+  <div class="wrap">
+
+    <!-- THE RESULT -->
+    <div class="card result rise">
+      <span class="eyebrow">Your progress so far</span>
+      <div class="metric num" id="sWeightDelta">--</div>
+      <div class="startend num" id="sStartEnd"></div>
+    </div>
+
+    <!-- COMMITMENT -->
+    <div class="card rise">
+      <span class="eyebrow">Your commitment</span>
+      <div class="stats tri">
+        <div class="stat gold"><div class="val num" id="sDays">--</div><div class="lbl">Days completed</div></div>
+        <div class="stat"><div class="val num" id="sLogged">--</div><div class="lbl">Days logged</div></div>
+        <div class="stat"><div class="val num" id="sConsistency">--</div><div class="lbl">Plan compliance</div></div>
+      </div>
+    </div>
+
+    <!-- THE JOURNEY SO FAR -->
+    <div class="card rise">
+      <h2>Your journey so far</h2>
+      <div id="phaseTimeline" class="timeline"></div>
+      <div id="phaseLegend" class="phase-legend"></div>
+      <div class="chart-wrap" style="margin-top:20px;">
+        <canvas id="weightChart"></canvas>
+      </div>
+      <div class="stats" style="margin-top:16px;" id="phaseStats"></div>
+    </div>
+
+    <!-- WHAT'S NEXT -->
+    <div class="card next-card rise">
+      <span class="eyebrow" style="color:var(--gold-deep);">What's next</span>
+      <h2>Stabilization phase</h2>
+      <p style="font-size:.9rem;color:var(--ink-soft);line-height:1.6;margin-bottom:12px;">The hardest part is done. Over the next 18 days, your body will lock in this new baseline. Portions increase, variety returns, and the focus shifts from losing to holding.</p>
+      <div class="stats">
+        <div class="stat"><div class="val num">18</div><div class="lbl">Days remaining</div></div>
+        <div class="stat"><div class="val num" id="sStabTarget">--</div><div class="lbl">Hold target</div></div>
+      </div>
+    </div>
+
+    <!-- NOTE FROM MARCO -->
+    <div class="card note rise">
+      <div class="note-glow"></div>
+      <div class="inner">
+        <span class="eyebrow">A note from Marco</span>
+        <p>Thirteen days in, and you've done the hardest part. Loading, Activation, Transition: each one asked something different, and you showed up every day. What comes next is about protecting what you've built. Stay consistent, trust the process, and I'll see you at the finish line.</p>
+        <div class="sign">Marco</div>
+      </div>
+    </div>
+
+    <!-- APPENDIX: intake -->
+    <details class="appendix rise">
+      <summary>Average daily intake <span class="chev">&#9662;</span></summary>
+      <div class="body" id="macroAvgs"></div>
+    </details>
+
+    <!-- APPENDIX: daily log -->
+    <details class="appendix rise">
+      <summary>Daily log (days 1-<span id="logRange"></span>) <span class="chev">&#9662;</span></summary>
+      <div class="body">
+        <div style="overflow-x:auto;">
+          <table class="log-tbl">
+            <thead>
+              <tr><th>Day</th><th>Phase</th><th>Wt</th><th>Kcal</th><th>P</th><th>F</th><th>C</th></tr>
+            </thead>
+            <tbody id="logBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </details>
+
+  </div><!-- .wrap -->
+
+  <div class="foot">
+    <div class="mark">AEVUM by Niramaya</div>
+    <div class="date"><span id="footDate"></span></div>
+    <div style="margin-top:6px;"><a href="https://app.niramaya.sg" target="_blank">app.niramaya.sg</a></div>
+  </div>
+
+</div><!-- #report -->
+
+<script>
+const REPORT_VERSION='v1.0.0';
+
+const GAS_URL='https://script.google.com/macros/s/AKfycby0jEwPEqESOu_SK8qYqiJxR-1MeT8Ax6fq0fHPHC6gfihMpPW4uJBt1lGwmK_inQ4-/exec';
+
+const PH_FIXED={loading:2, transition:3, consolidation:18};
+const PHASE_COLORS={loading:'#8a8a8a',activation:'#B08D2E',transition:'#d8b95e',consolidation:'#4a463f'};
+const PHASE_NAMES={loading:'Loading',activation:'Activation',transition:'Transition',consolidation:'Stabilization'};
+
+const g=id=>document.getElementById(id);
+const params=new URLSearchParams(location.search);
+const PID=(params.get('id')||'').toLowerCase().replace(/[^a-z0-9_-]/g,'');
+
+function actDays(prof){return (prof&&+prof.activation_days>0)?+prof.activation_days:8;}
+function resetDays(prof){return PH_FIXED.loading+actDays(prof)+PH_FIXED.transition;}
+
+function phaseFor(d,prof){
+  const act=actDays(prof);
+  const l1=PH_FIXED.loading, l2=l1+act, l3=l2+PH_FIXED.transition;
+  if(d<=l1) return 'loading';
+  if(d<=l2) return 'activation';
+  if(d<=l3) return 'transition';
+  return 'consolidation';
+}
+
+function showError(msg){
+  g('loading').classList.add('hidden');
+  g('error').classList.remove('hidden');
+  if(msg) g('errorMsg').textContent=msg;
+}
+
+/* ===== FETCH DATA ===== */
+async function load(){
+  if(!PID){showError('No client ID in URL.');return;}
+  try{
+    const url=GAS_URL+'?'+new URLSearchParams({action:'graduation',sub:'reset',id:PID});
+    const resp=await fetch(url);
+    const d=await resp.json();
+    if(d.error){showError(d.error);return;}
+    if(!d.profile){showError('Profile not found.');return;}
+    render(d);
+  }catch(e){
+    showError('Network error: '+e.message);
+  }
+}
+
+/* ===== RENDER ===== */
+function render(d){
+  const prof=d.profile;
+  const resetEnd=resetDays(prof);
+  const allDays=(d.data||[]).sort((a,b)=>a.day-b.day);
+  // Only show data up to end of Transition
+  const days=allDays.filter(r=>(+r.day||0)<=resetEnd);
+
+  const num=v=>{const n=parseFloat(v);return isNaN(n)?null:n;};
+  const parsed=days.map(row=>{
+    const dd=+row.day||0;
+    return {day:dd,phase:phaseFor(dd,prof),weight:num(row.weight),kcal:num(row.kcal),protein:num(row.protein),fat:num(row.fat),carbs:num(row.carbs)};
+  }).filter(r=>r.day>0);
+
+  const logged=parsed.filter(r=>r.weight!=null||r.kcal!=null);
+  const weights=parsed.filter(r=>r.weight!=null&&r.weight>0);
+
+  /* --- Hero --- */
+  g('heroName').textContent=prof.name||PID;
+
+  /* --- Result --- */
+  const st=d.stats||{};
+  if(st.startWeight!=null&&st.endWeight!=null){
+    const delta=st.delta;
+    g('sWeightDelta').textContent=(delta>0?'+':'')+delta.toFixed(1)+' kg';
+    g('sStartEnd').innerHTML=st.startWeight.toFixed(1)+'<span class="arr">→</span>'+st.endWeight.toFixed(1)+' kg';
+  }else if(weights.length>=2){
+    const first=weights[0].weight, last=weights[weights.length-1].weight;
+    const delta=last-first;
+    g('sWeightDelta').textContent=(delta>0?'+':'')+delta.toFixed(1)+' kg';
+    g('sStartEnd').innerHTML=first.toFixed(1)+'<span class="arr">→</span>'+last.toFixed(1)+' kg';
+  }else{
+    g('sWeightDelta').textContent='--';
+  }
+
+  /* --- Commitment --- */
+  g('sDays').textContent=resetEnd;
+  g('sLogged').textContent=logged.length;
+  g('sConsistency').textContent=st.compliancePct!=null?st.compliancePct+'%':'--';
+
+  /* --- Phase timeline --- */
+  const phases=[
+    {key:'loading',len:PH_FIXED.loading},
+    {key:'activation',len:actDays(prof)},
+    {key:'transition',len:PH_FIXED.transition}
+  ];
+
+  let tlHtml='', lgHtml='';
+  phases.forEach(p=>{
+    tlHtml+='<div class="seg" style="flex:'+p.len+';background:'+PHASE_COLORS[p.key]+'"></div>';
+    lgHtml+='<span><i style="background:'+PHASE_COLORS[p.key]+'"></i>'+PHASE_NAMES[p.key]+' · '+p.len+'d</span>';
+  });
+  g('phaseTimeline').innerHTML=tlHtml;
+  g('phaseLegend').innerHTML=lgHtml;
+
+  let psHtml='';
+  phases.forEach(p=>{
+    const count=logged.filter(r=>r.phase===p.key).length;
+    psHtml+='<div class="stat"><div class="val num">'+count+'/'+p.len+'</div><div class="lbl">'+PHASE_NAMES[p.key]+' logged</div></div>';
+  });
+  g('phaseStats').innerHTML=psHtml;
+
+  /* --- Stab target --- */
+  const lastW=weights.length?weights[weights.length-1].weight:null;
+  g('sStabTarget').textContent=lastW?lastW.toFixed(1)+' kg':'--';
+
+  /* --- Macro averages --- */
+  let maHtml='';
+  phases.forEach(p=>{
+    const rows=logged.filter(r=>r.phase===p.key&&r.kcal!=null);
+    if(!rows.length)return;
+    const avg=(arr,fn)=>{const vals=arr.map(fn).filter(v=>v!=null&&!isNaN(v));return vals.length?Math.round(vals.reduce((s,v)=>s+v,0)/vals.length):null;};
+    const aKcal=avg(rows,r=>r.kcal),aProt=avg(rows,r=>r.protein),aFat=avg(rows,r=>r.fat),aCarb=avg(rows,r=>r.carbs);
+    maHtml+='<h3 style="color:'+PHASE_COLORS[p.key]+'">'+PHASE_NAMES[p.key]+'</h3>';
+    if(aKcal!=null) maHtml+='<div class="macro-row"><span class="name">Calories</span><span class="avg num">'+aKcal+' kcal</span></div>';
+    if(aProt!=null) maHtml+='<div class="macro-row"><span class="name">Protein</span><span class="avg num">'+aProt+' g</span></div>';
+    if(aFat!=null)  maHtml+='<div class="macro-row"><span class="name">Fat</span><span class="avg num">'+aFat+' g</span></div>';
+    if(aCarb!=null) maHtml+='<div class="macro-row"><span class="name">Carbs</span><span class="avg num">'+aCarb+' g</span></div>';
+  });
+  g('macroAvgs').innerHTML=maHtml||'<p style="color:var(--muted);font-size:.85rem;padding-top:6px;">No intake data logged.</p>';
+
+  /* --- Daily log --- */
+  g('logRange').textContent=resetEnd;
+  let logHtml='';
+  parsed.forEach(r=>{
+    const phColor=PHASE_COLORS[r.phase]||'#ccc';
+    logHtml+='<tr><td class="num">'+r.day+'</td><td><span class="phase-dot" style="background:'+phColor+'"></span>'+(PHASE_NAMES[r.phase]||'')+'</td><td class="num">'+(r.weight!=null?r.weight.toFixed(1):'--')+'</td><td class="num">'+(r.kcal!=null?Math.round(r.kcal):'--')+'</td><td class="num">'+(r.protein!=null?Math.round(r.protein):'--')+'</td><td class="num">'+(r.fat!=null?Math.round(r.fat):'--')+'</td><td class="num">'+(r.carbs!=null?Math.round(r.carbs):'--')+'</td></tr>';
+  });
+  g('logBody').innerHTML=logHtml||'<tr><td colspan="7" style="color:var(--muted);text-align:center;padding:20px;">No data.</td></tr>';
+
+  /* --- Footer --- */
+  g('footDate').textContent='Generated '+new Date().toLocaleDateString('en-SG',{year:'numeric',month:'long',day:'numeric'});
+
+  /* --- Show report --- */
+  g('loading').classList.add('hidden');
+  g('report').classList.remove('hidden');
+
+  /* reveal on scroll */
+  const io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}});},{threshold:.12});
+  document.querySelectorAll('.rise').forEach(e=>io.observe(e));
+
+  /* --- Weight chart --- */
+  drawWeightChart(weights,prof);
+}
+
+/* ===== WEIGHT CHART ===== */
+function drawWeightChart(weights,prof){
+  const canvas=g('weightChart');
+  if(!weights.length){
+    canvas.parentElement.innerHTML='<p style="color:var(--muted);font-size:.85rem;text-align:center;padding:20px 0;">No weight data yet.</p>';
+    return;
+  }
+  const dpr=window.devicePixelRatio||1;
+  const rect=canvas.parentElement.getBoundingClientRect();
+  const W=rect.width, H=rect.height;
+  canvas.width=W*dpr; canvas.height=H*dpr;
+  canvas.style.width=W+'px'; canvas.style.height=H+'px';
+  const ctx=canvas.getContext('2d');
+  ctx.scale(dpr,dpr);
+
+  const pad={t:18,r:14,b:26,l:40};
+  const cw=W-pad.l-pad.r, ch=H-pad.t-pad.b;
+
+  const vals=weights.map(w=>w.weight);
+  const daysArr=weights.map(w=>w.day);
+  let minV=Math.min(...vals), maxV=Math.max(...vals);
+  const range=maxV-minV||1;
+  minV-=range*0.12; maxV+=range*0.12;
+  const vRange=maxV-minV;
+
+  const minD=Math.min(...daysArr), maxD=Math.max(...daysArr);
+  const dRange=maxD-minD||1;
+
+  const x=d=>pad.l+((d-minD)/dRange)*cw;
+  const y=v=>pad.t+((maxV-v)/vRange)*ch;
+
+  /* grid */
+  ctx.strokeStyle='#F0EADC';ctx.lineWidth=1;
+  const steps=4;
+  for(let i=0;i<=steps;i++){
+    const gy=pad.t+(ch/steps)*i;
+    ctx.beginPath();ctx.moveTo(pad.l,gy);ctx.lineTo(pad.l+cw,gy);ctx.stroke();
+    const label=(maxV-(vRange/steps)*i).toFixed(1);
+    ctx.fillStyle='#b4ac9c';ctx.font='11px Inter,sans-serif';ctx.textAlign='right';ctx.textBaseline='middle';
+    ctx.fillText(label,pad.l-8,gy);
+  }
+
+  /* x labels */
+  ctx.textAlign='center';ctx.textBaseline='top';ctx.fillStyle='#b4ac9c';ctx.font='11px Inter,sans-serif';
+  const xStep=Math.max(1,Math.floor(dRange/6));
+  for(let d=minD;d<=maxD;d+=xStep){ ctx.fillText('D'+d,x(d),H-pad.b+8); }
+
+  /* area fill */
+  const grad=ctx.createLinearGradient(0,pad.t,0,pad.t+ch);
+  grad.addColorStop(0,'rgba(176,141,46,.22)');
+  grad.addColorStop(1,'rgba(176,141,46,0)');
+  ctx.beginPath();
+  weights.forEach((w,i)=>{ const px=x(w.day),py=y(w.weight); i===0?ctx.moveTo(px,py):ctx.lineTo(px,py); });
+  ctx.lineTo(x(weights[weights.length-1].day),pad.t+ch);
+  ctx.lineTo(x(weights[0].day),pad.t+ch);
+  ctx.closePath();
+  ctx.fillStyle=grad;ctx.fill();
+
+  /* weight line */
+  const lgrad=ctx.createLinearGradient(pad.l,0,pad.l+cw,0);
+  lgrad.addColorStop(0,'#8f6f1f');lgrad.addColorStop(1,'#B08D2E');
+  ctx.strokeStyle=lgrad;ctx.lineWidth=2.6;ctx.lineJoin='round';ctx.lineCap='round';
+  ctx.beginPath();
+  weights.forEach((w,i)=>{ const px=x(w.day),py=y(w.weight); i===0?ctx.moveTo(px,py):ctx.lineTo(px,py); });
+  ctx.stroke();
+
+  /* dots */
+  weights.forEach(w=>{
+    const px=x(w.day),py=y(w.weight);
+    ctx.beginPath();ctx.arc(px,py,4.5,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill();
+    ctx.beginPath();ctx.arc(px,py,3,0,Math.PI*2);ctx.fillStyle=PHASE_COLORS[w.phase]||'#B08D2E';ctx.fill();
+  });
+
+  /* emphasize last point */
+  const lw=weights[weights.length-1];
+  ctx.beginPath();ctx.arc(x(lw.day),y(lw.weight),6.5,0,Math.PI*2);
+  ctx.strokeStyle='#B08D2E';ctx.lineWidth=2;ctx.stroke();
+}
+
+/* ===== BOOT ===== */
+load();
+</script>
+</body>
+</html>

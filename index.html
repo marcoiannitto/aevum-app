@@ -46,6 +46,10 @@ svg{display:block;}
 .seg{display:flex;gap:8px;}
 .seg button{flex:1;padding:13px;border:1px solid #34322d;border-radius:12px;color:#b7b1a4;font-weight:500;background:#242320;}
 .seg button.on{background:var(--gold);border-color:var(--gold);color:var(--ink);}
+.ob-consent{margin-top:20px;}
+.consent-row{display:flex;gap:10px;align-items:flex-start;font-size:12px;color:#b7b1a4;line-height:1.5;cursor:pointer;}
+.consent-row input[type="checkbox"]{margin-top:3px;accent-color:var(--gold);flex-shrink:0;}
+.consent-row a{color:var(--gold);text-decoration:underline;}
 #onboard .go{margin-top:26px;width:100%;padding:16px;background:var(--gold);color:var(--ink);border-radius:14px;font-size:16px;font-weight:600;}
 #onboard .go:disabled{opacity:.4;}
 #onboard .need-preview{margin-top:18px;font-size:13px;color:#b7b1a4;text-align:center;min-height:18px;}
@@ -53,7 +57,7 @@ svg{display:block;}
 /* ===== TOP BAR ===== */
 .topbar{position:sticky;top:0;z-index:20;background:rgba(251,250,247,.92);backdrop-filter:saturate(180%) blur(12px);-webkit-backdrop-filter:saturate(180%) blur(12px);border-bottom:1px solid var(--line);padding:calc(env(safe-area-inset-top) + 10px) 18px 0;}
 .topbar .line1{display:flex;align-items:baseline;justify-content:space-between;}
-.topbar .who{font-size:13px;color:var(--muted);}
+.topbar .who{font-size:13px;color:var(--muted);cursor:pointer;}
 .topbar .mark{font-family:var(--serif);font-size:17px;letter-spacing:.18em;}
 .daybar{display:flex;align-items:center;justify-content:space-between;padding:8px 0 12px;}
 .daybar .arrow{width:38px;height:38px;border-radius:11px;border:1px solid var(--line);background:var(--card);font-size:20px;color:var(--ink-soft);display:flex;align-items:center;justify-content:center;}
@@ -268,6 +272,8 @@ svg{display:block;}
 .mi-flag{margin-left:auto;flex-shrink:0;font-size:12px;font-weight:600;}
 .mi-flag.ok{color:#4a7c59;}.mi-flag.warn{color:var(--warn);}.mi-flag.bad{color:var(--over);}
 .protocol{margin-top:14px;padding:11px 14px;border-radius:12px;font-size:14px;font-weight:600;text-align:center;background:var(--paper-2,#F3F0E8);color:var(--ink-soft);}
+.cal-disclaimer{margin-top:10px;font-size:11px;color:var(--muted,#938c7d);text-align:center;line-height:1.4;}
+.waist-nudge{font-size:11px;color:var(--muted,#938c7d);margin-top:4px;padding:0 2px;line-height:1.4;}
 .protocol.ok{background:#EAF2EC;color:#3d6b4d;}
 .protocol.warn{background:var(--warn-bg);color:var(--warn);}
 .protocol.bad{background:var(--over-bg);color:var(--over);}
@@ -512,6 +518,36 @@ textarea.notes::placeholder{color:var(--muted);}
 
 .scrim{position:fixed;inset:0;background:rgba(26,26,26,.42);z-index:40;opacity:0;pointer-events:none;transition:opacity .25s;}
 .scrim.show{opacity:1;pointer-events:auto;}
+/* Profile panel */
+.prof-scrim{position:fixed;inset:0;background:rgba(26,26,26,.42);z-index:60;opacity:0;pointer-events:none;transition:opacity .25s;}
+.prof-scrim.show{opacity:1;pointer-events:auto;}
+.prof-panel{position:fixed;top:0;left:0;bottom:0;width:min(300px,80vw);z-index:61;background:var(--paper);transform:translateX(-100%);transition:transform .3s cubic-bezier(.22,.61,.36,1);overflow-y:auto;padding:calc(env(safe-area-inset-top) + 20px) 20px calc(env(safe-area-inset-bottom) + 20px);}
+.prof-panel.show{transform:translateX(0);}
+.prof-close{position:absolute;top:calc(env(safe-area-inset-top) + 14px);right:14px;font-size:22px;color:var(--muted);background:none;border:none;cursor:pointer;}
+.prof-name{font-family:var(--serif);font-size:22px;font-weight:500;margin-bottom:4px;}
+.prof-sub{font-size:12px;color:var(--muted);margin-bottom:20px;}
+.prof-section{margin-bottom:20px;}
+.prof-section-title{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:8px;font-weight:500;}
+.prof-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px;}
+.prof-row .pr-label{color:var(--muted);}
+.prof-row .pr-value{font-weight:500;}
+.prof-link{display:block;padding:10px 0;font-size:14px;color:var(--ink-soft);text-decoration:none;border-bottom:1px solid var(--line);}
+.prof-link:last-child{border-bottom:none;}
+.prof-ver{font-size:11px;color:var(--muted);text-align:center;margin-top:24px;}
+.rpt-card{display:flex;align-items:center;gap:12px;padding:12px;border-radius:12px;background:var(--card);margin-bottom:8px;text-decoration:none;color:var(--ink);}
+.rpt-card.locked{opacity:.4;pointer-events:none;}
+.rpt-card .rpt-icon{width:36px;height:36px;border-radius:10px;background:var(--gold);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px;}
+.rpt-card.locked .rpt-icon{background:var(--line);}
+.rpt-card .rpt-info{flex:1;}
+.rpt-card .rpt-title{font-size:14px;font-weight:500;}
+.rpt-card .rpt-desc{font-size:12px;color:var(--muted);margin-top:2px;}
+.prof-acc{border-bottom:1px solid var(--line);}
+.prof-acc:last-child{border-bottom:none;}
+.prof-acc summary{padding:10px 0;font-size:14px;color:var(--ink-soft);cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;}
+.prof-acc summary::-webkit-details-marker{display:none;}
+.prof-acc summary::after{content:'›';font-size:16px;color:var(--muted);transition:transform .2s;}
+.prof-acc[open] summary::after{transform:rotate(90deg);}
+.prof-acc .acc-body{padding:0 0 12px;font-size:13px;color:var(--ink-soft);line-height:1.6;}
 .sheet{position:fixed;left:0;right:0;bottom:0;z-index:50;background:var(--paper);border-radius:24px 24px 0 0;padding:8px 20px calc(env(safe-area-inset-bottom) + 22px);transform:translateY(100%);transition:transform .3s cubic-bezier(.22,.61,.36,1);max-height:94vh;overflow-y:auto;}
 .sheet.show{transform:translateY(0);}
 .grab{width:40px;height:4px;border-radius:3px;background:var(--line);margin:8px auto 14px;}
@@ -729,6 +765,9 @@ textarea.notes::placeholder{color:var(--muted);}
     </div>
   </div>
   <div class="need-preview" id="ob-preview"></div>
+  <div class="ob-consent">
+    <label class="consent-row"><input type="checkbox" id="ob-consent"><span>I agree to the <a href="terms.html" target="_blank">Terms of Use</a>, <a href="privacy.html" target="_blank">Privacy Policy</a>, and <a href="health-disclaimer.html" target="_blank">Health Disclaimer</a>. This app does not provide medical advice.</span></label>
+  </div>
   <button class="go" id="ob-go" disabled>Begin</button>
 </div>
 
@@ -774,6 +813,7 @@ textarea.notes::placeholder{color:var(--muted);}
       <div class="gates" id="gates"></div>
       <div class="buckets hidden" id="buckets"></div>
       <div class="protocol hidden" id="protocol"></div>
+      <div class="cal-disclaimer">Targets are estimates. Consult your doctor for personalised advice.</div>
     </div>
 
     <!-- CALORIE BANK (maintenance) -->
@@ -824,6 +864,8 @@ textarea.notes::placeholder{color:var(--muted);}
     <div class="block">
       <div class="b-title"><span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 9 9"/><path d="M12 7v5l3 2"/></svg></span>Body</div>
       <div class="mrow"><span class="lab">Weight (morning)</span><div class="ctrl"><input class="mini-in num" id="fWeight" type="number" inputmode="decimal" placeholder="kg"></div></div>
+      <div class="mrow"><span class="lab">Waist (cm)</span><div class="ctrl"><input class="mini-in num" id="fWaist" type="number" inputmode="decimal" placeholder="cm"></div></div>
+      <div class="waist-nudge hidden" id="waistNudge">Tip: tracking waist helps you see changes beyond weight.</div>
     </div>
 
     <div class="block">
@@ -854,6 +896,11 @@ textarea.notes::placeholder{color:var(--muted);}
       <div class="c-title"><span>Weight</span><b id="wLatest">—</b></div>
       <div class="chart-readout" id="wReadout"></div>
       <div id="weightChart"></div>
+    </div>
+    <div class="chartcard hidden" id="waistChartCard">
+      <div class="c-title"><span>Waist</span><b id="waistLatest">--</b></div>
+      <div class="chart-readout" id="waistReadout"></div>
+      <div id="waistChart"></div>
     </div>
     <div class="chartcard">
       <div class="c-title"><span id="macroTitle">Calories vs phase target</span></div>
@@ -915,6 +962,33 @@ textarea.notes::placeholder{color:var(--muted);}
   <div id="mvBody"></div>
 </div>
 
+</div>
+
+<!-- PROFILE PANEL -->
+<div class="prof-scrim" id="profScrim"></div>
+<div class="prof-panel" id="profPanel">
+  <button class="prof-close" id="profClose" aria-label="Close">×</button>
+  <div class="prof-name" id="profName"></div>
+  <div class="prof-sub" id="profSub"></div>
+  <div class="prof-section">
+    <div class="prof-section-title">Profile</div>
+    <div id="profStats"></div>
+  </div>
+  <div class="prof-section" id="profReportsSection">
+    <div class="prof-section-title">Reports</div>
+    <div id="profReports"></div>
+  </div>
+  <div class="prof-section">
+    <div class="prof-section-title">Help &amp; Info</div>
+    <div id="profDocs"></div>
+  </div>
+  <div class="prof-section">
+    <div class="prof-section-title">Legal</div>
+    <a class="prof-link" href="terms.html" target="_blank">Terms of Use</a>
+    <a class="prof-link" href="privacy.html" target="_blank">Privacy Policy</a>
+    <a class="prof-link" href="health-disclaimer.html" target="_blank">Health Disclaimer</a>
+  </div>
+  <div class="prof-ver" id="profVer"></div>
 </div>
 
 <!-- BOTTOM NAV -->
@@ -1548,9 +1622,10 @@ function initOnboard(){
   const name=g('ob-name'),age=g('ob-age'),h=g('ob-h'),w=g('ob-w'),act=g('ob-act'),go=g('ob-go'),prev=g('ob-preview');
   let sex=null;
   document.querySelectorAll('#ob-sex button').forEach(b=>b.onclick=()=>{sex=b.dataset.v;document.querySelectorAll('#ob-sex button').forEach(x=>x.classList.remove('on'));b.classList.add('on');check();});
-  const ready=()=>name.value.trim()&&sex&&+age.value>0&&+h.value>0&&+w.value>0;
-  function check(){go.disabled=!ready();prev.textContent=ready()?`Reference intake ≈ ${mifflin({sex,age:+age.value,height:+h.value,weight:+w.value,act:act.value}).toLocaleString()} kcal/day`:'';}
-  [name,age,h,w].forEach(el=>el.oninput=check);act.onchange=check;
+  const consent=g('ob-consent');
+  const ready=()=>name.value.trim()&&sex&&+age.value>0&&+h.value>0&&+w.value>0&&consent.checked;
+  function check(){go.disabled=!ready();prev.textContent=(name.value.trim()&&sex&&+age.value>0&&+h.value>0&&+w.value>0)?`Reference intake ≈ ${mifflin({sex,age:+age.value,height:+h.value,weight:+w.value,act:act.value}).toLocaleString()} kcal/day`:'';}
+  [name,age,h,w].forEach(el=>el.oninput=check);act.onchange=check;consent.onchange=check;
   go.onclick=()=>{
     const p={name:name.value.trim(),sex,age:+age.value,height:+h.value,weight:+w.value,act:act.value,
       need:mifflin({sex,age:+age.value,height:+h.value,weight:+w.value,act:act.value}),target_kg:parseFloat(g('ob-target').value)||null,start:new Date().toISOString().slice(0,10)};
@@ -1653,7 +1728,9 @@ function render(){
   if(!IS_PROGRAM){g('phaseBar').style.display='none';g('serumBlock').classList.add('hidden');}
   renderWater();
   // daily
-  g('fWeight').value=day.weight;g('fNotes').value=day.notes;
+  g('fWeight').value=day.weight;g('fWaist').value=day.waist||'';g('fNotes').value=day.notes;
+  // show waist nudge only if waist is empty and no waist data logged yet
+  {const hasWaist=collectSeries('waist').length>0;g('waistNudge').classList.toggle('hidden',!!day.waist||hasWaist);}
   renderExercise();['energy','hunger','sleep'].forEach(renderRate);
 }
 function renderPhaseBar(){
@@ -2190,6 +2267,9 @@ function lineChart(data,unit,target,readoutId,range,band){
 
   const latest=data[data.length-1];
   const ll=`<text x="${xs(latest.day).toFixed(1)}" y="${(ys(latest.v)-10).toFixed(1)}" font-size="11" font-weight="700" fill="#1A1A1A" text-anchor="middle" font-family="sans-serif">${latest.v}</text>`;
+  // #29: persistent data label on first point
+  const first=data[0];
+  const fl=data.length>1?`<text x="${xs(first.day).toFixed(1)}" y="${(ys(first.v)-10).toFixed(1)}" font-size="10" font-weight="500" fill="#938c7d" text-anchor="start" font-family="sans-serif">${first.v}</text>`:'';
 
   // x labels: Day 1 · Start  and  Day N · Today
   const xlabels=`<text x="${padL}" y="${H-8}" font-size="10" fill="#938c7d" text-anchor="start" font-family="sans-serif">Day ${d0} · Start</text><text x="${W-padR}" y="${H-8}" font-size="10" fill="#938c7d" text-anchor="end" font-family="sans-serif">Day ${dN} · Today</text>`;
@@ -2203,12 +2283,12 @@ function lineChart(data,unit,target,readoutId,range,band){
     ${grid}${tline}
     <polyline points="${trendPts}" fill="none" stroke="#B08D2E" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0.16"/>
     <polyline points="${linePts}" fill="none" stroke="#B08D2E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-    ${scrub}${dots}${ll}${xlabels}
+    ${scrub}${dots}${fl}${ll}${xlabels}
   </svg>`;
 }
 function fmtDelta(n){return n<0?`▼ ${Math.abs(n).toFixed(1)}`:n>0?`▲ ${Math.abs(n).toFixed(1)}`:'0.0';}
 function wireChartTaps(){
-  document.querySelectorAll('#weightChart svg').forEach(svg=>{
+  document.querySelectorAll('#weightChart svg, #waistChart svg').forEach(svg=>{
     const rid=svg.getAttribute('data-readout');
     const ro=rid?g(rid):null;
     let pts; try{pts=JSON.parse(svg.getAttribute('data-pts'));}catch(e){return;}
@@ -2287,6 +2367,13 @@ function renderTrends(){
   g('trPhase').innerHTML = range?trendsPhaseStrip(range[0],range[1]):'';
   const band=(holdT!=null)?{center:holdT,green:0.35,amber:0.5}:null;
   g('weightChart').innerHTML=lineChart(w,'kg',band?null:target,'wReadout',range,band);
+  // #28: waist chart (show only with 2+ data points)
+  const wst=collectSeries('waist');
+  if(wst.length>=2){
+    g('waistChartCard').classList.remove('hidden');
+    g('waistLatest').textContent=wst[wst.length-1].v+' cm';
+    g('waistChart').innerHTML=lineChart(wst,'cm',null,'waistReadout',range,null);
+  }else{g('waistChartCard').classList.add('hidden');}
   wireChartTaps();
   // middle chart: portions adherence in Activation/Transition, calories otherwise
   const pk=phaseFor(currentDay).key;
@@ -3112,11 +3199,83 @@ function closeRecipe(){
 }
 
 
+/* ---- Profile panel ---- */
+function actLabel(v){return{'1.2':'Mostly sitting','1.375':'Lightly active','1.55':'Moderately active','1.725':'Very active'}[v]||v;}
+function openProfile(){
+  if(!profile)return;
+  g('profName').textContent=profile.name;
+  g('profSub').textContent='AEVUM'+(IS_PROGRAM?' Program':' Tracker');
+  const rows=[
+    ['Sex',profile.sex==='m'?'Male':'Female'],
+    ['Age',profile.age],
+    ['Height',profile.height+' cm'],
+    ['Start weight',(profile.start_weight||profile.weight)+' kg'],
+    ['Target',profile.target_kg?profile.target_kg+' kg':'--'],
+    ['Activity',actLabel(profile.act)]
+  ];
+  g('profStats').innerHTML=rows.map(r=>`<div class="prof-row"><span class="pr-label">${r[0]}</span><span class="pr-value">${r[1]}</span></div>`).join('');
+  // #26: Report cards
+  const L=phaseLens();const resetDay=L.loading+L.activation+L.transition;
+  const td=todayDayNum()||currentDay;
+  const resetOk=IS_PROGRAM&&td>resetDay;
+  const gradOk=IS_PROGRAM&&inMaintenance(td);
+  const resetUrl=resetOk?`report-reset.html?id=${PID}`:'#';
+  const gradUrl=gradOk?`report.html?id=${PID}`:'#';
+  g('profReports').innerHTML=`
+<a class="rpt-card${resetOk?'':' locked'}" href="${resetUrl}" ${resetOk?'target="_blank"':''}>
+  <div class="rpt-icon">📊</div>
+  <div class="rpt-info"><div class="rpt-title">Reset Report</div><div class="rpt-desc">${resetOk?'View your reset completion summary':'Available after day '+resetDay}</div></div>
+</a>
+<a class="rpt-card${gradOk?'':' locked'}" href="${gradUrl}" ${gradOk?'target="_blank"':''}>
+  <div class="rpt-icon">🎓</div>
+  <div class="rpt-info"><div class="rpt-title">Graduation Report</div><div class="rpt-desc">${gradOk?'View your full program report':'Available after Stabilization'}</div></div>
+</a>`;
+  if(!IS_PROGRAM)g('profReportsSection').classList.add('hidden');else g('profReportsSection').classList.remove('hidden');
+  // #27: Documentation hub
+  g('profDocs').innerHTML=`
+<details class="prof-acc"><summary>Food guide</summary><div class="acc-body">
+<b>Protein foods</b>: chicken breast, fish, eggs, tofu, lean beef. Aim for palm-sized portions.<br><br>
+<b>Vegetables</b>: fill half your plate. Any non-starchy veg: leafy greens, broccoli, peppers, tomatoes, mushrooms.<br><br>
+<b>Fruits</b>: 1-2 servings/day. Berries, apples, citrus are great choices. Limit dried fruit and juice.<br><br>
+<b>Carbs</b>: rice, oats, sweet potato, wholemeal bread. Fist-sized portions.<br><br>
+<b>Fats</b>: olive oil, nuts, avocado. Use sparingly -- small amounts add up fast.
+</div></details>
+<details class="prof-acc"><summary>How to measure your waist</summary><div class="acc-body">
+1. Stand up straight and breathe out normally.<br>
+2. Find the midpoint between the bottom of your ribs and the top of your hip bone.<br>
+3. Wrap a soft tape measure around your waist at this point.<br>
+4. Keep the tape snug but not tight. Don't hold your breath.<br>
+5. Read the number in cm.<br><br>
+<b>Tip</b>: measure at the same time each day (morning, before eating) for consistent tracking.
+</div></details>
+<details class="prof-acc"><summary>How to use this app</summary><div class="acc-body">
+<b>Today tab</b>: log meals (photo or manual), track water, mark serum intake, and see your daily calorie/macro summary.<br><br>
+<b>Check-in tab</b>: record your daily weight, waist, exercise, energy, hunger, and sleep ratings.<br><br>
+<b>Trends tab</b>: see your weight and waist charts over time, plus macro breakdowns. Export your data as CSV.<br><br>
+<b>Plan tab</b>: view your meal plan, recipes, and shopping list for the week.
+</div></details>
+<details class="prof-acc"><summary>FAQ</summary><div class="acc-body">
+<b>Where is my data stored?</b><br>Locally on your device. Program participants also sync to a secure cloud database.<br><br>
+<b>What if I miss a day?</b><br>No problem. Just pick up where you left off. Consistency matters more than perfection.<br><br>
+<b>Are calorie estimates accurate?</b><br>They are approximations. AI-based estimates can vary. When accuracy matters, use the manual entry mode.<br><br>
+<b>Can I reset my data?</b><br>Contact your program administrator. Local data can be cleared via browser settings.
+</div></details>`;
+  g('profVer').textContent='AEVUM v1.2.0';
+  g('profScrim').classList.add('show');g('profPanel').classList.add('show');
+  history.pushState({sheet:'profile'},'');
+}
+function closeProfile(){
+  if(!g('profPanel').classList.contains('show'))return;
+  if(history.state&&history.state.sheet==='profile')history.back();
+  else{g('profScrim').classList.remove('show');g('profPanel').classList.remove('show');}
+}
+
 function wire(){
   g('prevDay').onclick=()=>{saveDay(true);currentDay=Math.max(1,currentDay-1);loadDay();scrollTo(0,0);};
   g('nextDay').onclick=()=>{saveDay(true);currentDay=currentDay+1;loadDay();scrollTo(0,0);};
   g('todayBtn').onclick=()=>{const td=todayDayNum();if(!td)return;saveDay(true);currentDay=td;loadDay();scrollTo(0,0);};
   g('fWeight').oninput=e=>day.weight=e.target.value;g('fWeight').onblur=()=>saveDay(true);
+  g('fWaist').oninput=e=>{day.waist=e.target.value;};g('fWaist').onblur=()=>saveDay(true);
   g('fNotes').oninput=e=>day.notes=e.target.value;g('fNotes').onblur=()=>saveDay(true);
   g('serumAM').onclick=()=>{day.serumAM=!day.serumAM;saveDay(true);render();};
   g('serumPM').onclick=()=>{day.serumPM=!day.serumPM;saveDay(true);render();};
@@ -3157,6 +3316,7 @@ function wire(){
   g('fcInput').onkeydown=e=>{if(e.key==='Enter')doFoodCheck();};
   g('rtClose')&&(g('rtClose').onclick=closeRoutine);g('rtScrim')&&(g('rtScrim').onclick=closeRoutine);
   g('mvClose')&&(g('mvClose').onclick=closeMovement);g('mvScrim')&&(g('mvScrim').onclick=closeMovement);
+  g('whoName').onclick=openProfile;g('profClose').onclick=closeProfile;g('profScrim').onclick=closeProfile;
   wireGradOnboard();
   g('dPhase').onclick=openPhaseSheet;
   g('phClose').onclick=closePhaseSheet;g('phScrim').onclick=closePhaseSheet;
@@ -3351,6 +3511,7 @@ window.addEventListener('popstate',()=>{
   if(g('mtSheet')&&g('mtSheet').classList.contains('show')){g('mtScrim').classList.remove('show');g('mtSheet').classList.remove('show');}
   if(g('fhSheet')&&g('fhSheet').classList.contains('show')){g('fhScrim').classList.remove('show');g('fhSheet').classList.remove('show');}
   if(g('phSheet')&&g('phSheet').classList.contains('show')){g('phScrim').classList.remove('show');g('phSheet').classList.remove('show');}
+  if(g('profPanel').classList.contains('show')){g('profScrim').classList.remove('show');g('profPanel').classList.remove('show');}
 });
 loadProfile();
 if(profile&&PID){g('onboard').classList.add('hidden');boot();}else{initOnboard();}

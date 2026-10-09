@@ -53,6 +53,15 @@ svg{display:block;}
 #onboard .go{margin-top:26px;width:100%;padding:16px;background:var(--gold);color:var(--ink);border-radius:14px;font-size:16px;font-weight:600;}
 #onboard .go:disabled{opacity:.4;}
 #onboard .need-preview{margin-top:18px;font-size:13px;color:#b7b1a4;text-align:center;min-height:18px;}
+.act-picker{margin-top:4px;}
+.act-options{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.act-opt{cursor:pointer;}
+.act-opt input{position:absolute;opacity:0;pointer-events:none;}
+.act-card{display:flex;flex-direction:column;gap:3px;padding:14px 16px;background:#242320;border:1px solid #34322d;border-radius:12px;transition:border-color .2s,background .2s;}
+.act-card strong{font-size:14px;color:#fff;font-weight:600;}
+.act-card small{font-size:11px;color:#8a8580;line-height:1.3;}
+.act-opt input:checked+.act-card{border-color:var(--gold);background:#2a2820;}
+.act-footnote{margin-top:12px;font-size:11px;color:#6b665c;line-height:1.5;}
 
 /* ===== TOP BAR ===== */
 .topbar{position:sticky;top:0;z-index:20;background:rgba(251,250,247,.92);backdrop-filter:saturate(180%) blur(12px);-webkit-backdrop-filter:saturate(180%) blur(12px);border-bottom:1px solid var(--line);padding:calc(env(safe-area-inset-top) + 10px) 18px 0;}
@@ -755,13 +764,17 @@ textarea.notes::placeholder{color:var(--muted);}
       <div style="flex:1"><label>Weight (kg)</label><input id="ob-w" type="number" inputmode="decimal" placeholder="—"></div>
     </div>
     <div><label>Target weight (kg)</label><input id="ob-target" type="number" inputmode="decimal" placeholder="Your goal"></div>
-    <div><label>Daily activity</label>
-      <select id="ob-act">
-        <option value="1.2">Mostly sitting</option>
-        <option value="1.375">Lightly active</option>
-        <option value="1.55" selected>Moderately active</option>
-        <option value="1.725">Very active</option>
-      </select>
+    <div class="act-picker">
+      <label>Activity level</label>
+      <div class="act-options" id="ob-act-options">
+        <label class="act-opt"><input type="radio" name="ob-act-r" value="1.2"><span class="act-card"><strong>Sedentary</strong><small>Little or no exercise</small></span></label>
+        <label class="act-opt"><input type="radio" name="ob-act-r" value="1.375"><span class="act-card"><strong>Light</strong><small>Exercise 1-3 times/week</small></span></label>
+        <label class="act-opt"><input type="radio" name="ob-act-r" value="1.55" checked><span class="act-card"><strong>Moderate</strong><small>Exercise 4-5 times/week</small></span></label>
+        <label class="act-opt"><input type="radio" name="ob-act-r" value="1.725"><span class="act-card"><strong>Active</strong><small>Daily or intense 3-4 times/week</small></span></label>
+        <label class="act-opt"><input type="radio" name="ob-act-r" value="1.9"><span class="act-card"><strong>Very active</strong><small>Intense exercise 6-7 times/week</small></span></label>
+        <label class="act-opt"><input type="radio" name="ob-act-r" value="2.1"><span class="act-card"><strong>Athlete</strong><small>Very intense daily, or physical job</small></span></label>
+      </div>
+      <p class="act-footnote"><b>Exercise:</b> 15-30 min elevated heart rate. <b>Intense:</b> 45-120 min. <b>Very intense:</b> 2+ hours.</p>
     </div>
   </div>
   <div class="need-preview" id="ob-preview"></div>
@@ -1248,7 +1261,7 @@ const DEFAULTS={
   review_interval_days:7,                      // how often the adaptive target re-checks
   review_step_kcal:150,                        // kcal step per weekly review
   target_floor_kcal:1200,                      // never set the target below this
-  hold_band_kg:0.7,                            // weight-trend tolerance before adjusting
+  hold_band_kg:0.5,                            // weight-trend tolerance before adjusting
   smooth_days:7, min_weighins:4,               // weight smoothing window / min data to act
   calbank_window:4,                            // calorie bank rolling window (days)
   calbank_tolerance:0.05,                      // calorie bank +/- tolerance (5%)
@@ -1542,7 +1555,7 @@ function reviewTarget(){
   if(!inStabHold&&!inMaint)return;
   // seed once: stabilization uses formula ramp value, maintenance/free uses Mifflin TDEE
   if(!(+profile.current_target_kcal>0)){
-    const seed=inStabHold?stabTargetKcal(td):(profile.need||mifflin(profile));
+    const seed=inStabHold?stabTargetKcal(td):Math.round((profile.need||mifflin(profile))*cfgd('maint_cut'));
     saveTargetFields({current_target_kcal:seed,prev_target_kcal:seed,last_review_date:effTodayISO(),last_change_reason:''});
     return;
   }
@@ -1619,16 +1632,18 @@ function mifflin(p){const s=p.sex==='m'?5:-161;return Math.round((10*p.weight+6.
 function initOnboard(){
   // Free-user onboarding: show generic branding
   if(!PID){g('obSub').textContent='WELLNESS TRACKER';g('obLead').textContent='Set up your personal tracker. Your data stays on your phone.';}
-  const name=g('ob-name'),age=g('ob-age'),h=g('ob-h'),w=g('ob-w'),act=g('ob-act'),go=g('ob-go'),prev=g('ob-preview');
+  const name=g('ob-name'),age=g('ob-age'),h=g('ob-h'),w=g('ob-w'),go=g('ob-go'),prev=g('ob-preview');
+  const actRadios=document.querySelectorAll('input[name="ob-act-r"]');
+  function actVal(){const c=document.querySelector('input[name="ob-act-r"]:checked');return c?c.value:'1.55';}
   let sex=null;
   document.querySelectorAll('#ob-sex button').forEach(b=>b.onclick=()=>{sex=b.dataset.v;document.querySelectorAll('#ob-sex button').forEach(x=>x.classList.remove('on'));b.classList.add('on');check();});
   const consent=g('ob-consent');
   const ready=()=>name.value.trim()&&sex&&+age.value>0&&+h.value>0&&+w.value>0&&consent.checked;
-  function check(){go.disabled=!ready();prev.textContent=(name.value.trim()&&sex&&+age.value>0&&+h.value>0&&+w.value>0)?`Reference intake ≈ ${mifflin({sex,age:+age.value,height:+h.value,weight:+w.value,act:act.value}).toLocaleString()} kcal/day`:'';}
-  [name,age,h,w].forEach(el=>el.oninput=check);act.onchange=check;consent.onchange=check;
+  function check(){go.disabled=!ready();prev.textContent=(name.value.trim()&&sex&&+age.value>0&&+h.value>0&&+w.value>0)?`Reference intake ≈ ${mifflin({sex,age:+age.value,height:+h.value,weight:+w.value,act:actVal()}).toLocaleString()} kcal/day`:'';}
+  [name,age,h,w].forEach(el=>el.oninput=check);actRadios.forEach(r=>r.onchange=check);consent.onchange=check;
   go.onclick=()=>{
-    const p={name:name.value.trim(),sex,age:+age.value,height:+h.value,weight:+w.value,act:act.value,
-      need:mifflin({sex,age:+age.value,height:+h.value,weight:+w.value,act:act.value}),target_kg:parseFloat(g('ob-target').value)||null,start:new Date().toISOString().slice(0,10)};
+    const p={name:name.value.trim(),sex,age:+age.value,height:+h.value,weight:+w.value,act:actVal(),
+      need:mifflin({sex,age:+age.value,height:+h.value,weight:+w.value,act:actVal()}),target_kg:parseFloat(g('ob-target').value)||null,start:new Date().toISOString().slice(0,10)};
     if(PID){
       // Existing client with ?id= (onboarded by Marco): save locally, boot
       profile=p;
@@ -3200,7 +3215,7 @@ function closeRecipe(){
 
 
 /* ---- Profile panel ---- */
-function actLabel(v){return{'1.2':'Mostly sitting','1.375':'Lightly active','1.55':'Moderately active','1.725':'Very active'}[v]||v;}
+function actLabel(v){return{'1.2':'Sedentary','1.375':'Light','1.55':'Moderate','1.725':'Active','1.9':'Very active','2.1':'Athlete'}[v]||v;}
 function openProfile(){
   if(!profile)return;
   g('profName').textContent=profile.name;

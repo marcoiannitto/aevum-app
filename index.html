@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ===================================================================== -->
 <!-- AEVUM Tracker · index.html · version in APP_VERSION const below        -->
-<!-- Backends: Apps Script v1.26.0 · API Proxy Worker v1.0.0 · AI Worker v1.13.0 · Frontend v1.30.0 -->
+<!-- Backends: Apps Script v1.26.0 · API Proxy Worker v1.0.0 · AI Worker v1.13.0 · Frontend v1.31.0 -->
 <!-- ===================================================================== -->
 <html lang="en">
 <head>
@@ -409,6 +409,36 @@ textarea.notes::placeholder{color:var(--muted);}
 .cal-cell.on{background:var(--ink);border-color:var(--ink);}
 .cal-cell.on .cc-day{color:#fff;}
 .cal-cell.on::before{opacity:1;}
+/* week strip */
+.wk-strip{display:flex;flex-direction:column;gap:6px;margin-bottom:10px;}
+.wk-nav{display:flex;align-items:center;gap:8px;}
+.wk-nav .wk-label{flex:1;text-align:center;font-size:13px;font-weight:600;color:var(--ink);cursor:pointer;font-family:var(--serif);}
+.wk-nav .wk-label::after{content:' ▾';font-size:10px;opacity:.4;}
+.wk-nav .arrow{font-size:18px;width:32px;height:32px;border:none;background:none;color:var(--ink);cursor:pointer;border-radius:8px;}
+.wk-nav .arrow:active{background:var(--line);}
+.wk-row{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;}
+.wk-cell{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 0 6px;border:1px solid var(--line);border-radius:10px;background:var(--card);cursor:pointer;position:relative;}
+.wk-cell .wk-dow{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;}
+.wk-cell .wk-date{font-family:var(--serif);font-size:16px;font-weight:500;color:var(--ink);}
+.wk-cell .wk-dnum{font-size:9px;color:var(--muted);}
+.wk-cell .wk-dot{width:5px;height:5px;border-radius:50%;background:var(--gold-deep);margin-top:1px;}
+.wk-cell .wk-dot.empty{background:transparent;}
+.wk-cell::before{content:'';position:absolute;top:4px;right:4px;width:5px;height:5px;border-radius:50%;background:var(--pc,transparent);opacity:.8;}
+.wk-cell.today{border-color:var(--gold);box-shadow:0 0 0 1.5px var(--gold) inset;}
+.wk-cell.on{background:var(--ink);border-color:var(--ink);}
+.wk-cell.on .wk-date,.wk-cell.on .wk-dow,.wk-cell.on .wk-dnum{color:#fff;}
+/* month popover */
+.mo-pop{display:none;position:absolute;left:0;right:0;top:100%;z-index:30;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;box-shadow:0 8px 24px rgba(0,0,0,.12);}
+.mo-pop.show{display:block;}
+.mo-pop .mo-head{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+.mo-pop .mo-head .mo-title{flex:1;text-align:center;font-size:14px;font-weight:600;font-family:var(--serif);}
+.mo-pop .mo-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center;}
+.mo-pop .mo-dow{font-size:10px;color:var(--muted);padding:2px 0;}
+.mo-pop .mo-day{font-size:13px;padding:6px 0;border-radius:8px;cursor:pointer;color:var(--ink);}
+.mo-pop .mo-day:hover{background:var(--line);}
+.mo-pop .mo-day.on{background:var(--ink);color:#fff;}
+.mo-pop .mo-day.today{border:1px solid var(--gold);}
+.mo-pop .mo-day.out{color:var(--muted);opacity:.4;}
 .cal-legend{display:flex;flex-wrap:wrap;gap:12px;margin:0 2px 14px;font-size:11px;color:var(--muted);}
 .cal-legend span{display:inline-flex;align-items:center;gap:5px;}
 .cal-legend i{width:8px;height:8px;border-radius:50%;display:inline-block;}
@@ -1188,9 +1218,10 @@ textarea.notes::placeholder{color:var(--muted);}
 
 <script>
 /* ===== SINGLE SOURCE OF TRUTH FOR VERSION ===== */
-const APP_VERSION='v1.30.0';
+const APP_VERSION='v1.31.0';
 
 /* CHANGELOG (full history in aevum-improvements.md)
+   v1.31.0 — AI debug: console.error in calculator catch blocks. Maintenance target weight anchored to 7-day rolling average. Trends: weekly compliance bars + score card when >21 days. Plan: week strip calendar with real dates, month popover for jumping.
    v1.30.0 — Profile tap affordance: chevron after name in topbar to signal tappability.
    v1.29.0 — Activity level: 6-tier radio card picker (Sedentary to Athlete) with exercise definitions. Maintenance seed uses TDEE x 0.90 (was full TDEE). hold_band_kg default 0.7 to 0.5.
    v1.28.0 — Maintenance trends fix: calorie target uses maintTarget(), color bands use Rules maintenance rows (pct basis fix), phase bar shows only Maintenance, weight chart shows original target line.
@@ -1558,7 +1589,14 @@ function reviewTarget(){
   // seed once: stabilization uses formula ramp value, maintenance/free uses Mifflin TDEE
   if(!(+profile.current_target_kcal>0)){
     const seed=inStabHold?stabTargetKcal(td):Math.round((profile.need||mifflin(profile))*cfgd('maint_cut'));
-    saveTargetFields({current_target_kcal:seed,prev_target_kcal:seed,last_review_date:effTodayISO(),last_change_reason:''});
+    const seedFields={current_target_kcal:seed,prev_target_kcal:seed,last_review_date:effTodayISO(),last_change_reason:''};
+    // anchor maintenance target weight to 7-day average at entry
+    if(inMaint && !(+profile.maint_target_weight>0)){
+      const wSeed=[];
+      for(let d=td-1;d>=Math.max(1,td-cfgd('smooth_days'));d--){const o=dayData(d);if(o){const w=parseFloat(o.weight);if(w>0)wSeed.push(w);}}
+      if(wSeed.length>=2){const mtw=Math.round(wSeed.reduce((a,b)=>a+b,0)/wSeed.length*10)/10;seedFields.maint_target_weight=mtw;}
+    }
+    saveTargetFields(seedFields);
     return;
   }
   // weekly cadence
@@ -1575,8 +1613,8 @@ function reviewTarget(){
   const avg=a=>a.reduce((x,y)=>x+y,0)/a.length;
   const smoothed=avg(ws), half=Math.max(1,Math.floor(ws.length/2));
   const slope=avg(ws.slice(0,half))-avg(ws.slice(-half));   // >0 rising, <0 falling
-  // target weight: stabilization uses stab target, maintenance uses target_kg or start_weight
-  const tw=inStabHold?stabTargetWeight():(+profile.target_kg>0?+profile.target_kg:(+profile.start_weight||+profile.weight||null));
+  // target weight: stabilization uses stab target, maintenance uses 7-day avg anchor (or fallback)
+  const tw=inStabHold?stabTargetWeight():(+profile.maint_target_weight>0?+profile.maint_target_weight:(+profile.target_kg>0?+profile.target_kg:(+profile.start_weight||+profile.weight||null)));
   const band=cfgd('hold_band_kg');
   const step=cfgd('review_step_kcal'), floor=cfgd('target_floor_kcal');
   // ceiling: stabilization uses stabTDEE, maintenance uses full Mifflin TDEE
@@ -2400,7 +2438,7 @@ function renderTrends(){
     wirePortionBars();
   }else{
     g('macroTitle').textContent='Calories vs phase target';
-    g('macroChart').innerHTML=macroBars(range);
+    g('macroChart').innerHTML=complianceScore(md,range)+macroBars(range);
     wireMacroBars();
   }
 }
@@ -2487,6 +2525,16 @@ function dayCalState(dayNum,k){
   // rules use % basis (adaptive_kcal): compare pct-of-target, not raw kcal
   return bandClass(pct,kr)||'ok';
 }
+function complianceScore(allMacro,range){
+  if(!allMacro||!allMacro.length)return '';
+  const td=todayDayNum()||currentDay;
+  const recent=allMacro.filter(d=>d.day>td-7&&d.day<=td);
+  if(recent.length<2)return '';
+  const onTarget=recent.filter(d=>dayCalState(d.day,d.kcal)==='ok').length;
+  const pct=Math.round(onTarget/recent.length*100);
+  const col=pct>=80?'#4a7a52':pct>=50?'#B7791F':'#A13024';
+  return `<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px;"><span style="font-size:22px;font-weight:700;color:${col};font-family:var(--serif)">${pct}%</span><span style="font-size:12px;color:#8a8580">on target last 7 days (${onTarget}/${recent.length})</span></div>`;
+}
 function macroBars(range){
   const data=collectMacroDays();
   if(data.length<1)return '<div class="chart-empty">Log some meals to see your calorie history.</div>';
@@ -2495,34 +2543,58 @@ function macroBars(range){
   const d0=range?range[0]:allDays[0], dN=range?range[1]:allDays[allDays.length-1], span=(dN-d0)||1;
   const dayCount=(dN-d0+1);
   const W=440,H=150,padL=16,padR=16,padT=16,padB=28;
+  const COL={ok:'#4a7a52',warn:'#B7791F',over:'#A13024'};
+  const barH=H-padT-padB;
+  /* ---- weekly grouped view when >21 days ---- */
+  if(dayCount>21){
+    const weeks=[];
+    for(let ws=d0;ws<=dN;ws+=7){
+      const we=Math.min(ws+6,dN);
+      const wDays=data.filter(d=>d.day>=ws&&d.day<=we);
+      if(!wDays.length){weeks.push({s:ws,e:we,pct:null,n:0});continue;}
+      const onT=wDays.filter(d=>dayCalState(d.day,d.kcal)==='ok').length;
+      weeks.push({s:ws,e:we,pct:Math.round(onT/wDays.length*100),n:wDays.length});
+    }
+    const wc=weeks.length, bw=Math.max(14,Math.min(36,(W-padL-padR)/Math.max(1,wc)*0.65));
+    const xs=i=>padL+(i+0.5)/(wc)*(W-padL-padR);
+    let bars='';
+    weeks.forEach((wk,i)=>{
+      if(wk.pct===null)return;
+      const h=wk.pct/100*barH, y=(H-padB)-h;
+      const col=wk.pct>=80?COL.ok:wk.pct>=50?COL.warn:COL.over;
+      const x=xs(i);
+      const dt0=dayToDate(wk.s),dt1=dayToDate(wk.e);
+      const lbl=dt0?fmtShort(dt0).split(',')[0]:'Wk'+(i+1);
+      bars+=`<rect class="mbar" data-day="${wk.s}" data-k="${wk.pct}%" data-p="${wk.n} days" data-f="" data-c="" x="${(x-bw/2).toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(2,h).toFixed(1)}" rx="4" fill="${col}"/>`;
+      bars+=`<text x="${x.toFixed(1)}" y="${H-8}" font-size="9" fill="#938c7d" text-anchor="middle" font-family="sans-serif">${lbl}</text>`;
+    });
+    // 80% line
+    const y80=(H-padB)-0.8*barH;
+    const guideLine=`<line x1="${padL}" y1="${y80.toFixed(1)}" x2="${W-padR}" y2="${y80.toFixed(1)}" stroke="#4a7a52" stroke-width="1" stroke-dasharray="3 3" opacity="0.4"/>`;
+    return `<svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet">
+      ${guideLine}
+      <text x="${W-padR}" y="${(y80-4).toFixed(1)}" font-size="9" fill="#4a7a52" text-anchor="end" font-family="sans-serif">80% on target</text>
+      ${bars}
+    </svg>`;
+  }
+  /* ---- day-by-day view (<=21 days) ---- */
   const xs=d=>padL+(d-d0)/span*(W-padL-padR);
   const bw=Math.max(6,Math.min(22,(W-padL-padR)/Math.max(1,dayCount)*0.55));
-  const COL={ok:'#4a7a52',warn:'#B7791F',over:'#A13024'};
-  // Each day is normalized to ITS OWN phase target band, so one flat "on target" zone
-  // works across every phase. The ok band (in kcal) is pinned to a fixed slice of the
-  // chart height; a bar landing inside the band = on target for that day's phase.
-  const barH=H-padT-padB;
-  // PHASE-CONSISTENT normalization. Each day has its own acceptable band [lo,hi] (kcal), which differs
-  // by phase. We map EVERY day's band onto ONE fixed strip [Y_LO,Y_HI], so the drawn band is identical
-  // across phases. A bar's height is then its position relative to ITS OWN band:
-  //   below band  -> proportional to value/lo (how far under target that day)
-  //   inside band -> interpolated lo..hi across the strip
-  //   above band  -> above the strip, scaled by how far over hi
-  const Y_LO=0.50, Y_HI=0.64;                 // the acceptable band, fixed for every day
+  const Y_LO=0.50, Y_HI=0.64;
   const okKcal=dayNum=>{
     const k=phaseFor(dayNum).key;
     if(k==='loading'){const t=phaseTargetKcal(dayNum)||1;return [t*0.9,t];}
     if(k==='maintenance'){const mt=maintTarget()||1;return [mt*0.95, mt*1.05];}
     if(k==='consolidation'){return [effectiveStabTarget(dayNum), stabTDEE()];}
-    return [CAL_LOW_AMBER,CAL_HIGH_AMBER];    // activation / transition
+    return [CAL_LOW_AMBER,CAL_HIGH_AMBER];
   };
   const fracFor=(dayNum,v)=>{
     const [lo,hi]=okKcal(dayNum); const L=lo||1, Hh=(hi&&hi>L)?hi:L*1.001;
-    if(v<=L) return Math.max(0.02,(v/L)*Y_LO);                          // below band: ratio to target
-    if(v<=Hh) return Y_LO+(v-L)/(Hh-L)*(Y_HI-Y_LO);                     // inside band
-    return Math.min(0.97, Y_HI+(v-Hh)/Hh*(Y_HI-Y_LO)*2);               // above band
+    if(v<=L) return Math.max(0.02,(v/L)*Y_LO);
+    if(v<=Hh) return Y_LO+(v-L)/(Hh-L)*(Y_HI-Y_LO);
+    return Math.min(0.97, Y_HI+(v-Hh)/Hh*(Y_HI-Y_LO)*2);
   };
-  const yBot=(H-padB)-Y_LO*barH, yTop=(H-padB)-Y_HI*barH;   // one flat band, same for every day/phase
+  const yBot=(H-padB)-Y_LO*barH, yTop=(H-padB)-Y_HI*barH;
   let grid='';
   for(let dd=d0;dd<=dN;dd++){const x=xs(dd).toFixed(1);grid+=`<line x1="${x}" y1="${padT}" x2="${x}" y2="${H-padB}" stroke="#EBE5D8" stroke-width="1" opacity="0.7"/>`;}
   const band=`<rect x="${padL}" y="${yTop.toFixed(1)}" width="${(W-padL-padR).toFixed(1)}" height="${(yBot-yTop).toFixed(1)}" fill="#B08D2E" opacity="0.10"/>`+
@@ -2549,7 +2621,12 @@ function wireMacroBars(){
   const bars=document.querySelectorAll('#macroChart .mbar');
   if(!bars.length){if(ro)ro.textContent='';return;}
   const last=bars[bars.length-1];
-  const show=b=>{if(ro)ro.innerHTML=`Day ${b.dataset.day} · <b>${b.dataset.k}</b> kcal · ${phaseTargetLabel(+b.dataset.day)}`;};
+  const isWeekly=last.dataset.k&&last.dataset.k.endsWith('%');
+  const show=b=>{
+    if(!ro)return;
+    if(isWeekly){ro.innerHTML=`Week from Day ${b.dataset.day} · <b>${b.dataset.k}</b> on target · ${b.dataset.p}`;}
+    else{ro.innerHTML=`Day ${b.dataset.day} · <b>${b.dataset.k}</b> kcal · ${phaseTargetLabel(+b.dataset.day)}`;}
+  };
   show(last);
   bars.forEach(b=>b.onclick=()=>{bars.forEach(x=>x.setAttribute('opacity','0.55'));b.setAttribute('opacity','1');show(b);});
 }
@@ -2691,7 +2768,7 @@ async function calcMeal(btn,payloadBuilder,hintOnEmpty){
   try{
     let d; try{d=await call();}catch(e1){d=await call();} // retry cold start / timeout
     fillMacros(d);g('meHint').textContent='AI estimate. Tap any number to adjust.';
-  }catch(err){g('meHint').textContent=g('meFlags').classList.contains('hidden')?'Could not calculate. Enter the macros yourself.':'Could not check it. Try again.';}
+  }catch(err){console.error('calcMeal',err);g('meHint').textContent=g('meFlags').classList.contains('hidden')?'Could not calculate. Enter the macros yourself.':'Could not check it. Try again.';}
   finally{btn.disabled=false;btn.innerHTML=orig;}
 }
 function calcDescribe(){
@@ -2869,7 +2946,7 @@ async function calcMacrosOnly(){
       <div class="fc-verdict">${esc(d.name||'Meal')}</div>
       <div class="fc-reason"><b>${Math.round(d.kcal||0)}</b> kcal · ${Math.round(d.protein||0)}P · ${Math.round(d.fat||0)}F · ${Math.round(d.carbs||0)}C</div>
       </div></div>`;
-  }catch(err){g('fhCalcResult').innerHTML='<div class="fc-reason">Could not calculate. Try again.</div>';}
+  }catch(err){console.error('foodHubCalc',err);g('fhCalcResult').innerHTML='<div class="fc-reason">Could not calculate. Try again.</div>';}
   finally{btn.disabled=false;btn.innerHTML=orig;}
 }
 async function doFoodCheck(){
@@ -2901,6 +2978,7 @@ async function doFoodCheck(){
     localStorage.setItem(ck,JSON.stringify(d));
     showResult(d);
   }catch(err){
+    console.error('foodCheck',err);
     g('fcResult').innerHTML='<div class="fc-reason">Could not check. Tap Check to try again.</div>';
   }finally{btn.disabled=false;}
 }
@@ -2956,25 +3034,118 @@ function dayToDate(dayNum){
   return dt;
 }
 function fmtShort(dt){return dt.toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'});}
+function renderMonthPopover(yr,mo,maxDay,todayDay,planned){
+  const po=g('moPopover');if(!po)return;
+  const dows=['M','T','W','T','F','S','S'];
+  const mName=new Date(yr,mo,1).toLocaleDateString(undefined,{month:'long',year:'numeric'});
+  let h=`<div class="mo-head"><button class="arrow" id="moPrev">‹</button><span class="mo-title">${mName}</span><button class="arrow" id="moNext">›</button></div>`;
+  h+='<div class="mo-grid">';
+  dows.forEach(d=>{h+=`<div class="mo-dow">${d}</div>`;});
+  const first=new Date(yr,mo,1);
+  const startOff=(first.getDay()+6)%7; // 0=Mon
+  const daysInMonth=new Date(yr,mo+1,0).getDate();
+  const sd=startDateStr();const s=sd?new Date(sd+'T00:00:00'):null;
+  for(let i=0;i<startOff;i++)h+=`<div class="mo-day out"></div>`;
+  for(let d=1;d<=daysInMonth;d++){
+    const dt=new Date(yr,mo,d);
+    let dn=null;
+    if(s&&!isNaN(s)){dn=Math.floor((dt.getTime()-s.getTime())/86400000)+1;}
+    const valid=dn!==null&&dn>=1&&dn<=maxDay;
+    const cls=['mo-day'];
+    if(valid&&dn===planDay)cls.push('on');
+    if(valid&&dn===todayDay)cls.push('today');
+    if(!valid)cls.push('out');
+    h+=`<div class="${cls.join(' ')}" ${valid?`data-dn="${dn}"`:''} style="cursor:${valid?'pointer':'default'}">${d}</div>`;
+  }
+  h+='</div>';
+  po.innerHTML=h;
+  // wire month nav
+  g('moPrev').onclick=(e)=>{e.stopPropagation();const pm=mo===0?11:mo-1;const py=mo===0?yr-1:yr;renderMonthPopover(py,pm,maxDay,todayDay,planned);};
+  g('moNext').onclick=(e)=>{e.stopPropagation();const nm=mo===11?0:mo+1;const ny=mo===11?yr+1:yr;renderMonthPopover(ny,nm,maxDay,todayDay,planned);};
+  // wire day clicks
+  po.querySelectorAll('.mo-day[data-dn]').forEach(el=>{
+    el.onclick=()=>{planDay=+el.dataset.dn;po.classList.remove('show');renderPlan();};
+  });
+}
 function renderPlan(){
   const total=TOTAL_DAYS||totalDays();
   let todayDay=null;
   {const sd=startDateStr();if(sd){const s=new Date(sd+'T00:00:00');if(!isNaN(s))todayDay=Math.floor((effNow()-s.getTime())/86400000)+1;}}
   const maxDay=Math.max(total,todayDay||total);
   if(planDay<1||planDay>maxDay){planDay=(todayDay&&todayDay>=1)?todayDay:1;}
-  // full-program calendar grid, coloured by phase
-  const db=g('planDays');db.className='plan-cal';db.innerHTML='';
+  // week strip calendar with real dates
+  const db=g('planDays');db.className='wk-strip';db.innerHTML='';
   const planned=new Set(planDaysAvailable());
-  for(let d=1;d<=maxDay;d++){
-    const pf=phaseFor(d),has=planned.has(d)||planEdit[d];
+  const dows=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  // determine which week to show (week containing planDay)
+  const planDate=dayToDate(planDay);
+  // getISODay: 0=Mon...6=Sun
+  const isoDay=d=>(d.getDay()+6)%7;
+  // find Monday of the week containing planDay
+  let weekMonDate;
+  if(planDate){weekMonDate=new Date(planDate);weekMonDate.setDate(weekMonDate.getDate()-isoDay(planDate));}
+  else{const now=new Date(effNow());weekMonDate=new Date(now);weekMonDate.setDate(weekMonDate.getDate()-isoDay(now));}
+  // month label
+  const monLabel=weekMonDate.toLocaleDateString(undefined,{month:'long',year:'numeric'});
+  // nav + label
+  const nav=document.createElement('div');nav.className='wk-nav';
+  nav.innerHTML=`<button class="arrow" id="wkPrev">‹</button><span class="wk-label" id="wkMonthLabel">${monLabel}</span><button class="arrow" id="wkNext">›</button>`;
+  db.appendChild(nav);
+  // week row
+  const row=document.createElement('div');row.className='wk-row';
+  for(let i=0;i<7;i++){
+    const cellDate=new Date(weekMonDate);cellDate.setDate(weekMonDate.getDate()+i);
+    // which dayNum is this date?
+    const sd=startDateStr();let dn=null;
+    if(sd){const s=new Date(sd+'T00:00:00');if(!isNaN(s)){dn=Math.floor((cellDate.getTime()-s.getTime())/86400000)+1;}}
+    const valid=dn!==null&&dn>=1&&dn<=maxDay;
+    const pf=valid?phaseFor(dn):null;
+    const has=valid&&(planned.has(dn)||planEdit[dn]);
+    const isToday=valid&&dn===todayDay;
+    const isOn=valid&&dn===planDay;
     const cell=document.createElement('button');
-    cell.className='cal-cell'+(d===planDay?' on':'')+(d===todayDay?' today':'');
-    cell.style.setProperty('--pc',pf.color);
-    cell.title='Day '+d+' · '+pf.name;
-    cell.innerHTML=`<span class="cc-day">${d}</span>${has?'<span class="cc-dot"></span>':''}`;
-    cell.onclick=()=>{planDay=d;renderPlan();};
-    db.appendChild(cell);
+    cell.className='wk-cell'+(isOn?' on':'')+(isToday?' today':'');
+    if(pf)cell.style.setProperty('--pc',pf.color);
+    if(!valid){cell.style.opacity='.3';cell.disabled=true;}
+    const dateNum=cellDate.getDate();
+    cell.innerHTML=`<span class="wk-dow">${dows[i]}</span><span class="wk-date">${dateNum}</span>${valid?`<span class="wk-dnum">Day ${dn}</span>`:''}${has?'<span class="wk-dot"></span>':'<span class="wk-dot empty"></span>'}`;
+    if(valid){const dd=dn;cell.onclick=()=>{planDay=dd;renderPlan();};}
+    row.appendChild(cell);
   }
+  db.appendChild(row);
+  // month popover container (positioned relative to db)
+  db.style.position='relative';
+  const pop=document.createElement('div');pop.className='mo-pop';pop.id='moPopover';
+  db.appendChild(pop);
+  // wire nav
+  const prevBtn=g('wkPrev'),nextBtn=g('wkNext'),monthLbl=g('wkMonthLabel');
+  prevBtn.onclick=()=>{
+    // go to previous week: find dayNum for Monday-7
+    const prevMon=new Date(weekMonDate);prevMon.setDate(weekMonDate.getDate()-7);
+    const sd=startDateStr();if(!sd)return;
+    const s=new Date(sd+'T00:00:00');if(isNaN(s))return;
+    let dn=Math.floor((prevMon.getTime()-s.getTime())/86400000)+1;
+    // clamp: pick a valid day in that week
+    for(let off=0;off<7;off++){const dd=dn+off;if(dd>=1&&dd<=maxDay){planDay=dd;renderPlan();return;}}
+  };
+  nextBtn.onclick=()=>{
+    const nextMon=new Date(weekMonDate);nextMon.setDate(weekMonDate.getDate()+7);
+    const sd=startDateStr();if(!sd)return;
+    const s=new Date(sd+'T00:00:00');if(isNaN(s))return;
+    let dn=Math.floor((nextMon.getTime()-s.getTime())/86400000)+1;
+    for(let off=0;off<7;off++){const dd=dn+off;if(dd>=1&&dd<=maxDay){planDay=dd;renderPlan();return;}}
+  };
+  // month popover toggle
+  monthLbl.onclick=()=>{
+    const po=g('moPopover');
+    if(po.classList.contains('show')){po.classList.remove('show');return;}
+    // build month grid for the month containing planDay
+    const viewDate=planDate||new Date(effNow());
+    const yr=viewDate.getFullYear(),mo=viewDate.getMonth();
+    renderMonthPopover(yr,mo,maxDay,todayDay,planned);
+    po.classList.add('show');
+  };
+  // legend
   {const lg=g('planLegend');if(lg)lg.innerHTML=
     `<span><i style="background:#8a8a8a"></i>Loading</span>`+
     `<span><i style="background:#B08D2E"></i>Activation/Transition</span>`+
@@ -3496,7 +3667,7 @@ function fetchProfile(){
   fetch(BACKEND_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'profile',id:PID})})
     .then(r=>r.json()).then(d=>{
       if(d.profile){
-        const P=d.profile, keep={target_kg:P.target_kg,start_weight:P.start_weight,start_date:P.start_date,activation_days:P.activation_days,stab_target_weight:P.stab_target_weight};
+        const P=d.profile, keep={target_kg:P.target_kg,start_weight:P.start_weight,start_date:P.start_date,activation_days:P.activation_days,stab_target_weight:P.stab_target_weight,maint_target_weight:P.maint_target_weight};
         // adaptive-target fields: only overwrite local if the Sheet actually has a value (local may be newer)
         if(+P.current_target_kcal>0)keep.current_target_kcal=P.current_target_kcal;
         if(+P.prev_target_kcal>0)keep.prev_target_kcal=P.prev_target_kcal;

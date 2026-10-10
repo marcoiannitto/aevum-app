@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ===================================================================== -->
 <!-- AEVUM Tracker · index.html · version in APP_VERSION const below        -->
-<!-- Backends: Apps Script v1.26.0 · API Proxy Worker v1.0.0 · AI Worker v1.13.0 · Frontend v1.32.3 -->
+<!-- Backends: Apps Script v1.26.0 · API Proxy Worker v1.0.0 · AI Worker v1.13.0 · Frontend v1.32.4 -->
 <!-- ===================================================================== -->
 <html lang="en">
 <head>
@@ -1222,9 +1222,10 @@ textarea.notes::placeholder{color:var(--muted);}
 
 <script>
 /* ===== SINGLE SOURCE OF TRUTH FOR VERSION ===== */
-const APP_VERSION='v1.32.3';
+const APP_VERSION='v1.32.4';
 
 /* CHANGELOG (full history in aevum-improvements.md)
+   v1.32.4 — Compliance strip redesign: continuous horizontal bar replaces 7 squares. Directional colors: blue (under), green (on target), red (over). Day initials (M T W T F S S) below. Tap a segment for detail tooltip. New dayCalDir() distinguishes under vs over.
    v1.32.3 — Today calorie bar: color now uses percentage-of-target (matching dayCalState and Rules tab bands), was passing raw kcal against percentage thresholds.
    v1.32.2 — Compliance redesign: "This week" shows 7 colored day squares + "X of Y days on target" fraction. Weekly bars tap readout shows fraction instead of percentage. Acceptability band corrected to 80-100%. Fixed wDays scoping bug in weekly bar render.
    v1.32.1 — Weekly bars: count warn as on-target (was ok-only, penalizing amber days). 80% line replaced with acceptability band.
@@ -2533,28 +2534,57 @@ function dayCalState(dayNum,k){
   // rules use % basis (adaptive_kcal): compare pct-of-target, not raw kcal
   return bandClass(pct,kr)||'ok';
 }
+/* directional calorie state: 'under'|'ok'|'warn'|'over'|null */
+function dayCalDir(dayNum,k){
+  const ph=phaseFor(dayNum).key;
+  const tgt=phaseTargetKcal(dayNum);if(!tgt)return'ok';
+  const pct=k/tgt*100;
+  if(ph==='activation'||ph==='transition'){
+    if(k<CAL_LOW_RED)return'under'; if(k>CAL_HIGH_RED)return'over';
+    if(k<CAL_LOW_AMBER)return'under'; if(k>CAL_HIGH_AMBER)return'over';
+    return'ok';
+  }
+  if(ph==='loading')return k>=tgt*0.9?'ok':(k>=tgt*0.6?'warn':'under');
+  const rPhase=(ph==='maintenance')?'maintenance':'stabilization';
+  const kr=ruleFor(rPhase,'kcal');
+  if(!kr)return'ok';
+  if(kr.amber_lo!=null&&pct<kr.amber_lo)return'under';
+  if(kr.amber_hi!=null&&pct>kr.amber_hi)return'over';
+  const okLo=(kr.green_lo==null)||pct>=kr.green_lo, okHi=(kr.green_hi==null)||pct<=kr.green_hi;
+  return(okLo&&okHi)?'ok':'warn';
+}
 function complianceScore(allMacro,range){
   if(!allMacro||!allMacro.length)return '';
   const td=todayDayNum()||currentDay;
   const recent=[];
   for(let d=td-6;d<=td;d++){
     const found=allMacro.find(x=>x.day===d);
-    const st=found?dayCalState(d,found.kcal):null;
-    recent.push({day:d,st});
+    const dir=found?dayCalDir(d,found.kcal):null;
+    recent.push({day:d,dir,kcal:found?found.kcal:null});
   }
-  const logged=recent.filter(r=>r.st!==null);
+  const logged=recent.filter(r=>r.dir!==null);
   if(logged.length<2)return '';
-  const onT=logged.filter(r=>r.st==='ok'||r.st==='warn').length;
-  const COL={ok:'#4a7a52',warn:'#B7791F',over:'#A13024',none:'#e8e2d8'};
-  const squares=recent.map(r=>{
-    const c=r.st===null?COL.none:(r.st==='ok'||r.st==='warn')?COL.ok:COL.over;
-    return `<div style="width:28px;height:28px;border-radius:5px;background:${c};"></div>`;
+  const onT=logged.filter(r=>r.dir==='ok'||r.dir==='warn').length;
+  const COL={ok:'#4a7a52',warn:'#B7791F',over:'#A13024',under:'#4a6fa5',none:'#e8e2d8'};
+  const DAYS=['M','T','W','T','F','S','S'];
+  const segs=recent.map((r,i)=>{
+    let c=COL.none;
+    if(r.dir==='ok'||r.dir==='warn')c=COL.ok;
+    else if(r.dir==='over')c=COL.over;
+    else if(r.dir==='under')c=COL.under;
+    const rd=i===0?'4px 0 0 4px':(i===6?'0 4px 4px 0':'0');
+    const tgt=phaseTargetKcal(r.day)||0;
+    const lbl=r.dir==='under'?'under target':r.dir==='over'?'over target':'on target';
+    return `<div data-tip="Day ${r.day} · ${r.kcal!=null?r.kcal+' kcal':'no data'} · ${r.kcal!=null?lbl:''}" style="flex:1;height:12px;background:${c};border-radius:${rd};cursor:pointer;"></div>`;
   }).join('');
+  const dayLabels=DAYS.map(d=>`<div style="flex:1;text-align:center;font-size:9px;color:#8a8580;">${d}</div>`).join('');
   const sumCol=onT>=5?'#4a7a52':onT>=3?'#B7791F':'#A13024';
-  return `<div style="margin-bottom:12px;">
+  return `<div style="margin-bottom:12px;" id="compStrip">
     <div style="font-size:11px;color:#8a8580;margin-bottom:6px;">This week</div>
-    <div style="display:flex;gap:4px;margin-bottom:6px;">${squares}</div>
+    <div style="display:flex;gap:1px;margin-bottom:3px;">${segs}</div>
+    <div style="display:flex;gap:1px;margin-bottom:6px;">${dayLabels}</div>
     <div style="font-size:14px;font-weight:600;color:${sumCol}">${onT} of ${logged.length} days on target</div>
+    <div id="compTip" style="font-size:11px;color:#8a8580;min-height:16px;margin-top:2px;"></div>
   </div>`;
 }
 function macroBars(range){
@@ -2652,6 +2682,14 @@ function wireMacroBars(){
   };
   show(last);
   bars.forEach(b=>b.onclick=()=>{bars.forEach(x=>x.setAttribute('opacity','0.55'));b.setAttribute('opacity','1');show(b);});
+  // wire compliance strip tap
+  const strip=g('compStrip');
+  if(strip){
+    const tip=g('compTip');
+    strip.querySelectorAll('[data-tip]').forEach(seg=>{
+      seg.onclick=()=>{if(tip)tip.textContent=seg.dataset.tip;};
+    });
+  }
 }
 /* ---- portion adherence (Activation/Transition Trends) ---- (PORTION_TARGET in SETTINGS) */
 function dayPortions(o){

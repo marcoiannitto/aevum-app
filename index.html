@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ===================================================================== -->
 <!-- AEVUM Tracker · index.html · version in APP_VERSION const below        -->
-<!-- Backends: Apps Script v1.26.0 · API Proxy Worker v1.0.0 · AI Worker v1.13.0 · Frontend v1.32.2 -->
+<!-- Backends: Apps Script v1.26.0 · API Proxy Worker v1.0.0 · AI Worker v1.13.0 · Frontend v1.32.3 -->
 <!-- ===================================================================== -->
 <html lang="en">
 <head>
@@ -1222,9 +1222,10 @@ textarea.notes::placeholder{color:var(--muted);}
 
 <script>
 /* ===== SINGLE SOURCE OF TRUTH FOR VERSION ===== */
-const APP_VERSION='v1.32.2';
+const APP_VERSION='v1.32.3';
 
 /* CHANGELOG (full history in aevum-improvements.md)
+   v1.32.3 — Today calorie bar: color now uses percentage-of-target (matching dayCalState and Rules tab bands), was passing raw kcal against percentage thresholds.
    v1.32.2 — Compliance redesign: "This week" shows 7 colored day squares + "X of Y days on target" fraction. Weekly bars tap readout shows fraction instead of percentage. Acceptability band corrected to 80-100%. Fixed wDays scoping bug in weekly bar render.
    v1.32.1 — Weekly bars: count warn as on-target (was ok-only, penalizing amber days). 80% line replaced with acceptability band.
    v1.32.0 — Weekly compliance bars: labels now "Wk 1, Wk 2" (was weekday names), skip partial weeks <3 days. Profile: "Chat with your coach" WhatsApp link, driven by coach_whatsapp in Profile tab.
@@ -1885,8 +1886,8 @@ function renderCalories(ph,t,macroAct){
     // Exercise is a tracker only, it does NOT move the target (activity multiplier already averages it in).
     const kr=ruleFor('stabilization','kcal');
     const target=(ph.key==='maintenance')?maintTarget():effectiveStabTarget(currentDay), pct=target>0?t.kcal/target*100:0;
-    // Bands from Rules tab (adaptive_kcal basis, resolved to absolutes by GAS)
-    const cls=kr?bandClass(t.kcal,kr):'';
+    // Bands from Rules tab use % basis (adaptive_kcal): compare pct-of-target, not raw kcal
+    const cls=kr?bandClass(pct,kr):'';
     bar.className='calbar'+(cls?' '+cls:'');
     bar.firstElementChild.style.width=Math.min(100,pct)+'%';
     g('calBarLeft').textContent=`${t.kcal.toLocaleString()} / ${target.toLocaleString()} kcal`;

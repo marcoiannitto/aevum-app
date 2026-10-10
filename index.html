@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ===================================================================== -->
 <!-- AEVUM Tracker · index.html · version in APP_VERSION const below        -->
-<!-- Backends: Apps Script v1.26.0 · API Proxy Worker v1.0.0 · AI Worker v1.13.0 · Frontend v1.32.1 -->
+<!-- Backends: Apps Script v1.26.0 · API Proxy Worker v1.0.0 · AI Worker v1.13.0 · Frontend v1.32.2 -->
 <!-- ===================================================================== -->
 <html lang="en">
 <head>
@@ -1222,10 +1222,11 @@ textarea.notes::placeholder{color:var(--muted);}
 
 <script>
 /* ===== SINGLE SOURCE OF TRUTH FOR VERSION ===== */
-const APP_VERSION='v1.32.1';
+const APP_VERSION='v1.32.2';
 
 /* CHANGELOG (full history in aevum-improvements.md)
-   v1.32.1 — Weekly bars: count warn as on-target (was ok-only, penalizing amber days). 80% line replaced with 60-80% acceptability band.
+   v1.32.2 — Compliance redesign: "This week" shows 7 colored day squares + "X of Y days on target" fraction. Weekly bars tap readout shows fraction instead of percentage. Acceptability band corrected to 80-100%. Fixed wDays scoping bug in weekly bar render.
+   v1.32.1 — Weekly bars: count warn as on-target (was ok-only, penalizing amber days). 80% line replaced with acceptability band.
    v1.32.0 — Weekly compliance bars: labels now "Wk 1, Wk 2" (was weekday names), skip partial weeks <3 days. Profile: "Chat with your coach" WhatsApp link, driven by coach_whatsapp in Profile tab.
    v1.31.0 — AI debug: console.error in calculator catch blocks. Maintenance target weight anchored to 7-day rolling average. Trends: weekly compliance bars + score card when >21 days. Plan: week strip calendar with real dates, month popover for jumping.
    v1.30.0 — Profile tap affordance: chevron after name in topbar to signal tappability.
@@ -2534,12 +2535,26 @@ function dayCalState(dayNum,k){
 function complianceScore(allMacro,range){
   if(!allMacro||!allMacro.length)return '';
   const td=todayDayNum()||currentDay;
-  const recent=allMacro.filter(d=>d.day>td-7&&d.day<=td);
-  if(recent.length<2)return '';
-  const onTarget=recent.filter(d=>{const s=dayCalState(d.day,d.kcal);return s==='ok'||s==='warn';}).length;
-  const pct=Math.round(onTarget/recent.length*100);
-  const col=pct>=80?'#4a7a52':pct>=50?'#B7791F':'#A13024';
-  return `<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px;"><span style="font-size:22px;font-weight:700;color:${col};font-family:var(--serif)">${pct}%</span><span style="font-size:12px;color:#8a8580">on target last 7 days (${onTarget}/${recent.length})</span></div>`;
+  const recent=[];
+  for(let d=td-6;d<=td;d++){
+    const found=allMacro.find(x=>x.day===d);
+    const st=found?dayCalState(d,found.kcal):null;
+    recent.push({day:d,st});
+  }
+  const logged=recent.filter(r=>r.st!==null);
+  if(logged.length<2)return '';
+  const onT=logged.filter(r=>r.st==='ok'||r.st==='warn').length;
+  const COL={ok:'#4a7a52',warn:'#B7791F',over:'#A13024',none:'#e8e2d8'};
+  const squares=recent.map(r=>{
+    const c=r.st===null?COL.none:(r.st==='ok'||r.st==='warn')?COL.ok:COL.over;
+    return `<div style="width:28px;height:28px;border-radius:5px;background:${c};"></div>`;
+  }).join('');
+  const sumCol=onT>=5?'#4a7a52':onT>=3?'#B7791F':'#A13024';
+  return `<div style="margin-bottom:12px;">
+    <div style="font-size:11px;color:#8a8580;margin-bottom:6px;">This week</div>
+    <div style="display:flex;gap:4px;margin-bottom:6px;">${squares}</div>
+    <div style="font-size:14px;font-weight:600;color:${sumCol}">${onT} of ${logged.length} days on target</div>
+  </div>`;
 }
 function macroBars(range){
   const data=collectMacroDays();
@@ -2557,9 +2572,9 @@ function macroBars(range){
     for(let ws=d0;ws<=dN;ws+=7){
       const we=Math.min(ws+6,dN);
       const wDays=data.filter(d=>d.day>=ws&&d.day<=we);
-      if(!wDays.length){weeks.push({s:ws,e:we,pct:null,n:0});continue;}
+      if(!wDays.length){weeks.push({s:ws,e:we,pct:null,n:0,onT:0});continue;}
       const onT=wDays.filter(d=>{const s=dayCalState(d.day,d.kcal);return s==='ok'||s==='warn';}).length;
-      weeks.push({s:ws,e:we,pct:Math.round(onT/wDays.length*100),n:wDays.length});
+      weeks.push({s:ws,e:we,pct:Math.round(onT/wDays.length*100),n:wDays.length,onT});
     }
     const wc=weeks.length, bw=Math.max(14,Math.min(36,(W-padL-padR)/Math.max(1,wc)*0.65));
     const xs=i=>padL+(i+0.5)/(wc)*(W-padL-padR);
@@ -2571,7 +2586,7 @@ function macroBars(range){
       const x=xs(i);
       if(wk.n<3){return;}
       const lbl='Wk '+(i+1);
-      bars+=`<rect class="mbar" data-day="${wk.s}" data-k="${wk.pct}%" data-p="${wk.n} days" data-f="" data-c="" x="${(x-bw/2).toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(2,h).toFixed(1)}" rx="4" fill="${col}"/>`;
+      bars+=`<rect class="mbar" data-day="${wk.s}" data-k="${wk.onT}/${wk.n}" data-wk="${lbl}" data-f="" data-c="" x="${(x-bw/2).toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(2,h).toFixed(1)}" rx="4" fill="${col}"/>`;
       bars+=`<text x="${x.toFixed(1)}" y="${H-8}" font-size="9" fill="#938c7d" text-anchor="middle" font-family="sans-serif">${lbl}</text>`;
     });
     // acceptability band (80-100%)
@@ -2628,10 +2643,10 @@ function wireMacroBars(){
   const bars=document.querySelectorAll('#macroChart .mbar');
   if(!bars.length){if(ro)ro.textContent='';return;}
   const last=bars[bars.length-1];
-  const isWeekly=last.dataset.k&&last.dataset.k.endsWith('%');
+  const isWeekly=!!last.dataset.wk;
   const show=b=>{
     if(!ro)return;
-    if(isWeekly){ro.innerHTML=`Week from Day ${b.dataset.day} · <b>${b.dataset.k}</b> on target · ${b.dataset.p}`;}
+    if(isWeekly){ro.innerHTML=`${b.dataset.wk} · <b>${b.dataset.k}</b> days on target`;}
     else{ro.innerHTML=`Day ${b.dataset.day} · <b>${b.dataset.k}</b> kcal · ${phaseTargetLabel(+b.dataset.day)}`;}
   };
   show(last);

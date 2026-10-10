@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ===================================================================== -->
 <!-- AEVUM Tracker · index.html · version in APP_VERSION const below        -->
-<!-- Backends: Apps Script v1.26.0 · API Proxy Worker v1.0.0 · AI Worker v1.13.0 · Frontend v1.33.0 -->
+<!-- Backends: Apps Script v1.26.0 · API Proxy Worker v1.0.0 · AI Worker v1.13.0 · Frontend v1.33.1 -->
 <!-- ===================================================================== -->
 <html lang="en">
 <head>
@@ -706,6 +706,8 @@ textarea.notes::placeholder{color:var(--muted);}
 .calbank .cb-status.ok{color:var(--maint);}
 .calbank .cb-status.warn{color:var(--warn);}
 .calbank .cb-status.over{color:var(--over);}
+.calbank .cb-info{font-size:13px;color:var(--muted);cursor:pointer;margin-left:4px;opacity:0.6;}
+.calbank .cb-explainer{font-size:12px;line-height:1.5;color:var(--muted);background:var(--card-soft,#f5f0e8);border-radius:8px;padding:10px 12px;margin-bottom:8px;}
 /* ---- Maintenance phase badge ---- */
 .phase-maint .phase-dot{background:var(--maint)!important;}
 </style>
@@ -861,7 +863,8 @@ textarea.notes::placeholder{color:var(--muted);}
 
     <!-- CALORIE BANK (maintenance) -->
     <div class="calbank hidden" id="calBankBlock">
-      <div class="b-title"><span>Calorie bank</span><span class="cb-window" id="cbWindow"></span></div>
+      <div class="b-title"><span>Calorie bank <span class="cb-info" id="cbInfoBtn">ⓘ</span></span><span class="cb-window" id="cbWindow"></span></div>
+      <div class="cb-explainer hidden" id="cbExplainer">Balance matters more than any single day. If you go over your target one day, simply eat a little less over the next few days. What counts is your overall intake across the week staying within your needs. One off day doesn't break your progress, as long as you balance it out.</div>
       <div class="cb-basis" id="cbBasis"></div>
       <div class="cb-summary" id="cbSummary"></div>
       <div class="cb-barwrap"><div class="cb-bg"><div class="cb-bar" id="cbBar"></div></div></div>
@@ -1222,9 +1225,10 @@ textarea.notes::placeholder{color:var(--muted);}
 
 <script>
 /* ===== SINGLE SOURCE OF TRUTH FOR VERSION ===== */
-const APP_VERSION='v1.33.0';
+const APP_VERSION='v1.33.1';
 
 /* CHANGELOG (full history in aevum-improvements.md)
+   v1.33.1 — Calorie bank: info button (i) toggles explainer about weekly balance philosophy. Tap to show/hide.
    v1.33.0 — Rename: 'consolidation' key removed from codebase, now 'stabilization' everywhere. Weekly calorie verdict: "Week avg: on track / under by ~X kcal / over by ~X kcal" using Rules tab bands. Compliance strip: directional colors (blue=under, green=on target, red=over), continuous bar with day initials, tap for detail.
    v1.32.3 — Today calorie bar: color now uses percentage-of-target (matching dayCalState and Rules tab bands), was passing raw kcal against percentage thresholds.
    v1.32.2 — Compliance redesign: "This week" shows 7 colored day squares + "X of Y days on target" fraction. Weekly bars tap readout shows fraction instead of percentage. Acceptability band corrected to 80-100%. Fixed wDays scoping bug in weekly bar render.
@@ -2167,6 +2171,8 @@ function renderCalorieBank(){
     dtl+=`<span class="cb-day ${cls}">D${dd.day} ${dd.kcal}</span>`;
   });
   g('cbDetail').innerHTML=dtl;
+  const infoBtn=g('cbInfoBtn'), expl=g('cbExplainer');
+  if(infoBtn&&expl){infoBtn.onclick=()=>expl.classList.toggle('hidden');}
 }
 function renderRate(kind){
   const el=g('r'+kind[0].toUpperCase()+kind.slice(1));el.innerHTML='';

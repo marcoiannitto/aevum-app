@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ===================================================================== -->
 <!-- AEVUM Tracker · index.html · version in APP_VERSION const below        -->
-<!-- Backends: Apps Script v1.26.0 · API Proxy Worker v1.0.0 · AI Worker v1.13.0 · Frontend v1.32.0 -->
+<!-- Backends: Apps Script v1.26.0 · API Proxy Worker v1.0.0 · AI Worker v1.13.0 · Frontend v1.32.1 -->
 <!-- ===================================================================== -->
 <html lang="en">
 <head>
@@ -1222,9 +1222,10 @@ textarea.notes::placeholder{color:var(--muted);}
 
 <script>
 /* ===== SINGLE SOURCE OF TRUTH FOR VERSION ===== */
-const APP_VERSION='v1.32.0';
+const APP_VERSION='v1.32.1';
 
 /* CHANGELOG (full history in aevum-improvements.md)
+   v1.32.1 — Weekly bars: count warn as on-target (was ok-only, penalizing amber days). 80% line replaced with 60-80% acceptability band.
    v1.32.0 — Weekly compliance bars: labels now "Wk 1, Wk 2" (was weekday names), skip partial weeks <3 days. Profile: "Chat with your coach" WhatsApp link, driven by coach_whatsapp in Profile tab.
    v1.31.0 — AI debug: console.error in calculator catch blocks. Maintenance target weight anchored to 7-day rolling average. Trends: weekly compliance bars + score card when >21 days. Plan: week strip calendar with real dates, month popover for jumping.
    v1.30.0 — Profile tap affordance: chevron after name in topbar to signal tappability.
@@ -2535,7 +2536,7 @@ function complianceScore(allMacro,range){
   const td=todayDayNum()||currentDay;
   const recent=allMacro.filter(d=>d.day>td-7&&d.day<=td);
   if(recent.length<2)return '';
-  const onTarget=recent.filter(d=>dayCalState(d.day,d.kcal)==='ok').length;
+  const onTarget=recent.filter(d=>{const s=dayCalState(d.day,d.kcal);return s==='ok'||s==='warn';}).length;
   const pct=Math.round(onTarget/recent.length*100);
   const col=pct>=80?'#4a7a52':pct>=50?'#B7791F':'#A13024';
   return `<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px;"><span style="font-size:22px;font-weight:700;color:${col};font-family:var(--serif)">${pct}%</span><span style="font-size:12px;color:#8a8580">on target last 7 days (${onTarget}/${recent.length})</span></div>`;
@@ -2557,7 +2558,7 @@ function macroBars(range){
       const we=Math.min(ws+6,dN);
       const wDays=data.filter(d=>d.day>=ws&&d.day<=we);
       if(!wDays.length){weeks.push({s:ws,e:we,pct:null,n:0});continue;}
-      const onT=wDays.filter(d=>dayCalState(d.day,d.kcal)==='ok').length;
+      const onT=wDays.filter(d=>{const s=dayCalState(d.day,d.kcal);return s==='ok'||s==='warn';}).length;
       weeks.push({s:ws,e:we,pct:Math.round(onT/wDays.length*100),n:wDays.length});
     }
     const wc=weeks.length, bw=Math.max(14,Math.min(36,(W-padL-padR)/Math.max(1,wc)*0.65));
@@ -2573,12 +2574,14 @@ function macroBars(range){
       bars+=`<rect class="mbar" data-day="${wk.s}" data-k="${wk.pct}%" data-p="${wk.n} days" data-f="" data-c="" x="${(x-bw/2).toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(2,h).toFixed(1)}" rx="4" fill="${col}"/>`;
       bars+=`<text x="${x.toFixed(1)}" y="${H-8}" font-size="9" fill="#938c7d" text-anchor="middle" font-family="sans-serif">${lbl}</text>`;
     });
-    // 80% line
-    const y80=(H-padB)-0.8*barH;
-    const guideLine=`<line x1="${padL}" y1="${y80.toFixed(1)}" x2="${W-padR}" y2="${y80.toFixed(1)}" stroke="#4a7a52" stroke-width="1" stroke-dasharray="3 3" opacity="0.4"/>`;
+    // acceptability band (60-80%)
+    const y80=(H-padB)-0.8*barH, y60=(H-padB)-0.6*barH;
+    const band=`<rect x="${padL}" y="${y80.toFixed(1)}" width="${W-padL-padR}" height="${(y60-y80).toFixed(1)}" fill="#4a7a52" opacity="0.07" rx="3"/>`;
+    const bandTop=`<line x1="${padL}" y1="${y80.toFixed(1)}" x2="${W-padR}" y2="${y80.toFixed(1)}" stroke="#4a7a52" stroke-width="0.5" opacity="0.25"/>`;
+    const bandBot=`<line x1="${padL}" y1="${y60.toFixed(1)}" x2="${W-padR}" y2="${y60.toFixed(1)}" stroke="#4a7a52" stroke-width="0.5" opacity="0.25"/>`;
     return `<svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet">
-      ${guideLine}
-      <text x="${W-padR}" y="${(y80-4).toFixed(1)}" font-size="9" fill="#4a7a52" text-anchor="end" font-family="sans-serif">80% on target</text>
+      ${band}${bandTop}${bandBot}
+      <text x="${W-padR}" y="${(y80-4).toFixed(1)}" font-size="8" fill="#4a7a52" text-anchor="end" font-family="sans-serif" opacity="0.6">good</text>
       ${bars}
     </svg>`;
   }

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ===================================================================== -->
 <!-- AEVUM Tracker · index.html · version in APP_VERSION const below        -->
-<!-- Backends: Apps Script v1.26.0 · API Proxy Worker v1.0.0 · AI Worker v1.13.0 · Frontend v1.32.4 -->
+<!-- Backends: Apps Script v1.26.0 · API Proxy Worker v1.0.0 · AI Worker v1.13.0 · Frontend v1.33.0 -->
 <!-- ===================================================================== -->
 <html lang="en">
 <head>
@@ -1222,10 +1222,10 @@ textarea.notes::placeholder{color:var(--muted);}
 
 <script>
 /* ===== SINGLE SOURCE OF TRUTH FOR VERSION ===== */
-const APP_VERSION='v1.32.4';
+const APP_VERSION='v1.33.0';
 
 /* CHANGELOG (full history in aevum-improvements.md)
-   v1.32.4 — Compliance strip redesign: continuous horizontal bar replaces 7 squares. Directional colors: blue (under), green (on target), red (over). Day initials (M T W T F S S) below. Tap a segment for detail tooltip. New dayCalDir() distinguishes under vs over.
+   v1.33.0 — Rename: 'consolidation' key removed from codebase, now 'stabilization' everywhere. Weekly calorie verdict: "Week avg: on track / under by ~X kcal / over by ~X kcal" using Rules tab bands. Compliance strip: directional colors (blue=under, green=on target, red=over), continuous bar with day initials, tap for detail.
    v1.32.3 — Today calorie bar: color now uses percentage-of-target (matching dayCalState and Rules tab bands), was passing raw kcal against percentage thresholds.
    v1.32.2 — Compliance redesign: "This week" shows 7 colored day squares + "X of Y days on target" fraction. Weekly bars tap readout shows fraction instead of percentage. Acceptability band corrected to 80-100%. Fixed wDays scoping bug in weekly bar render.
    v1.32.1 — Weekly bars: count warn as on-target (was ok-only, penalizing amber days). 80% line replaced with acceptability band.
@@ -1279,7 +1279,7 @@ function aiPost(payload,ms){return postJSON(aiURL(),payload,'application/json',m
 
 /* ---- (A) Program constants (edit here) ---- */
 let TOTAL_DAYS=31;                                 // recomputed from phase lengths at boot
-const PH_FIXED={loading:2,transition:3,consolidation:18}; // activation is per-person; default total 2+8+3+18=31
+const PH_FIXED={loading:2,transition:3,stabilization:18}; // activation is per-person; default total 2+8+3+18=31
 const DAY_START_HOUR=5;                             // a new "day" rolls over at 5am local
 const GLASS_ML=250;                                // water glass size (ml)
 const PROTEIN_PER_KG=1.2, PROTEIN_KG_HI=1.5;       // protein target range (g per kg of target weight)
@@ -1335,8 +1335,8 @@ function loadConfig(){
 
 /* ---- phase length helpers ---- */
 function actDays(){return (profile&&+profile.activation_days>0)?+profile.activation_days:8;}
-function phaseLens(){return {loading:PH_FIXED.loading,activation:actDays(),transition:PH_FIXED.transition,consolidation:PH_FIXED.consolidation};}
-function totalDays(){const L=phaseLens();return L.loading+L.activation+L.transition+L.consolidation;}
+function phaseLens(){return {loading:PH_FIXED.loading,activation:actDays(),transition:PH_FIXED.transition,stabilization:PH_FIXED.stabilization};}
+function totalDays(){const L=phaseLens();return L.loading+L.activation+L.transition+L.stabilization;}
 function applyPhaseConfig(){TOTAL_DAYS=totalDays();/* maintenance is open-ended: no clamp */}
 
 const params=new URLSearchParams(location.search);
@@ -1347,22 +1347,22 @@ let IS_PROGRAM=true; // default true for existing clients, set false after profi
 function phaseFor(d){
   if(!IS_PROGRAM) return {key:'maintenance',name:'Tracker',color:MAINT_COLOR};
   const L=phaseLens();
-  const l1=L.loading, l2=l1+L.activation, l3=l2+L.transition, l4=l3+L.consolidation;
+  const l1=L.loading, l2=l1+L.activation, l3=l2+L.transition, l4=l3+L.stabilization;
   if(d<=l1) return {key:'loading',name:'Loading',color:'#8a8a8a'};
   if(d<=l2) return {key:'activation',name:'Activation',color:'#B08D2E'};
   if(d<=l3) return {key:'transition',name:'Transition',color:'#B08D2E'};
-  if(d<=l4) return {key:'consolidation',name:'Stabilization',color:'#4a463f'};
+  if(d<=l4) return {key:'stabilization',name:'Stabilization',color:'#4a463f'};
   return {key:'maintenance',name:'Maintenance',color:MAINT_COLOR};
 }
 function inMaintenance(d){return phaseFor(d||currentDay).key==='maintenance';}
 function gatesFor(k){
   if(k==='activation'||k==='transition')return{fat:true,carb:true};
-  if(k==='consolidation')return{fat:false,carb:true};
+  if(k==='stabilization')return{fat:false,carb:true};
   if(k==='maintenance')return{fat:false,carb:true};
   return{fat:false,carb:false};
 }
 /* AI ruleset key for the current day: loading | activation (covers transition) | stabilization | maintenance */
-function aiPhaseKey(d){const k=phaseFor(d).key;if(k==='consolidation')return'stabilization';if(k==='transition')return'activation';if(k==='maintenance')return'maintenance';return k;}
+function aiPhaseKey(d){const k=phaseFor(d).key;if(k==='transition')return'activation';return k;}
 /* short helper line shown in the Can I Eat sheet, per phase */
 function foodRuleLine(d){
   const k=aiPhaseKey(d);
@@ -1376,7 +1376,7 @@ function recipePhaseMatch(recipe,key){
   if(!key||key==='all')return true;
   const raw=String(recipe.phase||'').toLowerCase();
   if(!raw.trim())return true;
-  const tags=raw.split(/[,|/]/).map(s=>s.trim()).filter(Boolean).map(s=>s==='transition'?'activation':s==='consolidation'?'stabilization':s);
+  const tags=raw.split(/[,|/]/).map(s=>s.trim()).filter(Boolean).map(s=>s==='transition'?'activation':s);
   return tags.includes(key);
 }
 /* ---- phase explainer (item 20): one content source, shown auto at phase change + on tap ---- */
@@ -1400,7 +1400,7 @@ const PHASE_INFO={
     avoid:'Same as Activation: no oil, fat, grains, starch, dairy or sugar.',
     targets:['{VLCD} kcal a day','16/8 fasting','Water 2.5 L','No serum'],
     expect:'You are easing out, letting your body get comfortable where it is now. Nearly through the strict block.'},
-  consolidation:{sub:'Locking the new set-point',
+  stabilization:{sub:'Locking the new set-point',
     change:'More food, fats come back, calories climb back up. But this is not a finish line.',
     eat:'All protein, low-carb veg, healthy fats, full-fat dairy, berries.',
     avoid:'Sugar, grains, starch and most fruit.',
@@ -1427,13 +1427,13 @@ function phaseCardHTML(key,p){
 /* day ranges per phase, for the program overview */
 function phaseRanges(){
   const L=phaseLens();
-  const a=L.loading, b=a+L.activation, c=b+L.transition, d=c+L.consolidation;
+  const a=L.loading, b=a+L.activation, c=b+L.transition, d=c+L.stabilization;
   const maxD=Math.max(d,currentDay||d);
   const ranges=[
     {key:'loading',name:'Loading',color:'#8a8a8a',lo:1,hi:a},
     {key:'activation',name:'Activation',color:'#B08D2E',lo:a+1,hi:b},
     {key:'transition',name:'Transition',color:'#B08D2E',lo:b+1,hi:c},
-    {key:'consolidation',name:'Stabilization',color:'#4a463f',lo:c+1,hi:d}
+    {key:'stabilization',name:'Stabilization',color:'#4a463f',lo:c+1,hi:d}
   ];
   if(maxD>d) ranges.push({key:'maintenance',name:'Maintenance',color:MAINT_COLOR,lo:d+1,hi:maxD});
   return ranges;
@@ -1484,7 +1484,7 @@ function dayTotalsOf(o){
   return {kcal:Math.round(s('kcal')),protein:Math.round(s('protein')),alcohol:items.some(it=>it&&it.type==='alcohol'),weight:parseFloat(o.weight)||null};
 }
 function phaseMatchList(field,phKey){
-  const aiKey=(phKey==='consolidation')?'stabilization':(phKey==='transition')?'activation':phKey;
+  const aiKey=(phKey==='transition')?'activation':phKey;
   const tags=String(field).toLowerCase().split(/[,/|]/).map(s=>s.trim()).filter(Boolean);
   return tags.includes(phKey)||tags.includes(aiKey)||tags.includes('all');
 }
@@ -1501,10 +1501,10 @@ function briefSignals(td){
   if(y.alcohol)sig.alcohol_yesterday=true;
   if(y.weight!=null&&yb&&yb.weight!=null){const d=y.weight-yb.weight; if(d<=-0.1&&d>=-0.4)sig.weight_down_small=true;}
   const ph=phaseFor(td-1).key;
-  if(ph==='consolidation'){const t=stabTargetWeight(); if(t!=null&&y.weight!=null&&Math.abs(y.weight-t)<=0.5)sig.holding_steady=true;}
+  if(ph==='stabilization'){const t=stabTargetWeight(); if(t!=null&&y.weight!=null&&Math.abs(y.weight-t)<=0.5)sig.holding_steady=true;}
   if(!y.alcohol){
     let ok=false;
-    if(ph==='consolidation'){const tgt=effectiveStabTarget(td-1),TD=stabTDEE(); ok=(y.kcal>=tgt*0.9&&y.kcal<=TD*1.05);}
+    if(ph==='stabilization'){const tgt=effectiveStabTarget(td-1),TD=stabTDEE(); ok=(y.kcal>=tgt*0.9&&y.kcal<=TD*1.05);}
     else if(ph==='activation'||ph==='transition'){ok=(y.kcal>=CAL_LOW_AMBER&&y.kcal<=CAL_HIGH_AMBER);}
     if(ok)sig.great_day_yesterday=true;
   }
@@ -1552,7 +1552,7 @@ function checkRollover(){
     if(IS_PROGRAM){maybePhaseIntro();maybeDailyBrief();}
   }
 }
-/* ---- stabilization (consolidation) helpers ---- */
+/* ---- stabilization helpers ---- */
 function consolStartDay(){const L=phaseLens();return L.loading+L.activation+L.transition+1;}
 /* calorie ramp: front-loaded over 4 days from 600 to TDEE*0.9, then hold.
    Day1 +35% of gap, D2 +60%, D3 +80%, D4+ 100% (front-loaded, fats make day 1 easy).
@@ -1592,7 +1592,7 @@ function reviewTarget(){
   const td=todayDayNum()||currentDay;
   const ph=phaseFor(td).key;
   // Run in stabilization hold AND maintenance (both program and free users)
-  const inStabHold=(ph==='consolidation'&&isHoldDay(td));
+  const inStabHold=(ph==='stabilization'&&isHoldDay(td));
   const inMaint=(ph==='maintenance');
   if(!inStabHold&&!inMaint)return;
   // seed once: stabilization uses formula ramp value, maintenance/free uses Mifflin TDEE
@@ -1658,7 +1658,7 @@ function stabTargetWeight(){
 let stabTargetWritten=false;
 function maybeWriteStabTarget(){
   if(stabTargetWritten||!BACKEND_URL||!profile)return;
-  if(phaseFor(currentDay).key!=='consolidation')return;
+  if(phaseFor(currentDay).key!=='stabilization')return;
   if(+profile.stab_target_weight>0)return;      // already set or user-edited
   const c=stabTargetWeightComputed();if(c==null)return;
   const v=Math.round(c*10)/10;
@@ -1740,7 +1740,7 @@ function totals(){
    and the band colours. If the backend is unreachable, RULES stays default (buckets) and
    the app behaves exactly as before. */
 let RULES={model:'buckets',rules:[]};
-function ruleMapPhase(k){return k==='consolidation'?'stabilization':(k==='transition'?'activation':k);}
+function ruleMapPhase(k){return k==='transition'?'activation':k;}
 function ruleFor(phaseKey,metric,model){
   const p=ruleMapPhase(phaseKey);
   if(model) return (RULES.rules||[]).find(r=>r.phase===p&&r.model===model&&r.metric===metric)||null;
@@ -1800,7 +1800,7 @@ function render(){
 function renderPhaseBar(){
   const el=g('phaseBar');if(!el)return;
   const L=phaseLens(),total=totalDays();
-  const order=['loading','activation','transition','consolidation'];
+  const order=['loading','activation','transition','stabilization'];
   const curKey=phaseFor(currentDay).key;
   let start=0,html='';
   order.forEach(k=>{
@@ -1882,7 +1882,7 @@ function renderCalories(ph,t,macroAct){
   g('calNum').textContent=t.kcal.toLocaleString();
   const wrap=g('calBarWrap'),bar=g('calBar'),prot=g('protocol');
   wrap.classList.add('hidden');prot.classList.add('hidden');g('calUnit').textContent='kcal today';
-  if(ph.key==='consolidation'||ph.key==='maintenance'){
+  if(ph.key==='stabilization'||ph.key==='maintenance'){
     wrap.classList.remove('hidden');
     // Exercise is a tracker only, it does NOT move the target (activity multiplier already averages it in).
     const kr=ruleFor('stabilization','kcal');
@@ -2051,8 +2051,8 @@ function renderGates(ph,t,macroAct){
   };
   const makeProtein=()=>{
     const el=document.createElement('div');
-    const wref=(ph.key==='consolidation')?(stabTargetWeight()||profile.weight):profile.weight;
-    if(ph.key==='consolidation' && wref){
+    const wref=(ph.key==='stabilization')?(stabTargetWeight()||profile.weight):profile.weight;
+    if(ph.key==='stabilization' && wref){
       const w=wref, lo=Math.round(w*PROTEIN_PER_KG), hi=Math.round(w*PROTEIN_KG_HI), ratio=t.protein/w;
       const cls=ratio<1.0?'over':ratio<1.2?'warn':ratio<=PROTEIN_KG_HI*1.5?'ok':'warn';
       const pct=Math.min(100,hi?t.protein/hi*100:0);
@@ -2397,7 +2397,7 @@ function renderTrends(){
   const target=(profile&&profile.target_kg)||null;
   // stabilization: hold target replaces onboarding TGT as the reference, only during stabilization
   const curPK=phaseFor(currentDay).key;
-  const inStab=curPK==='consolidation';
+  const inStab=curPK==='stabilization';
   const holdT=inStab?stabTargetWeight():null;
 
   // Weight stat
@@ -2463,7 +2463,7 @@ function trendsPhaseStrip(d0,dN){
     return `<svg viewBox="0 0 ${W} 6" width="100%" preserveAspectRatio="none" height="6">${segs}</svg><div class="trphase-labels">${labels}</div>`;
   }
   const L=phaseLens();
-  const order=[['loading','Loading'],['activation','Activation'],['transition','Transition'],['consolidation','Stabilization']];
+  const order=[['loading','Loading'],['activation','Activation'],['transition','Transition'],['stabilization','Stabilization']];
   let s=0,segs='',labels='';
   order.forEach(([k,name])=>{
     const len=L[k],a=s+1,b=s+len;s+=len;
@@ -2519,7 +2519,7 @@ function phaseTargetKcal(dayNum){
   if(ph==='loading')return Math.round((profile&&profile.need?profile.need:2000)*1.5);
   if(ph==='activation'||ph==='transition')return 600; // mid of 500-700 for the bar reference
   if(ph==='maintenance')return maintTarget();
-  return effectiveStabTarget(dayNum); // consolidation (adaptive on hold days)
+  return effectiveStabTarget(dayNum); // stabilization (adaptive on hold days)
 }
 function dayCalState(dayNum,k){
   const ph=phaseFor(dayNum).key;
@@ -2527,7 +2527,7 @@ function dayCalState(dayNum,k){
   const tgt=phaseTargetKcal(dayNum);if(!tgt)return'ok';
   const pct=k/tgt*100;
   if(ph==='loading')return k>=tgt*0.9?'ok':(k>=tgt*0.6?'warn':'over'); // want high
-  // consolidation/maintenance: bands from Rules tab
+  // stabilization/maintenance: bands from Rules tab
   const rPhase=(ph==='maintenance')?'maintenance':'stabilization';
   const kr=ruleFor(rPhase,'kcal');
   if(!kr)return'ok';
@@ -2552,6 +2552,30 @@ function dayCalDir(dayNum,k){
   if(kr.amber_hi!=null&&pct>kr.amber_hi)return'over';
   const okLo=(kr.green_lo==null)||pct>=kr.green_lo, okHi=(kr.green_hi==null)||pct<=kr.green_hi;
   return(okLo&&okHi)?'ok':'warn';
+}
+function weekVerdict(logged){
+  if(logged.length<3)return '';
+  let sumKcal=0, sumTgt=0;
+  logged.forEach(r=>{
+    sumKcal+=r.kcal;
+    const tgt=phaseTargetKcal(r.day)||0;
+    sumTgt+=tgt;
+  });
+  if(!sumTgt)return '';
+  const avgPct=sumKcal/sumTgt*100;
+  const diff=sumKcal-sumTgt;
+  // use Rules tab bands for the phase of the most recent logged day
+  const lastDay=logged[logged.length-1].day;
+  const ph=phaseFor(lastDay).key;
+  const rPhase=(ph==='maintenance')?'maintenance':'stabilization';
+  const kr=ruleFor(rPhase,'kcal');
+  const greenLo=kr&&kr.green_lo!=null?kr.green_lo:90;
+  const greenHi=kr&&kr.green_hi!=null?kr.green_hi:105;
+  let lbl,col;
+  if(avgPct>=greenLo&&avgPct<=greenHi){lbl='Week avg: on track';col='#4a7a52';}
+  else if(avgPct<greenLo){lbl=`Week avg: under by ~${Math.abs(Math.round(diff))} kcal`;col='#4a6fa5';}
+  else{lbl=`Week avg: over by ~${Math.round(diff)} kcal`;col='#A13024';}
+  return `<div style="font-size:12px;color:${col};margin-top:4px;">${lbl}</div>`;
 }
 function complianceScore(allMacro,range){
   if(!allMacro||!allMacro.length)return '';
@@ -2584,6 +2608,7 @@ function complianceScore(allMacro,range){
     <div style="display:flex;gap:1px;margin-bottom:3px;">${segs}</div>
     <div style="display:flex;gap:1px;margin-bottom:6px;">${dayLabels}</div>
     <div style="font-size:14px;font-weight:600;color:${sumCol}">${onT} of ${logged.length} days on target</div>
+    ${weekVerdict(logged)}
     <div id="compTip" style="font-size:11px;color:#8a8580;min-height:16px;margin-top:2px;"></div>
   </div>`;
 }
@@ -2638,7 +2663,7 @@ function macroBars(range){
     const k=phaseFor(dayNum).key;
     if(k==='loading'){const t=phaseTargetKcal(dayNum)||1;return [t*0.9,t];}
     if(k==='maintenance'){const mt=maintTarget()||1;return [mt*0.95, mt*1.05];}
-    if(k==='consolidation'){return [effectiveStabTarget(dayNum), stabTDEE()];}
+    if(k==='stabilization'){return [effectiveStabTarget(dayNum), stabTDEE()];}
     return [CAL_LOW_AMBER,CAL_HIGH_AMBER];
   };
   const fracFor=(dayNum,v)=>{
@@ -3223,7 +3248,7 @@ function renderPlan(){
   // phase-aware targets for the planned-day card (mirror the Today page rules)
   const pk=phaseFor(planDay).key, gates=gatesFor(pk);
   let kcalS='', kcalSmall='';
-  if(pk==='consolidation'||pk==='maintenance'){
+  if(pk==='stabilization'||pk==='maintenance'){
     const tgt=effectiveStabTarget(planDay);
     kcalSmall='/'+Math.round(tgt);
     const kr=ruleFor('stabilization','kcal');
@@ -3231,7 +3256,7 @@ function renderPlan(){
   }else if(pk==='loading'){ kcalSmall=''; kcalS=''; }         // Loading: no calorie cap
   else { kcalSmall='/500-700'; kcalS=calState(tot.kcal); }    // Activation/Transition
   let protSmall='';
-  if(pk==='consolidation'||pk==='maintenance'){ const w=stabTargetWeight()||(profile&&profile.weight); if(w)protSmall='/'+Math.round(w*PROTEIN_PER_KG)+'–'+Math.round(w*PROTEIN_KG_HI); }
+  if(pk==='stabilization'||pk==='maintenance'){ const w=stabTargetWeight()||(profile&&profile.weight); if(w)protSmall='/'+Math.round(w*PROTEIN_PER_KG)+'–'+Math.round(w*PROTEIN_KG_HI); }
   else { const ptgt=(profile&&profile.weight)?Math.round(profile.weight*PROTEIN_PER_KG):null; if(ptgt)protSmall='/'+ptgt; }
   const fatS=gates.fat?gs(tot.fat,FAT_TARGET,FAT_RED):'',  fatSmall=gates.fat?('/'+FAT_TARGET):'';
   const carbS=gates.carb?gs(tot.carbs,CARB_TARGET,CARB_RED):'', carbSmall=gates.carb?('/'+CARB_TARGET):'';

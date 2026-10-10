@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ===================================================================== -->
 <!-- AEVUM Tracker · index.html · version in APP_VERSION const below        -->
-<!-- Backends: Apps Script v1.26.0 · API Proxy Worker v1.0.0 · AI Worker v1.13.0 · Frontend v1.31.0 -->
+<!-- Backends: Apps Script v1.26.0 · API Proxy Worker v1.0.0 · AI Worker v1.13.0 · Frontend v1.32.0 -->
 <!-- ===================================================================== -->
 <html lang="en">
 <head>
@@ -1025,6 +1025,10 @@ textarea.notes::placeholder{color:var(--muted);}
     <div class="prof-section-title">Help &amp; Info</div>
     <div id="profDocs"></div>
   </div>
+  <div class="prof-section hidden" id="profCoachSection">
+    <div class="prof-section-title">Your Coach</div>
+    <a class="prof-link" id="profCoachWA" href="#" target="_blank">💬 Chat with your coach</a>
+  </div>
   <div class="prof-section">
     <div class="prof-section-title">Legal</div>
     <a class="prof-link" href="terms.html" target="_blank">Terms of Use</a>
@@ -1218,9 +1222,10 @@ textarea.notes::placeholder{color:var(--muted);}
 
 <script>
 /* ===== SINGLE SOURCE OF TRUTH FOR VERSION ===== */
-const APP_VERSION='v1.31.0';
+const APP_VERSION='v1.32.0';
 
 /* CHANGELOG (full history in aevum-improvements.md)
+   v1.32.0 — Weekly compliance bars: labels now "Wk 1, Wk 2" (was weekday names), skip partial weeks <3 days. Profile: "Chat with your coach" WhatsApp link, driven by coach_whatsapp in Profile tab.
    v1.31.0 — AI debug: console.error in calculator catch blocks. Maintenance target weight anchored to 7-day rolling average. Trends: weekly compliance bars + score card when >21 days. Plan: week strip calendar with real dates, month popover for jumping.
    v1.30.0 — Profile tap affordance: chevron after name in topbar to signal tappability.
    v1.29.0 — Activity level: 6-tier radio card picker (Sedentary to Athlete) with exercise definitions. Maintenance seed uses TDEE x 0.90 (was full TDEE). hold_band_kg default 0.7 to 0.5.
@@ -2563,8 +2568,8 @@ function macroBars(range){
       const h=wk.pct/100*barH, y=(H-padB)-h;
       const col=wk.pct>=80?COL.ok:wk.pct>=50?COL.warn:COL.over;
       const x=xs(i);
-      const dt0=dayToDate(wk.s),dt1=dayToDate(wk.e);
-      const lbl=dt0?fmtShort(dt0).split(',')[0]:'Wk'+(i+1);
+      if(wk.n<3){return;}
+      const lbl='Wk '+(i+1);
       bars+=`<rect class="mbar" data-day="${wk.s}" data-k="${wk.pct}%" data-p="${wk.n} days" data-f="" data-c="" x="${(x-bw/2).toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(2,h).toFixed(1)}" rx="4" fill="${col}"/>`;
       bars+=`<text x="${x.toFixed(1)}" y="${H-8}" font-size="9" fill="#938c7d" text-anchor="middle" font-family="sans-serif">${lbl}</text>`;
     });
@@ -3448,6 +3453,14 @@ function openProfile(){
 <b>Are calorie estimates accurate?</b><br>They are approximations. AI-based estimates can vary. When accuracy matters, use the manual entry mode.<br><br>
 <b>Can I reset my data?</b><br>Contact your program administrator. Local data can be cleared via browser settings.
 </div></details>`;
+  // Coach WhatsApp link
+  const cwa=profile.coach_whatsapp;
+  if(cwa){
+    g('profCoachSection').classList.remove('hidden');
+    g('profCoachWA').href='https://wa.me/'+cwa.replace(/[^0-9]/g,'');
+  } else {
+    g('profCoachSection').classList.add('hidden');
+  }
   g('profVer').textContent='AEVUM v1.2.0';
   g('profScrim').classList.add('show');g('profPanel').classList.add('show');
   history.pushState({sheet:'profile'},'');

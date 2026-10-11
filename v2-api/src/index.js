@@ -124,8 +124,10 @@ export default {
     const db = env.DB;
 
     try {
-      // Register is unauthenticated
+      // Unauthenticated routes
       if (action === 'register') return json(await doRegister(body, db), cors);
+      if (action === 'auth_google') return json(await authGoogle(body, db, env), cors);
+      if (action === 'login') return json(await doLogin(body, db), cors);
 
       // Auth check
       const auth = await authenticate(request, db);
@@ -142,6 +144,7 @@ export default {
       // User routes
       switch (action) {
         case 'profile':    return json(await getProfile(userId, db), cors);
+        case 'complete_profile': return json(await completeProfile(userId, body, db), cors);
         case 'sync':       return json(await syncRow(userId, body, db), cors);
         case 'getdays':    return json(await getDays(userId, db), cors);
         case 'rules':      return json(await getRules(userId, db), cors);
@@ -207,6 +210,103 @@ async function doRegister(body, db) {
   ]);
 
   return { id, token, program: false, current_target_kcal: tdee };
+}
+
+// ─── Google Auth ────────────────────────────────────────────
+// Verifies a Google ID token (from Google Identity Services on the frontend),
+// looks up user by email or creates a new one, returns an app token.
+async function authGoogle(body, db, env) {
+  const idToken = String(body.id_token || '').trim();
+  if (!idToken) return { error: 'id_token required' };
+
+  const clientId = env.GOOGLE_CLIENT_ID;
+  if (!clientId) return { error: 'Google login not configured' };
+
+  // Verify the token via Google's tokeninfo endpoint
+  const resp = await fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(idToken));
+  if (!resp.ok) return { error: 'Invalid Google token' };
+  const goog = await resp.json();
+
+  // Verify audience matches our client ID
+  if (goog.aud !== clientId) return { error: 'Token audience mismatch' };
+
+  const email = (goog.email || '').toLowerCase().trim();
+  const name = goog.name || goog.given_name || email.split('@')[0];
+  if (!email) return { error: 'No email in Google token' };
+
+  // Check if user exists with this email
+  let user = await db.prepare('SELECT id, program FROM users WHERE email = ?').bind(email).first();
+
+  if (user) {
+    // Existing user: issue or reuse token
+    let tokenRow = await db.prepare('SELECT token FROM auth_tokens WHERE user_id = ? AND role = ?')
+      .bind(user.id, 'user').first();
+    if (!tokenRow) {
+      const token = crypto.randomUUID();
+      await db.prepare('INSERT INTO auth_tokens (token, user_id, role) VALUES (?, ?, ?)')
+        .bind(token, user.id, 'user').run();
+      tokenRow = { token };
+    }
+    return { id: user.id, token: tokenRow.token, program: !!user.program, existing: true };
+  }
+
+  // New user: create with Google profile info
+  const base = name.toLowerCase().replace(/[^a-z]/g, '').slice(0, 8) || 'user';
+  const rnd = Math.random().toString(36).slice(2, 6);
+  const id = base + '_' + rnd;
+  const token = crypto.randomUUID();
+
+  await db.batch([
+    db.prepare(
+      `INSERT INTO users (id, name, email, program) VALUES (?, ?, ?, 0)`
+    ).bind(id, name, email),
+    db.prepare(
+      'INSERT INTO auth_tokens (token, user_id, role) VALUES (?, ?, ?)'
+    ).bind(token, id, 'user')
+  ]);
+
+  return { id, token, program: false, existing: false, needs_profile: true };
+}
+
+// ─── Token Login (returning users) ──────────────────────────
+async function doLogin(body, db) {
+  const token = String(body.token || '').trim();
+  if (!token) return { error: 'token required' };
+
+  const row = await db.prepare(
+    'SELECT user_id, role FROM auth_tokens WHERE token = ? AND (expires_at IS NULL OR expires_at > datetime("now"))'
+  ).bind(token).first();
+
+  if (!row) return { error: 'Invalid or expired token' };
+
+  const user = await db.prepare('SELECT id, name, program FROM users WHERE id = ?')
+    .bind(row.user_id).first();
+
+  if (!user) return { error: 'User not found' };
+
+  return { id: user.id, name: user.name, program: !!user.program, valid: true };
+}
+
+// ─── Complete Profile (for Google-authed users who need profile data) ─────
+async function completeProfile(userId, body, db) {
+  const sex = String(body.sex || '').toLowerCase();
+  if (sex !== 'm' && sex !== 'f') return { error: 'sex must be m or f' };
+  const age = parseInt(body.age) || 0;
+  const height = parseFloat(body.height) || 0;
+  const weight = parseFloat(body.weight) || 0;
+  const act = parseFloat(body.act) || 1.55;
+  const target_kg = parseFloat(body.target_kg) || null;
+  if (!age || !height || !weight) return { error: 'age, height, weight required' };
+
+  const s = sex === 'm' ? 5 : -161;
+  const tdee = Math.round((10 * weight + 6.25 * height - 5 * age + s) * act);
+
+  await db.prepare(
+    `UPDATE users SET sex=?, age=?, height=?, start_weight=?, activity=?,
+     target_kg=?, current_target_kcal=? WHERE id=?`
+  ).bind(sex, age, height, weight, act, target_kg, tdee, userId).run();
+
+  return { ok: true, current_target_kcal: tdee };
 }
 
 // ─── Profile ─────────────────────────────────────────────────

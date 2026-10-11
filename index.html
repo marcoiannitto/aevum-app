@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!-- ===================================================================== -->
 <!-- AEVUM Tracker · index.html · version in APP_VERSION const below        -->
-<!-- Backends: Apps Script v1.26.0 · API Proxy Worker v1.0.0 · AI Worker v1.13.0 · Frontend v1.33.1 -->
+<!-- Backends: API v2.0.0 (D1 + auth) · AI Worker v1.13.0 · Frontend v2.0.0-beta -->
 <!-- ===================================================================== -->
 <html lang="en">
 <head>
@@ -14,6 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&display=swap" rel="stylesheet">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 :root{
   --ink:#1A1A1A;--ink-soft:#4a463f;--gold:#B08D2E;--gold-deep:#8f6f1f;
@@ -33,6 +34,24 @@ input,textarea,select{font-family:inherit;font-size:16px;color:var(--ink);}
 .hidden{display:none!important;}
 .num{font-family:var(--serif);font-variant-numeric:tabular-nums;letter-spacing:-.01em;}
 svg{display:block;}
+
+/* ===== LOGIN SCREEN ===== */
+#loginScreen{position:fixed;inset:0;background:var(--ink);color:#fff;z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 28px;text-align:center;}
+#loginScreen .brand{font-family:var(--serif);font-size:38px;font-weight:500;letter-spacing:.16em;}
+#loginScreen .brand-sub{color:var(--gold);font-size:12px;letter-spacing:.28em;margin-top:8px;}
+#loginScreen .login-lead{margin-top:48px;font-size:15px;color:#b7b1a4;line-height:1.6;max-width:280px;}
+#loginScreen .login-actions{margin-top:40px;display:flex;flex-direction:column;gap:14px;width:100%;max-width:320px;}
+.btn-google{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:15px;background:#fff;color:#1A1A1A;border-radius:14px;font-size:15px;font-weight:600;border:none;cursor:pointer;}
+.btn-google svg{width:20px;height:20px;flex-shrink:0;}
+.btn-token{width:100%;padding:15px;background:transparent;color:var(--gold);border:1px solid #34322d;border-radius:14px;font-size:15px;font-weight:500;cursor:pointer;}
+.btn-create{width:100%;padding:15px;background:var(--gold);color:var(--ink);border-radius:14px;font-size:15px;font-weight:600;border:none;cursor:pointer;}
+.login-divider{display:flex;align-items:center;gap:14px;color:#6b665c;font-size:12px;letter-spacing:.1em;}
+.login-divider::before,.login-divider::after{content:'';flex:1;height:1px;background:#34322d;}
+#tokenInput{width:100%;padding:14px;background:#242320;border:1px solid #34322d;border-radius:12px;color:#fff;font-size:15px;text-align:center;letter-spacing:.05em;}
+#tokenInput::placeholder{color:#6b665c;}
+.login-err{color:#e05c4d;font-size:13px;min-height:20px;margin-top:8px;}
+.login-back{margin-top:20px;color:#6b665c;font-size:13px;cursor:pointer;background:none;border:none;}
+#loginTokenView{display:none;flex-direction:column;align-items:center;width:100%;max-width:320px;}
 
 /* ===== ONBOARDING ===== */
 #onboard{position:fixed;inset:0;background:var(--ink);color:#fff;z-index:100;display:flex;flex-direction:column;padding:calc(env(safe-area-inset-top) + 40px) 28px 32px;overflow-y:auto;}
@@ -780,6 +799,32 @@ textarea.notes::placeholder{color:var(--muted);}
   </div>
 </div>
 
+<!-- LOGIN SCREEN -->
+<div id="loginScreen" class="hidden">
+  <div class="brand">AEVUM</div>
+  <div class="brand-sub">WELLNESS TRACKER</div>
+  <div class="login-lead">Track your nutrition, weight, and wellness goals.</div>
+
+  <!-- Main view: Google + token + create -->
+  <div class="login-actions" id="loginMainView">
+    <button class="btn-google" id="btnGoogle">
+      <svg viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18A10.97 10.97 0 001 12c0 1.77.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+      Continue with Google
+    </button>
+    <div class="login-divider">OR</div>
+    <button class="btn-token" id="btnTokenLogin">I have a login token</button>
+    <button class="btn-create" id="btnNewAccount">Create free account</button>
+  </div>
+
+  <!-- Token entry view -->
+  <div id="loginTokenView">
+    <input id="tokenInput" type="text" placeholder="Paste your token here" autocomplete="off">
+    <div class="login-err" id="loginErr"></div>
+    <button class="btn-create" id="btnTokenSubmit" style="margin-top:14px;">Log in</button>
+    <button class="login-back" id="btnBackToMain">&larr; Back</button>
+  </div>
+</div>
+
 <!-- ONBOARDING -->
 <div id="onboard">
   <div class="brand">AEVUM</div>
@@ -1039,6 +1084,7 @@ textarea.notes::placeholder{color:var(--muted);}
     <a class="prof-link" href="health-disclaimer.html" target="_blank">Health Disclaimer</a>
   </div>
   <div class="prof-ver" id="profVer"></div>
+  <button id="btnLogout" style="margin-top:20px;width:100%;padding:14px;border:1px solid #ddd;border-radius:12px;color:var(--over);font-size:14px;font-weight:500;background:var(--card);">Log out</button>
 </div>
 
 <!-- BOTTOM NAV -->
@@ -1254,16 +1300,27 @@ const APP_VERSION='v1.33.1';
    v1.0.0  — Baseline. */
 
 /* ===== BACKEND CONFIG — paste your /exec URL between the quotes ===== */
-const BACKEND_URL = 'https://aevum-api.marco-iannitto.workers.dev'; // Cloudflare Worker proxy (GAS URL hidden server-side)
+const BACKEND_URL = 'https://aevum-api-v2.marco-iannitto.workers.dev'; // v2 Worker with D1 + auth
 const AI_URL = 'https://sweet-fire-a436.marco-iannitto.workers.dev'; // Cloudflare Worker for AI calls
 function aiURL(){return AI_URL||BACKEND_URL;}
+
+/* ---- Auth token management ---- */
+const AUTH_KEY = 'aevum_auth_token';
+function getAuthToken(){try{return localStorage.getItem(AUTH_KEY)||'';}catch(e){return '';}}
+function setAuthToken(t){try{localStorage.setItem(AUTH_KEY,t);}catch(e){}}
+function clearAuthToken(){try{localStorage.removeItem(AUTH_KEY);}catch(e){}}
+
 /* POST with a hard timeout, so a slow/stuck response fails cleanly instead of freezing
    the UI forever. Throws on timeout, http error, or {error}. */
 async function postJSON(url,body,ct,ms){
   const ctl=new AbortController();
   const t=setTimeout(()=>ctl.abort(),ms||20000);
+  const hdrs={'Content-Type':ct||'application/json'};
+  const tok=getAuthToken();
+  if(tok)hdrs['Authorization']='Bearer '+tok;
   try{
-    const res=await fetch(url,{method:'POST',headers:{'Content-Type':ct||'application/json'},body:JSON.stringify(body),signal:ctl.signal});
+    const res=await fetch(url,{method:'POST',headers:hdrs,body:JSON.stringify(body),signal:ctl.signal});
+    if(res.status===401){clearAuthToken();showLogin();throw new Error('Session expired');}
     if(!res.ok)throw new Error('http '+res.status);
     const d=await res.json();
     if(d&&d.error)throw new Error(d.error);
@@ -1271,6 +1328,9 @@ async function postJSON(url,body,ct,ms){
   } finally { clearTimeout(t); }
 }
 function aiPost(payload,ms){return postJSON(aiURL(),payload,'application/json',ms);}
+
+/* ---- Google client ID (must match the secret set in the Worker) ---- */
+const GOOGLE_CLIENT_ID = ''; // filled after Google Cloud Console setup
 
 /* ============================================================================
    SETTINGS  —  every tunable number lives here, in one place.
@@ -1697,26 +1757,41 @@ function initOnboard(){
   go.onclick=()=>{
     const p={name:name.value.trim(),sex,age:+age.value,height:+h.value,weight:+w.value,act:actVal(),
       need:mifflin({sex,age:+age.value,height:+h.value,weight:+w.value,act:actVal()}),target_kg:parseFloat(g('ob-target').value)||null,start:new Date().toISOString().slice(0,10)};
-    if(PID){
-      // Existing client with ?id= (onboarded by Marco): save locally, boot
+    if(PID&&getAuthToken()){
+      // Google user completing profile, or existing client: save profile to server + locally
+      go.disabled=true;go.textContent='Setting up...';
+      postJSON(BACKEND_URL,{action:'complete_profile',sex:p.sex,age:p.age,height:p.height,weight:p.weight,act:p.act,target_kg:p.target_kg},'application/json')
+        .then(d=>{
+          IS_PROGRAM=false;
+          profile=Object.assign(p,{program:false,current_target_kcal:d.current_target_kcal||p.need});
+          localStorage.setItem(K('profile'),JSON.stringify(profile));
+          g('onboard').classList.add('hidden');boot();
+        }).catch(e=>{
+          // Offline fallback: save locally
+          profile=p;
+          localStorage.setItem(K('profile'),JSON.stringify(profile));
+          g('onboard').classList.add('hidden');boot();
+        });
+    }else if(PID){
+      // Existing client with ?id= but no token (legacy): save locally, boot
       profile=p;
       localStorage.setItem(K('profile'),JSON.stringify(profile));
       g('onboard').classList.add('hidden');boot();
     }else{
-      // Free user: register via backend, get unique ID
+      // Free user: register via backend, get unique ID + auth token
       go.disabled=true;go.textContent='Setting up...';
-      fetch(BACKEND_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
-        body:JSON.stringify({action:'register',name:p.name,sex:p.sex,age:p.age,height:p.height,weight:p.weight,act:p.act,target_kg:p.target_kg})
-      }).then(r=>r.json()).then(d=>{
-        if(d.error){alert(d.error);go.disabled=false;go.textContent='Begin';return;}
-        PID=d.id;
-        IS_PROGRAM=false;
-        localStorage.setItem('aevum_last_id',PID);
-        const url=new URL(location.href);url.searchParams.set('id',PID);history.replaceState(null,'',url);
-        profile=Object.assign(p,{program:false,current_target_kcal:d.current_target_kcal||p.need});
-        localStorage.setItem(K('profile'),JSON.stringify(profile));
-        g('onboard').classList.add('hidden');boot();
-      }).catch(()=>{alert('Could not connect. Check your internet and try again.');go.disabled=false;go.textContent='Begin';});
+      postJSON(BACKEND_URL,{action:'register',name:p.name,sex:p.sex,age:p.age,height:p.height,weight:p.weight,act:p.act,target_kg:p.target_kg},'application/json')
+        .then(d=>{
+          if(d.error){alert(d.error);go.disabled=false;go.textContent='Begin';return;}
+          PID=d.id;
+          if(d.token)setAuthToken(d.token);
+          IS_PROGRAM=false;
+          localStorage.setItem('aevum_last_id',PID);
+          const url=new URL(location.href);url.searchParams.set('id',PID);history.replaceState(null,'',url);
+          profile=Object.assign(p,{program:false,current_target_kcal:d.current_target_kcal||p.need});
+          localStorage.setItem(K('profile'),JSON.stringify(profile));
+          g('onboard').classList.add('hidden');boot();
+        }).catch(e=>{alert(e.message||'Could not connect. Check your internet and try again.');go.disabled=false;go.textContent='Begin';});
     }
   };
 }
@@ -3548,7 +3623,7 @@ function openProfile(){
   } else {
     g('profCoachSection').classList.add('hidden');
   }
-  g('profVer').textContent='AEVUM v1.2.0';
+  g('profVer').textContent='AEVUM v2.0.0-beta';
   g('profScrim').classList.add('show');g('profPanel').classList.add('show');
   history.pushState({sheet:'profile'},'');
 }
@@ -3557,6 +3632,12 @@ function closeProfile(){
   if(history.state&&history.state.sheet==='profile')history.back();
   else{g('profScrim').classList.remove('show');g('profPanel').classList.remove('show');}
 }
+g('btnLogout').onclick=()=>{
+  if(!confirm('Log out of AEVUM?'))return;
+  clearAuthToken();
+  localStorage.removeItem('aevum_last_id');
+  location.reload();
+};
 
 function wire(){
   g('prevDay').onclick=()=>{saveDay(true);currentDay=Math.max(1,currentDay-1);loadDay();scrollTo(0,0);};
@@ -3763,8 +3844,8 @@ function hydrateFromBackend(){
     }).catch(()=>{});
 }
 function fetchProfile(){
-  if(!BACKEND_URL)return;
-  fetch(BACKEND_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'profile',id:PID})})
+  if(!BACKEND_URL||!getAuthToken())return;
+  postJSON(BACKEND_URL,{action:'profile'},'text/plain;charset=utf-8')
     .then(r=>r.json()).then(d=>{
       if(d.profile){
         const P=d.profile, keep={target_kg:P.target_kg,start_weight:P.start_weight,start_date:P.start_date,activation_days:P.activation_days,stab_target_weight:P.stab_target_weight,maint_target_weight:P.maint_target_weight};
@@ -3801,8 +3882,176 @@ window.addEventListener('popstate',()=>{
   if(g('phSheet')&&g('phSheet').classList.contains('show')){g('phScrim').classList.remove('show');g('phSheet').classList.remove('show');}
   if(g('profPanel').classList.contains('show')){g('profScrim').classList.remove('show');g('profPanel').classList.remove('show');}
 });
+/* ──── Login screen logic ──── */
+function showLogin(){
+  g('loginScreen').classList.remove('hidden');
+  g('onboard').classList.add('hidden');
+  g('loginMainView').style.display='flex';
+  g('loginTokenView').style.display='none';
+  g('loginErr').textContent='';
+  initGoogleSignIn();
+}
+
+function hideLogin(){g('loginScreen').classList.add('hidden');}
+
+function initGoogleSignIn(){
+  if(!GOOGLE_CLIENT_ID||!window.google||!google.accounts) return;
+  google.accounts.id.initialize({
+    client_id:GOOGLE_CLIENT_ID,
+    callback:handleGoogleResponse,
+    auto_select:false
+  });
+  // Render the Google button as a custom click (we use our own styled button)
+  g('btnGoogle').onclick=()=>{
+    google.accounts.id.prompt((n)=>{
+      // If One Tap doesn't show (e.g. dismissed before), trigger full popup
+      if(n.isNotDisplayed()||n.isSkippedMoment()){
+        // Fall back to the OAuth popup flow
+        const client=google.accounts.oauth2.initCodeClient({
+          client_id:GOOGLE_CLIENT_ID,
+          scope:'email profile',
+          ux_mode:'popup',
+          callback:()=>{}
+        });
+        // Actually use initTokenClient for implicit flow to get id_token
+        googlePopupFallback();
+      }
+    });
+  };
+}
+
+function googlePopupFallback(){
+  // Use Google Identity Services popup to get an id_token
+  const authUrl='https://accounts.google.com/o/oauth2/v2/auth?'+
+    'client_id='+encodeURIComponent(GOOGLE_CLIENT_ID)+
+    '&redirect_uri='+encodeURIComponent(location.origin+location.pathname)+
+    '&response_type=id_token'+
+    '&scope=openid email profile'+
+    '&nonce='+crypto.randomUUID();
+  location.href=authUrl;
+}
+
+function handleGoogleResponse(response){
+  // response.credential is the JWT id_token
+  g('loginErr').textContent='';
+  g('btnGoogle').disabled=true;
+  g('btnGoogle').textContent='Signing in...';
+  postJSON(BACKEND_URL,{action:'auth_google',id_token:response.credential},'application/json')
+    .then(d=>{
+      if(d.error){g('loginErr').textContent=d.error;g('btnGoogle').disabled=false;g('btnGoogle').innerHTML='<svg viewBox="0 0 24 24" style="width:20px;height:20px"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18A10.97 10.97 0 001 12c0 1.77.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg> Continue with Google';return;}
+      setAuthToken(d.token);
+      PID=d.id;
+      localStorage.setItem('aevum_last_id',PID);
+      if(d.needs_profile){
+        // New Google user: go to onboarding to collect profile details
+        hideLogin();
+        IS_PROGRAM=false;
+        initOnboard();
+      }else{
+        // Existing user: boot directly
+        hideLogin();
+        g('onboard').classList.add('hidden');
+        loadProfile();
+        if(!profile){
+          // First time: fetch profile from server
+          postJSON(BACKEND_URL,{action:'profile'},'text/plain;charset=utf-8').then(pd=>{
+            if(pd.profile){
+              profile=pd.profile;
+              if(profile.program===false)IS_PROGRAM=false;
+              localStorage.setItem(K('profile'),JSON.stringify(profile));
+            }
+            boot();
+          }).catch(()=>boot());
+        }else{
+          boot();
+        }
+      }
+    }).catch(e=>{
+      g('loginErr').textContent=e.message||'Connection error';
+      g('btnGoogle').disabled=false;
+      g('btnGoogle').innerHTML='<svg viewBox="0 0 24 24" style="width:20px;height:20px"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18A10.97 10.97 0 001 12c0 1.77.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg> Continue with Google';
+    });
+}
+
+// Check for Google OAuth redirect (id_token in URL hash)
+(function checkGoogleRedirect(){
+  const hash=location.hash;
+  if(hash&&hash.includes('id_token=')){
+    const params=new URLSearchParams(hash.substring(1));
+    const idToken=params.get('id_token');
+    if(idToken){
+      history.replaceState(null,'',location.pathname+location.search);
+      handleGoogleResponse({credential:idToken});
+    }
+  }
+})();
+
+// Token login button handlers
+g('btnTokenLogin').onclick=()=>{
+  g('loginMainView').style.display='none';
+  g('loginTokenView').style.display='flex';
+  g('tokenInput').focus();
+};
+g('btnBackToMain').onclick=()=>{
+  g('loginMainView').style.display='flex';
+  g('loginTokenView').style.display='none';
+  g('loginErr').textContent='';
+};
+g('btnTokenSubmit').onclick=()=>{
+  const tok=g('tokenInput').value.trim();
+  if(!tok){g('loginErr').textContent='Paste your token above';return;}
+  g('loginErr').textContent='';
+  g('btnTokenSubmit').disabled=true;
+  g('btnTokenSubmit').textContent='Checking...';
+  // Temporarily set token to validate it
+  setAuthToken(tok);
+  postJSON(BACKEND_URL,{action:'login',token:tok},'application/json')
+    .then(d=>{
+      if(d.error){clearAuthToken();g('loginErr').textContent=d.error;g('btnTokenSubmit').disabled=false;g('btnTokenSubmit').textContent='Log in';return;}
+      PID=d.id;
+      localStorage.setItem('aevum_last_id',PID);
+      if(d.program===false)IS_PROGRAM=false;
+      hideLogin();
+      g('onboard').classList.add('hidden');
+      loadProfile();
+      if(!profile){
+        postJSON(BACKEND_URL,{action:'profile'},'text/plain;charset=utf-8').then(pd=>{
+          if(pd.profile){profile=pd.profile;if(profile.program===false)IS_PROGRAM=false;localStorage.setItem(K('profile'),JSON.stringify(profile));}
+          boot();
+        }).catch(()=>boot());
+      }else{boot();}
+    }).catch(e=>{
+      clearAuthToken();
+      g('loginErr').textContent=e.message||'Connection error';
+      g('btnTokenSubmit').disabled=false;g('btnTokenSubmit').textContent='Log in';
+    });
+};
+g('tokenInput').onkeydown=(e)=>{if(e.key==='Enter')g('btnTokenSubmit').click();};
+
+// "Create free account" goes to onboarding (register flow)
+g('btnNewAccount').onclick=()=>{
+  hideLogin();
+  PID='';
+  initOnboard();
+};
+
+/* ──── App entry point ──── */
 loadProfile();
-if(profile&&PID){g('onboard').classList.add('hidden');boot();}else{initOnboard();}
+const hasToken=!!getAuthToken();
+if(hasToken&&profile&&PID){
+  // Returning authenticated user
+  g('onboard').classList.add('hidden');
+  boot();
+}else if(hasToken&&PID){
+  // Has token but no local profile: fetch it
+  g('onboard').classList.add('hidden');
+  postJSON(BACKEND_URL,{action:'profile'},'text/plain;charset=utf-8')
+    .then(d=>{if(d.profile){profile=d.profile;if(profile.program===false)IS_PROGRAM=false;localStorage.setItem(K('profile'),JSON.stringify(profile));}boot();})
+    .catch(()=>showLogin());
+}else{
+  // No auth token: show login
+  showLogin();
+}
 </script>
 </body>
 </html>

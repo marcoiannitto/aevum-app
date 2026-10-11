@@ -6,6 +6,7 @@ compatibility_date = "2024-09-01"
 #   npx wrangler secret put ADMIN_TOKEN
 #   npx wrangler secret put AI_WORKER_URL
 #   npx wrangler secret put ANTHROPIC_KEY
+#   npx wrangler secret put GOOGLE_CLIENT_ID
 
 [vars]
 ALLOWED_ORIGIN = "https://beta.niramaya.sg"

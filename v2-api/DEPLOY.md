@@ -34,6 +34,9 @@ npx wrangler secret put AI_WORKER_URL
 
 npx wrangler secret put ANTHROPIC_KEY
 # paste your Anthropic API key
+
+npx wrangler secret put GOOGLE_CLIENT_ID
+# paste your Google OAuth client ID (see step 10)
 ```
 
 ## 5. Deploy the Worker
@@ -80,3 +83,20 @@ The beta frontend needs two changes:
 3. All API calls include `Authorization: Bearer <token>` header
 
 These changes go on a `v2-auth` branch deployed to `beta.niramaya.sg`.
+
+## 10. Google Sign-In setup
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a project (or use an existing one)
+3. Go to **APIs & Services > OAuth consent screen**
+   - User type: External
+   - App name: AEVUM
+   - Add your email as test user (allows sign-in while in testing mode)
+4. Go to **APIs & Services > Credentials > Create Credentials > OAuth client ID**
+   - Application type: Web application
+   - Name: AEVUM Beta
+   - Authorized JavaScript origins: `https://beta.niramaya.sg` and `http://localhost:8080`
+   - Authorized redirect URIs: `https://beta.niramaya.sg/index.html` and `http://localhost:8080/index.html`
+5. Copy the **Client ID** (looks like `123456789.apps.googleusercontent.com`)
+6. Set it as a Worker secret: `npx wrangler secret put GOOGLE_CLIENT_ID`
+7. Paste the same Client ID into `index.html` in the `GOOGLE_CLIENT_ID` const

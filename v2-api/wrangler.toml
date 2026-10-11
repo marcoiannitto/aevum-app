@@ -1,0 +1,16 @@
+name = "aevum-api-v2"
+main = "src/index.js"
+compatibility_date = "2024-09-01"
+
+# Secrets (set via CLI):
+#   npx wrangler secret put ADMIN_TOKEN
+#   npx wrangler secret put AI_WORKER_URL
+#   npx wrangler secret put ANTHROPIC_KEY
+
+[vars]
+ALLOWED_ORIGIN = "https://beta.niramaya.sg"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "aevum-db"
+database_id = ""  # filled after: npx wrangler d1 create aevum-db
